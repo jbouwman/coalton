@@ -198,9 +198,7 @@
   (declare (type string filename))
 
   (with-open-file (file-stream filename :if-does-not-exist :error)
-    (let ((coalton-file (error:make-coalton-file
-                         :stream file-stream
-                         :name filename)))
+    (let ((coalton-file (error:make-coalton-file filename)))
       (multiple-value-bind (code env)
           (entry-point (parser:read-program file-stream coalton-file :mode :file))
 

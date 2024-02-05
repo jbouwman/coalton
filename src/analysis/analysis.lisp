@@ -66,7 +66,7 @@
                                       :primary-note "non-exhaustive match"
                                       :notes (when (first exhaustive-or-missing)
                                                (list
-                                                (error:make-coalton-error-note
+                                                (error:note
                                                  :type :secondary
                                                  :span (tc:node-source node)
                                                  :message (format nil "Missing case ~W"
@@ -82,7 +82,7 @@
                                             :primary-note "useless match case"
                                             :notes
                                             (list
-                                             (error:make-coalton-error-note
+                                             (error:note
                                               :type :secondary
                                               :span (tc:node-source node)
                                               :message "in this match")))))))
