@@ -29,7 +29,7 @@
   (:report
    (lambda (c s)
      (tc:with-pprint-variable-context ()
-       (source-error:report-source-error c s)))))
+       (source-error:print-source-error c s)))))
 
 (defun check-duplicates (elems f g callback)
   "Check for duplicate elements in ELEMS. F maps items in ELEMS to

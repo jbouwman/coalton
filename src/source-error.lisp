@@ -6,7 +6,7 @@
    #:deferred-note
    #:help
    #:note
-   #:report-source-error                ; FUNCTION
+   #:print-source-error                 ; FUNCTION
    #:source-error                       ; MACRO, CONDITION
    #:source-error-info                  ; STRUCTURE
    #:source-location                    ; FUNCTION
@@ -22,7 +22,7 @@
 ;; warning conditions both have an `error` slot of type
 ;; `error-info` that contains detailed information about the
 ;; source of the error and optional explanatory notes and
-;; messages. `report-source-error` uses this structure to emit an
+;; messages. `print-source-error` uses this structure to emit an
 ;; annotated error description when either of these conditions is
 ;; printed.
 
@@ -30,7 +30,7 @@
 ;;
 ;; The generic functions `source-name` and `source-stream` define a
 ;; protocol that gives the condition printer access to an input source
-;; related to the condition, via the `source` slot on a
+;; related to the condition, via the `source` sl§>ot on a
 ;; error-info struct (see below). These provide, respectively,
 ;; the name, and contents of a source.
 
@@ -40,12 +40,22 @@
 ;; annotations. The top-level `error-info` structure may
 ;; contain sets of optional `note` and
 ;; `source-error-help` messages that refer to source spans, which
-;; `report-source-error` will resolve to character ranges in an input
+;; `print-source-error` will resolve to character ranges in an input
 ;; source.
+
+(defgeneric source-name (source)
+  (:documentation "Returns a string that names a source, for reporting in conditions. In
+the case of files, this is the filename path."))
+
+(defgeneric source-stream (source)
+  (:documentation "A seekable stream providing access to the original contents of a
+source, for reporting in condition printers. WARNING: it is the
+responsibility of the caller to close the stream, if not using the
+with-source-stream convenience macro."))
 
 (defun report-error (condition stream)
   (with-slots (error) condition
-    (report-source-error stream error)))
+    (print-source-error stream error)))
 
 (define-condition source-error (error)
   ((error :initarg :error))
@@ -57,35 +67,51 @@
   (:documentation "The type for user-facing warnings.")
   (:report report-error))
 
-(defclass span-mixin ()
+(defclass source-annotation ()
   ((span :initarg :span
-         :reader span)))
+         :reader span)
+   (message :initarg :message
+            :reader note-message)))
 
-(defun span-start (span-mixin)
-  (car (slot-value span-mixin 'span)))
+(defun span-start (source-annotation)
+  (car (slot-value source-annotation 'span)))
 
-(defun span-end (span-mixin)
-  (cdr (slot-value span-mixin 'span)))
+(defun span-end (source-annotation)
+  (cdr (slot-value source-annotation 'span)))
 
-(defclass note (span-mixin)
+(defclass note (source-annotation)
   ((type :initarg :type
-         :reader note-type)
-   (message :initarg :message
-            :reader note-message)))
+         :reader note-type)))
 
-(defclass help (span-mixin)
+(defun note (&key span type message)
+  (make-instance 'note
+    :span span
+    :type type
+    :message message))
+
+(defclass help (source-annotation)
   ((replacement :initarg :replacement
-                :reader note-replacement)
-   (message :initarg :message
-            :reader note-message)))
+                :reader note-replacement)))
+
+(defun help (&key span replacement message)
+  (make-instance 'help
+    :span span
+    :replacement replacement
+    :message message))
 
 (defclass deferred-note ()
   ((fn :initarg :fn)
    (rendered)))
 
+(defun deferred-note (fn)
+  (make-instance 'deferred-note :fn fn))
+
 (defclass error-context ()
   ((message :initarg :message
             :reader error-context-message)))
+
+(defun context (&key message)
+  (make-instance 'error-context :message message))
 
 (defclass error-info ()
   ((type :initarg :type)
@@ -95,35 +121,19 @@
    (message :initarg :message)
    (notes :initarg :notes
           :reader notes)
-   (help :initarg :help)
+   (help :initarg :help
+         :initform nil)
    (context :initarg :context
             :reader error-context)))
+
+(defun positioned-annotations (error-info)
+  (with-slots (notes help) error-info
+    (concatenate 'list notes help)))
 
 (defmethod initialize-instance :after ((error-info error-info) &rest initargs)
   (declare (ignore initargs))
   (with-slots (notes) error-info
     (setf notes (stable-sort notes #'< :key #'span-start))))
-
-(defun note (&key span type message)
-  (make-instance 'note
-    :span span
-    :type type
-    :message message))
-
-(defun help (&key span replacement message)
-  (make-instance 'help
-    :span span
-    :replacement replacement
-    :message message))
-
-(defun deferred-note (fn)
-  (make-instance 'deferred-note :fn fn))
-
-(defun make-deferred-error-note (fn)
-  (make-instance 'deferred-note :fn fn))
-
-(defun context (&key message)
-  (make-instance 'error-context :message message))
 
 (defun source-error (&key (type :error) source location message primary-note notes help context)
   "Construct an ERROR-INFO instance with a message and primary note attached to the provided form.
@@ -147,23 +157,13 @@ NOTES and HELP may optionally be supplied notes and help messages."
       :help help
       :context context)))
 
-(defgeneric source-name (source)
-  (:documentation "Returns a string that names a source, for reporting in conditions. In
-the case of files, this is the filename path."))
-
-(defgeneric source-stream (source)
-  (:documentation "A seekable stream providing access to the original contents of a
-source, for reporting in condition printers. WARNING: it is the
-responsibility of the caller to close the stream, if not using the
-with-source-stream convenience macro."))
-
 (defmacro with-source-stream ((stream error-info) &body body)
   `(with-open-stream (,stream (source-stream (error-source ,error-info)))
     ,@body))
 
 ;; error formatter
 ;;
-;; `report-source-error`, at the bottom, is a workhorse function that
+;; `print-source-error`, at the bottom, is a workhorse function that
 ;; takes a source-error-info structure, resolves source-relative spans
 ;; to the input source, and then prints annotated source code.
 ;;
@@ -182,7 +182,6 @@ with-source-stream convenience macro."))
    (offset-positions :initform (make-hash-table))
 
    (line-number-width)
-   (first-line)
    (current-line)
    (last-line)
 
@@ -190,7 +189,8 @@ with-source-stream convenience macro."))
    ;; notes so that we can pad the left with the correct
    ;; number of columns.
 
-   (note-stack :initform nil)
+   (note-stack :accessor note-stack
+               :initform nil)
    (note-max-depth :initform 0)))
 
 (defmethod initialize-instance :after ((report-state report-state) &rest initargs)
@@ -200,7 +200,7 @@ with-source-stream convenience macro."))
                line-offsets
                offset-positions
                note-max-depth
-               first-line
+               current-line
                last-line
                line-number-width)
       report-state
@@ -211,9 +211,27 @@ with-source-stream convenience macro."))
       (loop :for (char-offset line column) :in (find-column-offsets offsets char-offsets)
             :do (setf (gethash char-offset offset-positions)
                       (cons line column)))
-      (setf last-line (last-line-number report-state)
+      (setf current-line (first-line-number report-state)
+            last-line (last-line-number report-state)
             line-number-width (line-number-width report-state)
             note-max-depth (max-depth (slot-value error-info 'notes))))))
+
+(defun span-lines (report-state source-annotation)
+  "Return the start and end lines of SOURCE-ANNOTATION"
+  (with-slots (offset-positions) report-state
+    (destructuring-bind (start . end) (span source-annotation)
+      (values (car (gethash start offset-positions))
+              (car (gethash end offset-positions))))))
+
+(defun span-positions (report-state source-annotation)
+  "Return the start and end positions of SOURCE-ANNOTATION"
+  (with-slots (offset-positions) report-state
+    (destructuring-bind (start . end) (span source-annotation)
+      (destructuring-bind (start-line . start-column)
+          (gethash start offset-positions)
+        (destructuring-bind (end-line . end-column)
+            (gethash end offset-positions)
+          (values start-line start-column end-line end-column))))))
 
 ;; Mapping between character offsets and line and column positions.
 ;;
@@ -258,7 +276,7 @@ column numbers for a sequence of absolute stream offsets."
   (sort (remove-duplicates
          (mapcan (lambda (note)
                    (list (span-start note) (span-end note)))
-                 (notes (slot-value report-state 'error-info))))
+                 (positioned-annotations (slot-value report-state 'error-info))))
         #'<))
 
 (defun first-line-number (report-state)
@@ -268,16 +286,6 @@ column numbers for a sequence of absolute stream offsets."
 (defun last-line-number (report-state)
   (with-slots (error-info offset-positions) report-state
     (car (gethash (span-end (car (last (notes error-info)))) offset-positions))))
-
-(defun span-lines (report-state span)
-  (with-slots (offset-positions) report-state
-    (values (car (gethash (span-start span) offset-positions))
-            (car (gethash (span-end span) offset-positions)))))
-
-(defun span-offsets (report-state span)
-  (with-slots (offset-positions) report-state
-    (cons (gethash (span-start span) offset-positions)
-          (gethash (span-end span) offset-positions))))
 
 (defun start-position (report-state span)
   (with-slots (offset-positions) report-state
@@ -332,6 +340,17 @@ column numbers for a sequence of absolute stream offsets."
 (defun offset-position (report-state location)
   (gethash location (slot-value report-state 'offset-positions) (cons 1 0)))
 
+(defun note-highlight-char (note)
+  (case (note-type note)
+    (:primary #\^)
+    (otherwise #\-)))
+
+(defun write-char-n (char n stream)
+  (dotimes (n n)
+    (write-char char stream)))
+
+;; Printer
+
 (defun print-error-location (report-state)
   (with-slots (error-info stream) report-state
     (with-slots (type source location message) error-info
@@ -363,47 +382,35 @@ column numbers for a sequence of absolute stream offsets."
   (print-line-number report-state line-number t)
   (with-slots (stream file-stream note-stack note-max-depth) report-state
     (format stream " ~v@{ ~}~A~%"
-            (- note-max-depth
-               (length note-stack))
+            (- note-max-depth (length note-stack))
             (line-contents report-state line-number))))
 
-(defun note-highlight-char (note)
-  (case (note-type note)
-    (:primary #\^)
-    (otherwise #\-)))
-
 (defun print-singleline-note (report-state note)
-  (destructuring-bind ((start-line . start-column)
-                       (end-line . end-column))
-      (span-offsets report-state (span note))
+  (multiple-value-bind (start-line start-column end-line end-column)
+      (span-positions report-state note)
     (declare (ignore end-line))
     (print-line-number report-state start-line nil)
     (with-slots (stream note-max-depth note-stack) report-state
-      (format stream
-              " ~v{~C~:*~}~v{~C~:*~} ~A~%"
+      (format stream " ~v{~C~:*~}~v{~C~:*~} ~A~%"
               (+ start-column
-                 (- note-max-depth
-                    (length note-stack)))
+                 (- note-max-depth (length note-stack)))
               '(#\Space)
               (- end-column start-column)
               (list (note-highlight-char note))
               (note-message note)))))
 
-(defun write-char-n (char n stream)
-  (dotimes (n n)
-    (write-char char stream)))
-
-(defun print-multiline-note-start (report-state note)
+(defun print-note-start (report-state note)
   (destructuring-bind (start-line . start-column)
-      (start-position report-state (span note))
+      (start-position report-state note)
     (print-line-number report-state start-line nil)
     (with-slots (stream note-max-depth note-stack) report-state
       (write-char-n #\_ (+ start-column (- note-max-depth (length note-stack))) stream)
-      (write-char (note-highlight-char note) stream))))
+      (write-char (note-highlight-char note) stream)
+      (terpri stream))))
 
 (defun print-note-end (report-state note)
-  (let ((start-line (start-line report-state (span note)))
-        (end-column (end-column report-state (span note))))
+  (let ((start-line (start-line report-state note))
+        (end-column (end-column report-state note)))
     (print-line-number report-state start-line nil)
     (with-slots (stream note-max-depth note-stack) report-state
       (write-char-n #\_ (+ end-column (- note-max-depth (length note-stack))) stream)
@@ -411,12 +418,12 @@ column numbers for a sequence of absolute stream offsets."
               (note-highlight-char note)
               (note-message note)))))
 
-(defun print-finished-multiline-notes-for-line (report-state line-number)
+(defun print-finished-notes-for-line (report-state line-number)
   (with-slots (stream note-stack) report-state
     ;; Check if there are any multiline notes that need to be printed
     (loop :for stack-head := note-stack :then (cdr stack-head)
           :for note := (car stack-head)
-          :for end-line := (end-line report-state (span note))
+          :for end-line := (and note (end-line report-state note))
           :when (null stack-head)
             :do (return)
           :when (= line-number end-line)
@@ -436,7 +443,7 @@ column numbers for a sequence of absolute stream offsets."
            (loop :for line :from current-line :below line-number
                  :do (print-line-contents report-state (1+ line))
                  :unless (= (1+ line) line-number)
-                   :do (print-finished-multiline-notes-for-line report-state (1+ line))))
+                   :do (print-finished-notes-for-line report-state (1+ line))))
           (t
            ;; Otherwise split the output.
            (print-line-contents report-state (1+ current-line))
@@ -451,72 +458,88 @@ column numbers for a sequence of absolute stream offsets."
     (setf current-line line-number)))
 
 (defun print-note (report-state note)
-  (with-slots (note-stack note-max-depth) report-state
-    (multiple-value-bind (start-line end-line)
-        (span-lines report-state (span note))
-      ;; Print lines until this note.
-      (print-lines-until report-state start-line)
-      (cond
-        ;; For multiline we need to add to the current stack.
-        ((/= start-line end-line)
-         ;; Print out a new row with underlines connecting
-         ;; back to the multiline position.
-         (print-multiline-note-start report-state note)
-         ;; Push this note on to the stack for safe keeping.
-         (push note note-stack))
-        ;; For non-multiline just print the note
-        (t
-         (print-singleline-note report-state note)
-         (print-finished-multiline-notes-for-line report-state start-line))))))
+  (multiple-value-bind (start-line end-line) (span-lines report-state note)
+    (print-lines-until report-state start-line)
+    (cond ((/= start-line end-line)
+           (print-note-start report-state note)
+           (push note (note-stack report-state)))
+          (t
+           (print-singleline-note report-state note)
+           (print-finished-notes-for-line report-state start-line)))))
 
 (defun print-help (report-state help)
   (with-slots (stream source-stream) report-state
-    (destructuring-bind ((start-line . start-line-start)
-                         (end-line . end-line-start))
-        (span-offsets report-state (span help))
+    (multiple-value-bind (start-line start-column end-line end-column)
+        (span-positions report-state help)
       (unless (= start-line end-line)
         (error "multiline help messages not supported yet."))
       (let ((line-number-width (1+ (floor (log end-line 10))))
-            (start (span-start (span help)))
-            (end (span-end (span help))))
+            (start (span-start help))
+            (end (span-end help)))
         (format stream "help: ~A~%" (note-message help))
         (format stream " ~vD | ~A"
                 line-number-width
                 start-line
-                (subseq (line-contents source-stream start-line)
-                        0 (- start start-line-start)))
+                (subseq (line-contents report-state start-line)
+                        0 (- start start-column)))
         (let ((replaced-text (funcall (note-replacement help)
-                                      (subseq (line-contents source-stream start-line)
-                                              (- start start-line-start)
-                                              (- end end-line-start)))))
+                                      (subseq (line-contents report-state start-line)
+                                              (- start start-column)
+                                              (- end end-column)))))
           (format stream "~A~A~%"
                   replaced-text
-                  (subseq (line-contents source-stream start-line)
-                          (- end end-line-start)))
+                  (subseq (line-contents report-state start-line)
+                          (- end end-column)))
           (format stream " ~v{~C~:*~} |~v{~C~:*~}~v{~C~:*~}~%"
                   line-number-width '(#\Space)
-                  (1+ (- start start-line-start)) '(#\Space)
+                  (1+ (- start start-column)) '(#\Space)
                   (length replaced-text) '(#\-)))))))
 
-(defun report-source-error (stream error-info)
+(defun print-line-prefix (report-state &key (line-number nil))
+  (with-slots (stream line-number-width) report-state
+    (cond (line-number
+           (format stream " ~va |" line-number-width line-number))
+          (t
+           (write-char-n #\Space (+ 2 line-number-width) stream)
+           (write-char #\| stream)))))
+
+(defun print-empty-line (report-state)
+  (print-line-prefix report-state)
+  (terpri (slot-value report-state 'stream)))
+
+(defun can-advance-p (report-state)
+  (with-slots (current-line last-line) report-state
+    (<= current-line last-line)))
+
+(defun advance (report-state)
+  (incf (slot-value report-state 'current-line))
+
+        ;; Print notes, printing lines as needed and keeping track of
+        ;; multiline note depth
+;        (loop :for note :in (notes error-info)
+ ;             :do (print-note state note))
+  ;      (print-lines-until state last-line)
+   ;     (print-finished-notes-for-line state last-line)
+
+  )
+
+(defun print-source-error (stream error-info)
   (with-source-stream (source-stream error-info)
     (let ((state (make-instance 'report-state
                    :stream stream
                    :source-stream source-stream
                    :error-info error-info)))
-      (with-slots (line-number-width last-line) state
-        ;; Print the error message and location
-        (print-error-location state)
-        ;; Print first empty line.
-        (format stream " ~va |~%" line-number-width "")
-        ;; Print notes, printing lines as needed and keeping track of
-        ;; multiline note depth
-;        (loop :for note :in (slot-value error-info 'notes)
-;              :do (print-note state note))
-;        (print-lines-until state last-line)
-;        (print-finished-multiline-notes-for-line state last-line)
-;        (loop :for help :in (slot-value error-info 'help)
-;              :do (print-help state help))
-;        (loop :for context :in (slot-value error-info 'error-context)
-                                        ;              :do (format stream "note: ~A~%" (error-context-message context)))
-        ))))
+
+      ;; error message and location
+
+      (print-error-location state)
+      (print-empty-line state)
+
+      (loop :while (can-advance-p state)
+            :do (advance state))
+
+      (loop :for help :in (slot-value error-info 'help)
+            :do (print-help state help))
+
+      (loop :for context :in (slot-value error-info 'error-context)
+            :do (format stream "note: ~A~%" (error-context-message context))))))
