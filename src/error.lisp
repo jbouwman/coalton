@@ -6,7 +6,7 @@
    #:coalton-error                      ; FUNCTION
    #:*coalton-error-context*
    #:coalton-error-text                 ; FUNCTION
-   #:coalton-file                       ; STRUCT
+   #:coalton-file                       ; CLASS
    #:coalton-file-name                  ; FUNCTION
    #:coalton-internal-condition         ; CONDITION
    #:coalton-internal-type-error        ; CONDITION
@@ -42,31 +42,49 @@
 ;; of writing out a tempfile containing a form taken from within an
 ;; original source file.
 
-(defclass coalton-file ()
-  ((source-string :initarg :source-string
-                  :initform nil)
-   (source-filename :initarg :source-filename
-                    :initform nil)
+(defclass coalton-file () ())
+
+(defclass coalton-source-file (coalton-file)
+  ((source-filename :initarg :source-filename
+                    :reader source-filename)
    (original-filename :initarg :original-filename
+                      :reader original-filename
                       :initform nil
                       :reader coalton-file-name)
    (original-position :initarg :original-position
                       :initform 0)))
 
 (defun make-coalton-file (filename)
-  (make-instance 'coalton-file
+  (make-instance 'coalton-source-file
     :source-filename filename
     :original-filename filename))
 
 (defun make-coalton-ide-file (source-filename original-filename original-position)
-  (make-instance 'coalton-file
+  (make-instance 'coalton-source-file
     :source-filename source-filename
     :original-filename original-filename
     :original-position original-position))
 
+(defmethod source-error:source-name ((object coalton-source-file))
+  (or (original-filename object)
+      (source-filename object)))
+
+(defmethod source-error:source-stream ((object coalton-source-file))
+  (open (source-filename object)))
+
+(defclass coalton-source-string (coalton-file)
+  ((source-string :initarg :source-string
+                  :reader source-string)))
+
 (defun make-coalton-string (string)
-  (make-instance 'coalton-file
+  (make-instance 'coalton-source-string
     :source-string string))
+
+(defmethod source-error:source-name ((object coalton-source-string))
+  "string input")
+
+(defmethod source-error:source-stream ((object coalton-source-string))
+  (make-string-input-stream (source-string object)))
 
 (defvar *coalton-error-context* nil)
 
@@ -79,7 +97,7 @@
                              :message message
                              :primary-note primary-note
                              :notes notes
-                             :help-notes help-notes
+                             :help help-notes
                              :context *coalton-error-context*))
 
 (defun coalton-error-text ()

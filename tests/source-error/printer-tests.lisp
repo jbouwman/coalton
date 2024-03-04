@@ -58,4 +58,4 @@ Line 8: hijklmnopqrstuvwxyzabcdefg
                                    :location '(35 . 41)
                                    :source source
                                    :message "This is line 1")))
-    (source-error::print-source-error stream error-info)))
+    (source-error:report-source-error stream error-info)))

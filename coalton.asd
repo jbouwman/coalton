@@ -39,12 +39,7 @@
                              (:file "immutable-map")
                              (:file "immutable-listmap")
                              (:file "package")))
-               (:module "source-error"
-                :serial t
-                :components ((:file "package")
-                             (:file "stream")
-                             (:file "error")
-                             (:file "printer")))
+               (:file "source-error")
                (:file "error")
                (:module "parser"
                 :serial t

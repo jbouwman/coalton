@@ -30,10 +30,12 @@
                   output-stream)
     :close-stream
     (with-open-file (stream program-file)
-      (let* ((f (coalton-impl/error::make-coalton-file :stream stream :name "file"))
+      (let* ((f (coalton-impl/error::make-coalton-ide-file program-file
+                                                           "file"
+                                                           0))
              (msg (with-output-to-string (output)
                     ;; an annotating error
-                    (coalton-impl/error::display-coalton-error
+                    (source-error:report-source-error
                      output
                      (coalton-impl/error::coalton-error
                       :span '(76 . 321)
