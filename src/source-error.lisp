@@ -171,9 +171,7 @@ NOTES and HELP may optionally be supplied notes and help messages."
 ;; note depth, etc.
 
 (defclass report-state ()
-  ((stream :initarg :stream
-           :documentation "The stream onto which the condition is being written.")
-   (source-stream :initarg :source-stream
+  ((source-stream :initarg :source-stream
                   :reader source-stream
                   :documentation "The stream form which source code is to be read.")
    (error-info :initarg :error-info)
@@ -244,7 +242,7 @@ NOTES and HELP may optionally be supplied notes and help messages."
         :for char := (read-char stream nil nil)
         :unless (and char (or (not limit)
                               (<= index limit)))
-          :return offsets
+          :return (cons 0 offsets)
         :else
           :when (char= char #\Newline)
             :collect (1+ index) :into offsets
@@ -253,7 +251,7 @@ NOTES and HELP may optionally be supplied notes and help messages."
 (defun find-column-offsets (line-offsets offsets)
   "Given the offsets of newlines in a stream, compute the line and
 column numbers for a sequence of absolute stream offsets."
-  (loop :with line := 1
+  (loop :with line := 0
         :with position := 0
         :while offsets
         :when (or (null line-offsets)
@@ -268,9 +266,11 @@ column numbers for a sequence of absolute stream offsets."
 
 (defun line-contents (report-state line-number)
   (with-slots (line-offsets source-stream) report-state
-    (let ((offset (aref line-offsets (1- line-number))))
+    (let ((offset (if (= 1 line-number)
+                      0
+                      (aref line-offsets (1- line-number)))))
       (file-position source-stream offset)
-      (read-line source-stream))))
+      (read-line source-stream nil ""))))
 
 (defun char-offsets (report-state)
   (sort (remove-duplicates
@@ -351,8 +351,8 @@ column numbers for a sequence of absolute stream offsets."
 
 ;; Printer
 
-(defun print-error-location (report-state)
-  (with-slots (error-info stream) report-state
+(defun print-error-location (stream report-state)
+  (with-slots (error-info) report-state
     (with-slots (type source location message) error-info
       (destructuring-bind (line . column)
           (offset-position report-state location)
@@ -467,51 +467,42 @@ column numbers for a sequence of absolute stream offsets."
            (print-singleline-note report-state note)
            (print-finished-notes-for-line report-state start-line)))))
 
-(defun print-help (report-state help)
-  (with-slots (stream source-stream) report-state
+(defun print-help (stream report-state help)
+  (with-slots (source-stream) report-state
     (multiple-value-bind (start-line start-column end-line end-column)
         (span-positions report-state help)
       (unless (= start-line end-line)
         (error "multiline help messages not supported yet."))
-      (let ((line-number-width (1+ (floor (log end-line 10))))
-            (start (span-start help))
-            (end (span-end help)))
-        (format stream "help: ~A~%" (note-message help))
-        (format stream " ~vD | ~A"
-                line-number-width
-                start-line
-                (subseq (line-contents report-state start-line)
-                        0 (- start start-column)))
+      (format stream "help: ~A~%" (note-message help))
+      (let ((line (line-contents report-state start-line)))
+        (print-line-prefix stream report-state :line-number start-line)
+        (format stream " ~A" (subseq line 0 start-column))
         (let ((replaced-text (funcall (note-replacement help)
-                                      (subseq (line-contents report-state start-line)
-                                              (- start start-column)
-                                              (- end end-column)))))
-          (format stream "~A~A~%"
-                  replaced-text
-                  (subseq (line-contents report-state start-line)
-                          (- end end-column)))
-          (format stream " ~v{~C~:*~} |~v{~C~:*~}~v{~C~:*~}~%"
-                  line-number-width '(#\Space)
-                  (1+ (- start start-column)) '(#\Space)
+                                      (subseq line start-column end-column))))
+          (format stream "~A~A~%" replaced-text (subseq line end-column))
+          (print-line-prefix stream report-state)
+          (format stream "~v{~C~:*~}~v{~C~:*~}~%"
+                  (1+ start-column) '(#\Space)
                   (length replaced-text) '(#\-)))))))
 
-(defun print-line-prefix (report-state &key (line-number nil))
-  (with-slots (stream line-number-width) report-state
+(defun print-line-prefix (stream report-state &key (line-number nil))
+  (with-slots (line-number-width) report-state
     (cond (line-number
            (format stream " ~va |" line-number-width line-number))
           (t
            (write-char-n #\Space (+ 2 line-number-width) stream)
            (write-char #\| stream)))))
 
-(defun print-empty-line (report-state)
-  (print-line-prefix report-state)
-  (terpri (slot-value report-state 'stream)))
+(defun print-empty-line (stream report-state)
+  (print-line-prefix stream report-state)
+  (terpri stream))
 
 (defun can-advance-p (report-state)
   (with-slots (current-line last-line) report-state
     (<= current-line last-line)))
 
-(defun advance (report-state)
+(defun advance (stream report-state)
+  (declare (ignore stream))
   (incf (slot-value report-state 'current-line))
 
         ;; Print notes, printing lines as needed and keeping track of
@@ -526,20 +517,20 @@ column numbers for a sequence of absolute stream offsets."
 (defun print-source-error (stream error-info)
   (with-source-stream (source-stream error-info)
     (let ((state (make-instance 'report-state
-                   :stream stream
                    :source-stream source-stream
                    :error-info error-info)))
 
       ;; error message and location
-
-      (print-error-location state)
-      (print-empty-line state)
-
+      
+      (print-error-location stream state)
+      (print-empty-line stream state)
+      
       (loop :while (can-advance-p state)
-            :do (advance state))
-
+            :do (advance stream state))
+      
       (loop :for help :in (slot-value error-info 'help)
-            :do (print-help state help))
-
+            :do (print-help stream state help))
+      
+      #+yow
       (loop :for context :in (slot-value error-info 'error-context)
             :do (format stream "note: ~A~%" (error-context-message context))))))
