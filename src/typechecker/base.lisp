@@ -28,10 +28,8 @@
   ()
   (:report
    (lambda (c s)
-     (if (error:coalton-error-text c)
-         (write-string (error:coalton-error-text c) s)
-         (tc:with-pprint-variable-context ()
-           (error:display-coalton-error s (error:coalton-error-err c)))))))
+     (tc:with-pprint-variable-context ()
+       (source-error:print-source-error c s)))))
 
 (defun check-duplicates (elems f g callback)
   "Check for duplicate elements in ELEMS. F maps items in ELEMS to
