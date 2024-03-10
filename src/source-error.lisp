@@ -2,47 +2,47 @@
   (:use
    #:cl)
   (:export
-   #:context
-   #:deferred-note
-   #:help
-   #:note
-   #:print-source-error                 ; FUNCTION
-   #:source-error                       ; FUNCTION, CONDITION
-   #:source-location                    ; FUNCTION
-   #:source-name                        ; GENERIC
-   #:source-stream                      ; GENERIC
-   #:source-warning))                   ; FUNCTION
+   #:make-displaced-source-file 
+   #:make-help 
+   #:make-note 
+   #:make-source-file
+   #:make-source-string
+   #:report-source-condition
+   #:*source*
+   #:source
+   #:source-error
+   #:source-filename
+   #:source-warning
+   #:with-displaced-source-file
+   #:with-source-context
+   #:with-source-file
+   #:with-source-string))
 
 (in-package #:source-error)
 
-;; Source-aware error and warning condition types and helper functions
+;; Source-aware errors and warnings
 ;;
-;; These are the condition classes used by applications. Error and
-;; warning conditions both have an `error` slot of type
-;; `%source-error` that contains detailed information about the
-;; source of the error and optional explanatory notes and
-;; messages. `print-source-error` uses this structure to emit an
-;; annotated error description when either of these conditions is
-;; printed.
+;; Error and warning conditions contain information about the source
+;; of the error and optional explanatory notes and
+;; messages. `report-source-condition` uses these structures to emit
+;; annotated source code when these conditions are printed.
 
-;; source info protocol
-;;
-;; The generic functions `source-name` and `source-stream` define a
+;; The generic functions `source-filename` and `source-stream` define a
 ;; protocol that gives the condition printer access to an input source
-;; related to the condition, via the `source` sl§>ot on a
+;; related to the condition, via the `source` slot on a
 ;; %source-error struct (see below). These provide, respectively,
 ;; the name, and contents of a source.
 
 ;; source annotation structures
 ;;
-;; These are classes that hold for input span-associated error
+;; These are classes that hold for input location-associated error
 ;; annotations. The top-level `%source-error` structure may
 ;; contain sets of optional `note` and
-;; `source-error-help` messages that refer to source spans, which
-;; `print-source-error` will resolve to character ranges in an input
+;; `source-error-help` messages that refer to source locations, which
+;; `report-source-condition` will resolve to character ranges in an input
 ;; source.
 
-(defgeneric source-name (source)
+(defgeneric source-filename (source)
   (:documentation "Returns a string that names a source, for reporting in conditions. In
 the case of files, this is the filename path."))
 
@@ -52,114 +52,147 @@ source, for reporting in condition printers. WARNING: it is the
 responsibility of the caller to close the stream, if not using the
 with-source-stream convenience macro."))
 
-(defun report-error (condition stream)
-  (with-slots (error) condition
-    (print-source-error stream error)))
+(defvar *source*)
+
+(defvar *source-context* nil)
+
+;; Support direct compilation of files and strings, and slime's method
+;; of writing out a tempfile containing a form taken from within an
+;; original source file.
+
+(defclass source () ())
+
+(defclass source-file (source)
+  ((filename :initarg :filename
+             :documentation "The file containing source to be compiled.")
+   (original-filename :initarg :original-filename
+                      :initform nil
+                      :documentation "The original name of the source file, if source was copied iinto place for compilation.")
+   (original-position :initarg :original-position
+                      :initform 0)))
+
+(defun make-source-file (filename)
+  (make-instance 'source-file
+    :filename filename))
+
+(defun make-displaced-source-file (filename original-filename original-position)
+  (make-instance 'source-file
+    :filename filename
+    :original-filename original-filename
+    :original-position original-position))
+
+(defmethod source-filename ((object source-file))
+  (with-slots (filename original-filename) object
+    (or original-filename filename)))
+
+(defmethod source-stream ((object source-file))
+  (open (slot-value object 'filename)))
+
+(defclass source-string (source)
+  ((string :initarg :string
+           :reader source-string)))
+
+(defun make-source-string (string)
+  (make-instance 'source-string :string string))
+
+(defmethod source-filename ((object source-string))
+  "string input")
+
+(defmethod source-stream ((object source-string))
+  (make-string-input-stream (source-string object)))
+
+(defmacro with-source-string ((stream string) &body body)
+  `(let ((*source* (make-source-string ,string)))
+     (with-open-stream (,stream (source-stream *source*))
+       ,@body)))
+
+(defmacro with-source-file ((stream filename) &body body)
+  `(let ((*source* (make-source-file ,filename)))
+     (with-open-stream (,stream (source-stream *source*))
+       ,@body)))
+
+(defmacro with-displaced-source-file ((stream filename original-filename position) &body body)
+  `(let ((*source* (make-displaced-source-file ,filename ,original-filename ,position)))
+     (with-open-stream (,stream (source-stream *source*))
+       ,@body)))
+
+(defmacro with-source-context ((key message) &body body)
+  "Add MESSAGE to error context, deduplicating messages by KEY."
+  `(let ((*source-context* (cons (cons ,key ,message) *source-context*)))
+     ,@body))
+
+(defun %reduce-context (context)
+  (mapcar #'cdr
+          (reduce (lambda (acc context)
+                    (if (assoc (car context) acc)
+                        acc
+                        (cons context acc)))
+                  context
+                  :initial-value nil)))
 
 (define-condition source-condition (condition)
-  ((error :initarg :err))
+  ((source :initform *source*)
+   (context :initarg :context
+            :initform *source-context*)
+   (location :initarg :location
+             :initform nil)
+   (message :initarg :message
+            :initform nil)
+   (primary-note :initarg :primary-note
+                 :initform nil)
+   (notes :initarg :notes
+          :initform nil
+          :reader notes)
+   (help :initarg :help-notes
+         :initform nil))
   (:documentation "The type for user-facing errors.")
-  (:report report-error))
+  (:report report-source-condition))
 
 (define-condition source-error (source-condition error)
   ()
   (:documentation "The type for user-facing errors."))
 
+(defmethod condition-severity ((condition source-error))
+  :error)
+
 (define-condition source-warning (source-condition style-warning)
   ()
   (:documentation "The type for user-facing warnings."))
 
+(defmethod condition-severity ((condition source-warning))
+  :warning)
+
 (defclass source-annotation ()
-  ((span :initarg :span
-         :reader span)
+  ((location :initarg :location
+             :reader location)
    (message :initarg :message
             :reader note-message)))
-
-(defun span-start (source-annotation)
-  (car (slot-value source-annotation 'span)))
-
-(defun span-end (source-annotation)
-  (cdr (slot-value source-annotation 'span)))
 
 (defclass note (source-annotation)
   ((type :initarg :type
          :reader note-type)))
 
-(defun note (&key span type message)
+(defun make-note (&key location type message)
   (make-instance 'note
-    :span span
-    :message message
-    :type type))
+    :location location
+    :type type
+    :message message))
 
 (defclass help (source-annotation)
   ((replacement :initarg :replacement
                 :reader note-replacement)))
 
-(defun help (&key span replacement message)
+(defun make-help (&key location replacement message)
   (make-instance 'help
-    :span span
+    :location location
     :message message
     :replacement replacement))
 
-(defclass deferred-note ()
-  ((fn :initarg :fn)
-   (rendered)))
-
-(defun deferred-note (fn)
-  (make-instance 'deferred-note :fn fn))
-
-(defclass error-context ()
-  ((message :initarg :message
-            :reader error-context-message)))
-
-(defun context (&key message)
-  (make-instance 'error-context :message message))
-
-(defclass %source-error ()
-  ((type :initarg :type)
-   (source :initarg :source
-           :reader error-source)
-   (location :initarg :location)
-   (message :initarg :message)
-   (notes :initarg :notes
-          :reader notes)
-   (help :initarg :help
-         :initform nil)
-   (context :initarg :context
-            :reader error-context))
-  (:documentation "The content of a source-condition, used to produce a printer-state when the error is printed."))
-
-(defun source-error (&key (type :error) source location message primary-note notes help context)
-  "Construct a %SOURCE-ERROR instance with a message and primary note attached to the provided form.
-
-MESSAGE and PRIMARY-NOTE must be supplied string arguments.
-NOTES and HELP may optionally be supplied notes and help messages."
-  (let ((span (etypecase location
-                (cons location)
-                (integer (cons (1- location) location)))))
-    (make-instance '%source-error
-      :type type
-      :source source
-      :location (etypecase location
-                  (cons (car location))
-                  (integer location))
-      :message message
-      :notes (list* (note :type :primary
-                          :span span
-                          :message primary-note)
-                    notes)
-      :help help
-      :context context)))
-
-(defmacro with-source-stream ((stream source-error) &body body)
-  `(with-open-stream (,stream (source-stream (error-source ,source-error)))
-    ,@body))
-
 ;; error formatter
 ;;
-;; `print-source-error`, at the bottom, is a workhorse function that
-;; takes a %source-error structure, resolves source-relative spans
-;; to the input source, and then prints annotated source code.
+;; `report-source-condition`, at the bottom, is a workhorse function that
+;; takes a source condition, resolves source-relative locations
+;; to the input source, and prints annotated source code.
 ;;
 ;; `printer-state` maintains state during printing: current line,
 ;; note depth, etc.
@@ -189,10 +222,11 @@ NOTES and HELP may optionally be supplied notes and help messages."
    (note-max-depth :initform 0)))
 
 (defun first-line-number (notes offset-positions)
-  (car (gethash (span-start (car notes)) offset-positions)))
+  (unless (null notes)
+    (car (gethash (start-offset (car notes)) offset-positions))))
 
 (defun last-line-number (notes offset-positions)
-  (let ((last-offset (apply #'max (mapcar #'span-end notes))))
+  (let ((last-offset (apply #'max (mapcar #'end-offset notes))))
     (car (gethash last-offset offset-positions))))
 
 (defmethod initialize-instance :after ((printer-state printer-state) &rest initargs)
@@ -217,22 +251,41 @@ NOTES and HELP may optionally be supplied notes and help messages."
             line-number-width (1+ (floor (log last-line 10)))
             note-max-depth (max-depth notes)))))
 
-(defun span-lines (printer-state source-annotation)
+
+(defun start-offset (source-annotation)
+  (with-slots (location) source-annotation
+    (etypecase location
+      (cons (car location))
+      (integer (1- location)))))
+
+(defun start-position (printer-state source-annotation)
+  (with-slots (offset-positions) printer-state
+    (gethash (start-offset source-annotation) offset-positions)))
+
+(defun end-offset (source-annotation)
+  (with-slots (location) source-annotation
+    (etypecase location
+      (cons (cdr location))
+      (integer location))))
+
+(defun end-position (printer-state source-annotation)
+  (with-slots (offset-positions) printer-state
+    (gethash (end-offset source-annotation) offset-positions)))
+
+(defun location-lines (printer-state source-annotation)
   "Return the start and end lines of SOURCE-ANNOTATION"
   (with-slots (offset-positions) printer-state
-    (destructuring-bind (start . end) (span source-annotation)
-      (values (car (gethash start offset-positions))
-              (car (gethash end offset-positions))))))
+    (values (car (start-position printer-state source-annotation))
+            (car (gethash (end-offset source-annotation) offset-positions)))))
 
-(defun span-positions (printer-state source-annotation)
+(defun location-positions (printer-state source-annotation)
   "Return the start and end positions of SOURCE-ANNOTATION"
   (with-slots (offset-positions) printer-state
-    (destructuring-bind (start . end) (span source-annotation)
-      (destructuring-bind (start-line . start-column)
-          (gethash start offset-positions)
-        (destructuring-bind (end-line . end-column)
-            (gethash end offset-positions)
-          (values start-line start-column end-line end-column))))))
+    (destructuring-bind (start-line . start-column)
+        (gethash (start-offset source-annotation) offset-positions)
+      (destructuring-bind (end-line . end-column)
+          (gethash (end-offset source-annotation) offset-positions)
+        (values start-line start-column end-line end-column)))))
 
 ;; Mapping between character offsets and line and column positions.
 ;;
@@ -280,35 +333,27 @@ column numbers for a sequence of absolute stream offsets."
 (defun char-offsets (printer-state)
   (sort (remove-duplicates
          (mapcan (lambda (note)
-                   (list (span-start note) (span-end note)))
+                   (list (start-offset note) (end-offset note)))
                  (positioned-annotations printer-state)))
         #'<))
 
-(defun start-position (printer-state span)
+(defun start-line (printer-state location)
   (with-slots (offset-positions) printer-state
-    (gethash (span-start span) offset-positions)))
+    (car (gethash (start-offset location) offset-positions))))
 
-(defun start-line (printer-state span)
+(defun start-column (printer-state location)
   (with-slots (offset-positions) printer-state
-    (car (gethash (span-start span) offset-positions))))
+    (cdr (gethash (start-offset location) offset-positions))))
 
-(defun start-column (printer-state span)
+(defun end-line (printer-state location)
   (with-slots (offset-positions) printer-state
-    (cdr (gethash (span-start span) offset-positions))))
+    (car (gethash (end-offset location) offset-positions))))
 
-(defun end-position (printer-state span)
+(defun end-column (printer-state location)
   (with-slots (offset-positions) printer-state
-    (gethash (span-end span) offset-positions)))
+    (cdr (gethash (end-offset location) offset-positions))))
 
-(defun end-line (printer-state span)
-  (with-slots (offset-positions) printer-state
-    (car (gethash (span-end span) offset-positions))))
-
-(defun end-column (printer-state span)
-  (with-slots (offset-positions) printer-state
-    (cdr (gethash (span-end span) offset-positions))))
-
-(defun span-point< (a b)
+(defun location-point< (a b)
   (destructuring-bind (offset-a . type-a) a
     (destructuring-bind (offset-b . type-b) b
       (if (= offset-a offset-b)
@@ -316,14 +361,14 @@ column numbers for a sequence of absolute stream offsets."
                (eql type-b :end))
           (< offset-a offset-b)))))
 
-(defun span-points (span)
-  (list (cons (span-start span) :start)
-        (cons (span-end span) :end)))
+(defun location-points (location)
+  (list (cons (start-offset location) :start)
+        (cons (end-offset location) :end)))
 
 (defun max-depth (notes)
   (let ((max-depth 0)
         (depth 0))
-    (dolist (op (mapcar #'cdr (sort (mapcan #'span-points notes) #'span-point<)) max-depth)
+    (dolist (op (mapcar #'cdr (sort (mapcan #'location-points notes) #'location-point<)) max-depth)
       (cond ((eql op :start)
              (incf depth)
              (when (< max-depth depth)
@@ -332,27 +377,30 @@ column numbers for a sequence of absolute stream offsets."
              (decf depth))))))
 
 (defun offset-position (printer-state location)
-  (gethash location (slot-value printer-state 'offset-positions) (cons 1 0)))
+  (let ((location (etypecase location
+                    (cons (car location))
+                    (integer location))))
+    (gethash location (slot-value printer-state 'offset-positions) (cons 1 0))))
 
 (defun note-highlight-char (note)
   (case (note-type note)
     (:primary #\^)
     (otherwise #\-)))
 
-(defun write-char-n (char n stream)
+(defun write-nchar (char n stream)
   (dotimes (n n)
     (write-char char stream)))
 
 ;; Printer
 
-(defun print-error-location (stream printer-state source-error)
-  (with-slots (type source location message) source-error
+(defun print-error-location (stream printer-state source-condition)
+  (with-slots (source location message) source-condition
     (destructuring-bind (line . column)
         (offset-position printer-state location)
       (format stream "~(~A~): ~A~%  --> ~A:~D:~D~%"
-              type
+              (condition-severity source-condition)
               message
-              (source-name source)
+              (source-filename source)
               line
               column))))
 
@@ -361,7 +409,7 @@ column numbers for a sequence of absolute stream offsets."
     (cond (line-number
            (format stream " ~va |" line-number-width line-number))
           (t
-           (write-char-n #\Space (+ 2 line-number-width) stream)
+           (write-nchar #\Space (+ 2 line-number-width) stream)
            (write-char #\| stream)))))
 
 (defun print-line-number (stream printer-state line-number show-line-number)
@@ -384,14 +432,18 @@ column numbers for a sequence of absolute stream offsets."
 
 (defun print-single-line-note (stream printer-state note)
   (multiple-value-bind (start-line start-column end-line end-column)
-      (span-positions printer-state note)
+      (location-positions printer-state note)
     (declare (ignore end-line))
     (print-line-number stream printer-state start-line nil)
     (with-slots (note-max-depth note-stack) printer-state
-      (format stream "~v{~C~:*~}~v{~C~:*~} ~A~%"
-              (+ start-column
-                 (- note-max-depth (length note-stack)))
-              '(#\Space)
+      (write-nchar #\Space 
+                   (+ start-column
+                      (- note-max-depth (length note-stack)))
+                   stream)
+
+      ;; FIXME clean up the formats here and elsewhere
+
+      (format stream "~v{~C~:*~} ~A~%"
               (- end-column start-column)
               (list (note-highlight-char note))
               (note-message note)))))
@@ -402,7 +454,7 @@ column numbers for a sequence of absolute stream offsets."
     (print-line-number stream printer-state start-line nil)
     (with-slots (note-max-depth note-stack) printer-state
       (write-char #\Space stream)
-      (write-char-n #\_ (+ start-column (- note-max-depth (length note-stack) 1)) stream)
+      (write-nchar #\_ (+ start-column (- note-max-depth (length note-stack) 1)) stream)
       (write-char (note-highlight-char note) stream)
       (terpri stream))))
 
@@ -411,7 +463,7 @@ column numbers for a sequence of absolute stream offsets."
         (end-column (end-column printer-state note)))
     (print-line-number stream printer-state start-line nil)
     (with-slots (note-max-depth note-stack) printer-state
-      (write-char-n #\_ (+ end-column (- note-max-depth (length note-stack) 1)) stream)
+      (write-nchar #\_ (+ end-column (- note-max-depth (length note-stack) 1)) stream)
       (format stream "~C ~A~%" (note-highlight-char note) (note-message note)))))
 
 (defun print-finished-notes-for-line (stream printer-state line-number)
@@ -455,7 +507,7 @@ column numbers for a sequence of absolute stream offsets."
 
 (defun print-note (stream printer-state note)
   (multiple-value-bind (start-line end-line)
-      (span-lines printer-state note)
+      (location-lines printer-state note)
     (print-lines-until stream printer-state start-line)
     (cond ((/= start-line end-line)
            (print-note-start stream printer-state note)
@@ -474,7 +526,7 @@ column numbers for a sequence of absolute stream offsets."
 (defun print-help (stream printer-state help)
   (with-slots (source-stream) printer-state
     (multiple-value-bind (start-line start-column end-line end-column)
-        (span-positions printer-state help)
+        (location-positions printer-state help)
       (unless (= start-line end-line)
         (error "multiline help messages not supported"))
       (format stream "help: ~A~%" (note-message help))
@@ -493,22 +545,27 @@ column numbers for a sequence of absolute stream offsets."
   (print-line-prefix stream printer-state)
   (terpri stream))
 
-(defun make-printer-state (source-stream source-error)
-  (with-slots (notes help context) source-error
+(defun make-printer-state (source-stream condition)
+  (with-slots (location primary-note notes help context) condition
     (make-instance 'printer-state
       :source-stream source-stream
-      :notes (sort notes #'< :key #'span-start)
+      :notes (sort (list* (make-note :type :primary
+                                     :location location
+                                     :message primary-note)
+                          notes)
+                   #'< :key #'start-offset)
       :help help
-      :context context)))
+      :context (%reduce-context context))))
 
-(defun print-source-error (stream source-error)
-  (with-source-stream (source-stream source-error)
-    (let ((state (make-printer-state source-stream source-error)))
-      (print-error-location stream state source-error)
-      (print-empty-line stream state)
-      (with-slots (help context last-line) state
-        (print-notes stream state)
-        (loop :for help :in help
-              :do (print-help stream state help))
-        (loop :for context :in context
-              :do (format stream "note: ~A~%" (error-context-message context)))))))
+(defun report-source-condition (condition stream)
+  (with-slots (source) condition
+    (with-open-stream (source-stream (source-stream source))
+      (let ((state (make-printer-state source-stream condition)))
+        (print-error-location stream state condition)
+        (print-empty-line stream state)
+        (with-slots (help context last-line) state
+          (print-notes stream state)
+          (loop :for help :in help
+                :do (print-help stream state help))
+          (loop :for context :in context
+              :do (format stream "note: ~A~%" context)))))))

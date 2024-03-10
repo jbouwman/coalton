@@ -1,21 +1,36 @@
 (in-package #:coalton-tests)
 
 (deftest test-parser ()
-  (let* ((glob (merge-pathnames "tests/parser/*.bad.coalton" (asdf:system-source-directory "coalton/tests")))
+  (labels ((test-files (pattern)
+             (directory (merge-pathnames pattern (asdf:system-source-directory "coalton/tests"))))
 
-         (files (directory glob)))
+           (parse-file (file)
+             (source-error:with-source-file (stream file)
+               (parser:with-reader-context stream
+                 (parser:read-program stream :mode :file))))
 
-    (loop :for file :in files
-          :do (with-open-file (stream file)
-                (signals parser:parse-error
-                  (parser:with-reader-context stream
-                    (parser:read-program stream (error:make-coalton-file (namestring file)) :mode :file))))))
+           (error-string (condition)
+             (with-output-to-string (stream)
+               (source-error:report-source-condition condition stream)))
 
-  (let* ((glob (merge-pathnames "tests/parser/*.good.coalton" (asdf:system-source-directory "coalton/tests")))
+           (parse-error-text (file)
+             (handler-case
+                 (source-error:with-displaced-source-file (stream file "test" 0)
+                   (parser:with-reader-context stream
+                     (parser:read-program stream :mode :file))
+                   nil)
+               (error:coalton-error (c)
+                 (error-string c)))))
+    (loop :for file :in (test-files "tests/parser/*.bad.coalton")
+          :do (let ((error-file (make-pathname :type "error"
+                                               :defaults file)))
+                (cond ((uiop:file-exists-p error-file)
+                       (check-string= (format nil "expected error ~A (A) and generated error (B)" error-file)
+                                      (alexandria:read-file-into-string error-file)
+                                      (parse-error-text file)))
+                      (t
+                       (signals parser:parse-error
+                         (parse-file file))))))
 
-         (files (directory glob)))
-
-    (loop :for file :in files
-          :do (with-open-file (stream file)
-                (parser:with-reader-context stream
-                  (parser:read-program stream (error:make-coalton-file (namestring file)) :mode :file))))))
+    (loop :for file :in (test-files "tests/parser/*.good.coalton")
+          :do (parse-file file))))

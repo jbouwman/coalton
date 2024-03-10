@@ -14,6 +14,22 @@
   ;; XXX: This will not check ordering of edges within vertices
   (set-equalp dag1 dag2))
 
+(defun check-string= (context a b)
+  "Fire a test failure assertion if strings A and B differ, reporting the first position at which this is true."
+  (let ((compare-len (min (length a)
+                          (length b))))
+    (loop :for i :from 0 :below compare-len
+          :unless (char= (aref a i)
+                         (aref b i))
+            :do (is (string= a b)
+                    (format nil "Strings differ at offset ~A of ~A:~%A: ~A~%B: ~A"
+                            i context a b))
+                (return-from check-string=))
+    (is (= (length a)
+           (length b))
+        (format nil "Strings differ at offset ~A of ~A:~%~A~%~A"
+                compare-len context a b))))
+
 (defun check-coalton-types (toplevel-string &rest expected-types)
   (let ((*package* (make-package (or (and fiasco::*current-test*
                                           (fiasco::name-of fiasco::*current-test*))
@@ -22,10 +38,10 @@
     (unwind-protect
          (let* ((stream (make-string-input-stream toplevel-string))
 
-                (file (error:make-coalton-string toplevel-string))
+                (source-error:*source* (source-error:make-source-string toplevel-string))
 
                 (program (parser:with-reader-context stream
-                           (parser:read-program stream file :mode :test))))
+                           (parser:read-program stream :mode :test))))
 
            (multiple-value-bind (program env)
                (entry:entry-point program)
@@ -34,14 +50,10 @@
              (when expected-types
                (loop :for (unparsed-symbol . unparsed-type) :in expected-types
                      :for symbol := (intern (string-upcase unparsed-symbol) *package*)
-
                      :for stream := (make-string-input-stream unparsed-type)
-                     :for file := (error:make-coalton-string unparsed-type)
-
                      :for ast-type := (parser:parse-qualified-type
-                                       (eclector.concrete-syntax-tree:read stream)
-                                       file)
-                     :for parsed-type := (tc:parse-ty-scheme ast-type env file)
+                                       (eclector.concrete-syntax-tree:read stream))
+                     :for parsed-type := (tc:parse-ty-scheme ast-type env)
                      :do (is (equalp
                               (tc:lookup-value-type env symbol)
                               parsed-type)))))
