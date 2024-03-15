@@ -7,6 +7,7 @@
    #:coalton-impl/parser/types
    #:coalton-impl/parser/pattern
    #:coalton-impl/parser/macro
+   #:coalton-impl/parser/module
    #:coalton-impl/parser/expression)
   (:shadowing-import-from
    #:coalton-impl/parser/base
@@ -548,57 +549,6 @@ consume all attributes"))))
                        :primary-note "unexpected form"))))
 
       (parse-expression form file))))
-
-(defun parse-package (form file)
-  "Parses a coalton package declaration in the form of (package {name})"
-  (declare (type cst:cst form)
-           (type coalton-file file)
-           (values package))
-
-  ;; Package declarations must start with "PACKAGE"
-  (unless (string= (cst:raw (cst:first form)) "PACKAGE")
-    (error 'parse-error
-           :err (coalton-error
-                 :span (cst:source (cst:first form))
-                 :file file
-                 :message "Malformed package declaration"
-                 :primary-note "package declarations must start with `package`")))
-
-  ;; Package declarations must have a name
-  (unless (cst:consp (cst:rest form))
-    (error 'parse-error
-           :err (coalton-error
-                 :span (cst:source (cst:first form))
-                 :file file
-                 :message "Malformed package declaration"
-                 :primary-note "missing package name")))
-
-  ;; Package declarations cannot contain more than two forms
-  (when (cst:consp (cst:rest (cst:rest form)))
-    (error 'parse-error
-           :err (coalton-error
-                 :span (cst:source (cst:first (cst:rest (cst:rest form))))
-                 :file file
-                 :message "Malformed package declaration"
-                 :primary-note "unexpected forms")))
-
-  (unless (identifierp (cst:raw (cst:second form)))
-    (error 'parse-error
-           :err (coalton-error
-                 :span (cst:source (cst:second form))
-                 :file file
-                 :message "Malformed package declaration"
-                 :primary-note "package name must be a symbol")))
-
-  (let* ((package-name (symbol-name (cst:raw (cst:second form))))
-
-         (package (find-package package-name)))
-
-    (unless package
-      (setf package (make-package package-name :use '("COALTON" "COALTON-PRELUDE"))))
-
-    package))
-
 
 (defun parse-toplevel-form (form program attributes file)
   (declare (type cst:cst form)

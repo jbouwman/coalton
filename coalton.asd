@@ -9,6 +9,33 @@
   :depends-on (#:coalton/compiler
                #:coalton/library))
 
+;; ASDF Coalton file support
+
+(defclass coalton-file (asdf:source-file)
+  ((type :initform "coalton")))
+
+(defun coalton-input-file (operation component)
+  (first (asdf:input-files operation component)))
+
+(defun coalton-output-file (operation component)
+  (compile-file-pathname (first (asdf:input-files operation component))))
+
+(defmethod perform ((operation asdf:compile-op) (component coalton-file))
+  (let ((input-file (coalton-input-file operation component))
+        (output-file (coalton-output-file operation component)))
+    (error "In ~A Out ~A" input-file output-file)))
+
+(defmethod output-files ((operation asdf:compile-op) (component coalton-file))
+  (list (coalton-output-file operation component)))
+
+(defmethod action-description ((operation asdf:load-op) (component coalton-file))
+  (format nil "~@<loading Coalton FASL for ~3i~_~A~@:>" component))
+
+(defmethod perform ((operation asdf:load-op) (component coalton-file))
+  (asdf::load* (coalton-input-file operation component)))
+
+;; end ASDF extensions
+
 (asdf:defsystem #:coalton/compiler
   :description "The Coalton compiler."
   :author "Coalton contributors (https://github.com/coalton-lang/coalton)"
@@ -47,6 +74,7 @@
                              (:file "types")
                              (:file "pattern")
                              (:file "macro")
+                             (:file "module")
                              (:file "expression")
                              (:file "toplevel")
                              (:file "collect")
@@ -166,6 +194,7 @@
                (:file "cell")
                (:file "iterator")
                (:file "optional")
+               #++ (:coalton-file "optional")
                (:file "result")
                (:file "tuple")
                (:file "lisparray")
