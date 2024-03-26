@@ -7,192 +7,128 @@
    #:coalton-impl/parser/base
    #:parse-error)
   (:local-nicknames
-   (#:cst #:concrete-syntax-tree)
-   (#:util #:coalton-impl/util))
+   (#:a #:alexandria)
+   (#:cst #:concrete-syntax-tree))
   (:export
    #:parse-package))
 
 (in-package #:coalton-impl/parser/module)
-
-(defun map-form (f form)
-  (loop :for clauses := form :then (cst:rest clauses)
-        :while (cst:consp clauses)
-        :do (funcall f (cst:first clauses))))
 
 (defun mapcar-form (f form)
   (loop :for clauses := form :then (cst:rest clauses)
         :while (cst:consp clauses)
         :collect (funcall f (cst:first clauses))))
 
-(defun unwrap-form (form)
-  (mapcar-form #'identity form))
+(defmacro parse-error (form file message note &optional help)
+  `(error 'parse-error
+          :err (coalton-error :span (cst:source ,form)
+                              :file ,file
+                              :message ,message
+                              :primary-note ,note
+                              :help-notes ,help)))
 
-;; convention: 'forms' names a list of cst structures
-
-(defun assert-length (form n file)
-  (unless (= n (length (cst:raw form)))
-    (error 'parse-error
-           :err (coalton-error
-                 :span (cst:source form)
-                 :file file
-                 :message "Malformed declaration"
-                 :primary-note "Incorrect arity"))))
-
-(defun parse-package-ref (sequence index file)
+(defun parse-symbol (sequence index file)
   (let ((form (cst:nth index sequence)))
     (unless form
-      (error 'parse-error
-             :err (coalton-error
-                   :span (cst:source form)
-                   :highlight :end
-                   :file file
-                   :message "Missing package reference"
-                   :primary-note "Missing package name")))
+      (parse-error form file "Malformed reference" "Missing symbol"))
     (unless (identifierp (cst:raw form))
-      (error 'parse-error
-             :err (coalton-error
-                   :span (cst:source form)
-                   :file file
-                   :message "Malformed package reference"
-                   :primary-note "Not a package name")))
-    (let ((package (find-package (cst:raw form))))
-      (unless package
-        (error 'parse-error
-               :err (coalton-error
-                     :span (cst:source form)
-                     :file file
-                     :message "Unknown package"
-                     :primary-note "Unknown package")))
-      package)))
+      (parse-error form file "Malformed reference" "Not a symbol"))
+    (symbol-name (cst:raw form))))
 
-(defun parse-symbol-ref (sequence index file)
-  (let ((form (cst:nth index sequence)))
-    (unless form
-      (error 'parse-error
-             :err (coalton-error
-                   :span (cst:source form)
-                   :highlight :end
-                   :file file
-                   :message "Missing reference"
-                   :primary-note "Missing symbol")))
-    (unless (identifierp (cst:raw form))
-      (error 'parse-error
-             :err (coalton-error
-                   :span (cst:source form)
-                   :file file
-                   :message "Malformed reference"
-                   :primary-note "Not a symbol")))
-    (cst:raw form)))
+(defun parse-import-statement (form file)
+  (let ((source-package (parse-symbol form 0 file)))
+    (flet ((parse-import-symbol (import)
+             (cond ((string= "*" (cst:raw import))
+                    (return-from parse-import-statement
+                      `(:import-all ,source-package)))
+                   ((identifierp (cst:raw import))
+                    (symbol-name (cst:raw import)))
+                   (t
+                    (parse-error import file
+                                 "Malformed import statement"
+                                 "Unrecognized import type")))))
+      `(:import ,source-package
+                ,@(mapcar-form #'parse-import-symbol
+                               (cst:rest form))))))
 
-(defun parse-import-statement (package form file)
-  (let ((source-package (parse-package-ref form 0 file))
-        (import-all nil)
-        (import-syms nil))
-    (map-form (lambda (import)
-                (cond ((string= "*" (cst:raw import))
-                       (setf import-all t))
-                      ((identifierp import)
-                       (push (cst:raw import) import-syms))
-                      (t
-                       (error 'parse-error
-                                :err (coalton-error
-                                      :span (cst:source import)
-                                      :file file
-                                      :message "Malformed import statement"
-                                      :primary-note "Unrecognized import type")))))
-              (cst:rest form))
-    (cond (import-all
-           (use-package (list source-package) package))
-          (t
-           (import (mapcar (lambda (symbol)
-                             (intern symbol source-package))
-                           package))))))
-
-(defun parse-import-clause (package form file)
-  (map-form (lambda (statement)
-              (parse-import-statement package statement file))
-            (cst:rest form)))
-
-(defun parse-refer-clause (package clause file)
-  (map-form (lambda (subclause)
-              (let ((source-package (parse-package-ref subclause 0 file))
-                    (nickname (parse-symbol-ref subclause 1 file)))
-                (assert-length subclause 2 file)
-                (sb-ext:add-package-local-nickname nickname source-package package)))
-            clause))
-
-(defun parse-export-clause (package forms file)
-  (declare (ignore file))
-  (export (mapcar-form (lambda (term)
-                         (intern (symbol-name (cst:raw term)) package))
-                       forms)
-          package))
-
-(defun clause-parser (clause file)
+(defun parse-package-clause (clause file)
+  "Parses a coalton package clause of the form of ({operation} {symbol}* ...)"
   (let* ((head (cst:first clause))
+         (body (cst:rest clause))
          (clause-type (cst:raw head)))
     (cond ((string= clause-type "IMPORT")
-           #'parse-import-clause)
+           (mapcar-form (a:rcurry #'parse-import-statement file) body))
           ((string= clause-type "EXPORT")
-           #'parse-export-clause)
+           (list (cons :export (mapcar-form (a:compose #'symbol-name #'cst:raw) body))))
           ((string= clause-type "REFER")
-           #'parse-refer-clause)
+           (mapcar-form (lambda (form)
+                          `(:refer ,(parse-symbol form 0 file)
+                                   ,(parse-symbol form 1 file)))
+                        body))
           (t
-           (error 'parse-error
-                  :err (coalton-error
-                        :span (cst:source head)
-                        :file file
-                        :message "Malformed package declaration"
-                        :primary-note "Unknown package clause"
-                        :help-notes
-                        (list
-                         (make-coalton-error-help
-                          :span (cst:source head)
-                          :replacement #'identity
-                          :message "Must be one of refer, import or export"))))))))
+           (parse-error head file
+                        "Malformed package declaration"
+                        "Unknown package clause"
+                        (list (make-coalton-error-help
+                               :span (cst:source head)
+                               :replacement #'identity
+                               :message "Must be one of refer, import or export")))))))
 
-(defun parse-package-clause (package clause file)
-  "Parses a coalton package clause of the form of ({operation} {symbol}* ...)"
-  (funcall (clause-parser clause file)
-           package (cst:rest clause) file))
-
-(defun parse-package (form file)
+(defun parse-package-form (form file)
   "Parses a coalton package declaration in the form of (package {name})"
-  (declare (type cst:cst form)
-           (type coalton-file file)
-           (values package))
 
   ;; Package declarations must start with "PACKAGE"
   (unless (string= (cst:raw (cst:first form)) "PACKAGE")
-    (error 'parse-error
-           :err (coalton-error
-                 :span (cst:source (cst:first form))
-                 :file file
-                 :message "Malformed package declaration"
-                 :primary-note "package declarations must start with `package`")))
+    (parse-error (cst:first form) file
+                 "Malformed package declaration"
+                 "package declarations must start with `package`"))
 
   ;; Package declarations must have a name
   (unless (cst:consp (cst:rest form))
-    (error 'parse-error
-           :err (coalton-error
-                 :span (cst:source (cst:first form))
-                 :file file
-                 :message "Malformed package declaration"
-                 :primary-note "missing package name")))
+    (parse-error (cst:rest form) file
+                 "Malformed package declaration"
+                 "missing package name"))
 
-  (unless (identifierp (cst:raw (cst:second form)))
-    (error 'parse-error
-           :err (coalton-error
-                 :span (cst:source (cst:second form))
-                 :file file
-                 :message "Malformed package declaration"
-                 :primary-note "package name must be a symbol")))
+  ;; The remaining forms are package clauses
+  (cons `(:package ,(parse-symbol form 1 file))
+        (apply #'append
+               (mapcar-form (a:rcurry #'parse-package-clause file)
+                            (cst:rest (cst:rest form))))))
 
-  (let* ((package-name (symbol-name (cst:raw (cst:second form))))
-         (package (or (find-package package-name)
-                      (make-package package-name :use '("COALTON" "COALTON-PRELUDE")))))
-    ;; The remaining forms are package clauses that side-effect 'package
-    (map-form (lambda (clause)
-                (parse-package-clause package clause file))
-              (cst:rest (cst:rest form)))
+(defun do-package-clause (name)
+  (let ((p (or (find-package name)
+               (make-package name))))
+    (use-package "COALTON" p)
+    (use-package "COALTON-PRELUDE" p)
+    p))
+
+(defun do-import-all-clause (package name)
+  (use-package (find-package name) package))
+
+(defun do-import-clause (package name &rest symbols)
+  (import (mapcar (a:rcurry #'intern (find-package name)) symbols) package))
+
+(defun do-export-clause (package &rest symbols)
+  (import (mapcar (a:rcurry #'intern package) symbols) package))
+
+(defun do-refer-clause (package name nickname)
+  (sb-ext:add-package-local-nickname nickname (find-package name) package))
+
+(defun parse-package (form file)
+  "Parses a coalton package declaration in the form of (package {name})"
+  (let ((package nil))
+    (dolist (step (parse-package-form form file))
+      (destructuring-bind (op . args) step
+        (ecase op
+          (:package
+           (setf package (apply #'do-package-clause args)))
+          (:refer
+           (apply #'do-refer-clause package args))
+          (:import-all
+           (apply #'do-import-all-clause package args))
+          (:import
+           (apply #'do-import-clause package args))
+          (:export
+           (apply #'do-export-clause package args))
+          )))
     package))

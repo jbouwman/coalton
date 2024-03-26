@@ -10,10 +10,4 @@
        :mode :file))))
 
 (defun example-package ()
-  (coalton-impl/parser/toplevel::program-package (parse-example))
-  )
-
-
-(export 'coalton-library/hash::Hash 'coalton-library/hash)
-
-(find-package 'coalton-library/hash)
+  (coalton-impl/parser/toplevel::program-package (parse-example)))
