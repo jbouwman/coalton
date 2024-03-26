@@ -416,6 +416,7 @@
 (defstruct (program
             (:copier nil))
   (package         (util:required 'package)         :type package                       :read-only t)
+  (package-decl                                                                         )
   (file            (util:required 'file)            :type coalton-file                  :read-only t)
   (types           (util:required 'types)           :type toplevel-define-type-list     :read-only nil)
   (structs         (util:required 'structs)         :type toplevel-define-struct-list   :read-only nil)
@@ -441,6 +442,7 @@
          (eclector.readtable:*readtable*
            (eclector.readtable:copy-readtable eclector.readtable:*readtable*))
 
+         (package-decl nil)
          ;; Initial package to read (package) forms into
          (*package* *package*))
 
@@ -461,11 +463,13 @@
                        :message "Unexpected EOF"
                        :primary-note "missing package form")))
 
-        (setf *package* (parse-package form file))))
+        (setf package-decl (parse-package form file))
+        (setf *package* (ensure-package package-decl))))
 
     ;; imma parsin mah program
     (let* ((program (make-program
                      :package *package*
+                     :package-decl package-decl
                      :file file
                      :types nil
                      :structs nil

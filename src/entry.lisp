@@ -6,6 +6,7 @@
    (#:util #:coalton-impl/util)
    (#:error #:coalton-impl/error)
    (#:parser #:coalton-impl/parser)
+   (#:module #:coalton-impl/parser/module)
    (#:tc #:coalton-impl/typechecker)
    (#:analysis #:coalton-impl/analysis)
    (#:codegen #:coalton-impl/codegen))

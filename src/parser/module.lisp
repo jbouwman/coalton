@@ -10,6 +10,7 @@
    (#:a #:alexandria)
    (#:cst #:concrete-syntax-tree))
   (:export
+   #:ensure-package
    #:parse-package))
 
 (in-package #:coalton-impl/parser/module)
@@ -53,6 +54,10 @@
 
 (defun parse-package-clause (clause file)
   "Parses a coalton package clause of the form of ({operation} {symbol}* ...)"
+  (unless (cst:consp clause)
+    (parse-error head file
+                 "Malformed package declaration"
+                 "Malformed package clause"))
   (let* ((head (cst:first clause))
          (body (cst:rest clause))
          (clause-type (cst:raw head)))
@@ -74,7 +79,11 @@
                                :replacement #'identity
                                :message "Must be one of refer, import or export")))))))
 
-(defun parse-package-form (form file)
+;; Parse a module declaration and return a list of package definition
+;; 'teps' -- these can be used to build ap akge inplace , or to build
+;; a defpackage form.
+
+(defun parse-package (form file)
   "Parses a coalton package declaration in the form of (package {name})"
 
   ;; Package declarations must start with "PACKAGE"
@@ -114,10 +123,10 @@
 (defun do-refer-clause (package name nickname)
   (sb-ext:add-package-local-nickname nickname (find-package name) package))
 
-(defun parse-package (form file)
+(defun ensure-package (parsed-package)
   "Parses a coalton package declaration in the form of (package {name})"
   (let ((package nil))
-    (dolist (step (parse-package-form form file))
+    (dolist (step parsed-package)
       (destructuring-bind (op . args) step
         (ecase op
           (:package
@@ -129,6 +138,7 @@
           (:import
            (apply #'do-import-clause package args))
           (:export
-           (apply #'do-export-clause package args))
-          )))
+           (apply #'do-export-clause package args)))))
+    (unless package
+      (error "oops"))
     package))
