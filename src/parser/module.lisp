@@ -30,13 +30,13 @@
 ;; convention: 'forms' names a list of cst structures
 
 (defun assert-length (form n file)
-  (unless (null (cst:nthrest (1+ n) form))
+  (unless (= n (length (cst:raw form)))
     (error 'parse-error
            :err (coalton-error
                  :span (cst:source form)
                  :file file
                  :message "Malformed declaration"
-                 :primary-note "extra input"))))
+                 :primary-note "Incorrect arity"))))
 
 (defun parse-package-ref (sequence index file)
   (let ((form (cst:nth index sequence)))
@@ -48,7 +48,7 @@
                    :file file
                    :message "Missing package reference"
                    :primary-note "Missing package name")))
-    (unless (identifierp form)
+    (unless (identifierp (cst:raw form))
       (error 'parse-error
              :err (coalton-error
                    :span (cst:source form)
@@ -65,7 +65,26 @@
                      :primary-note "Unknown package")))
       package)))
 
-(defun parse-import-clause (package form file)
+(defun parse-symbol-ref (sequence index file)
+  (let ((form (cst:nth index sequence)))
+    (unless form
+      (error 'parse-error
+             :err (coalton-error
+                   :span (cst:source form)
+                   :highlight :end
+                   :file file
+                   :message "Missing reference"
+                   :primary-note "Missing symbol")))
+    (unless (identifierp (cst:raw form))
+      (error 'parse-error
+             :err (coalton-error
+                   :span (cst:source form)
+                   :file file
+                   :message "Malformed reference"
+                   :primary-note "Not a symbol")))
+    (cst:raw form)))
+
+(defun parse-import-statement (package form file)
   (let ((source-package (parse-package-ref form 0 file))
         (import-all nil)
         (import-syms nil))
@@ -89,6 +108,11 @@
                              (intern symbol source-package))
                            package))))))
 
+(defun parse-import-clause (package form file)
+  (map-form (lambda (statement)
+              (parse-import-statement package statement file))
+            (cst:rest form)))
+
 (defun parse-refer-clause (package clause file)
   (map-form (lambda (subclause)
               (let ((source-package (parse-package-ref subclause 0 file))
@@ -99,9 +123,9 @@
 
 (defun parse-export-clause (package forms file)
   (declare (ignore file))
-  (export (mapcar (lambda (term)
-                    (intern (symbol-name (cst:raw term)) package))
-                  forms)
+  (export (mapcar-form (lambda (term)
+                         (intern (symbol-name (cst:raw term)) package))
+                       forms)
           package))
 
 (defun clause-parser (clause file)
@@ -163,7 +187,7 @@
                  :file file
                  :message "Malformed package declaration"
                  :primary-note "package name must be a symbol")))
-  
+
   (let* ((package-name (symbol-name (cst:raw (cst:second form))))
          (package (or (find-package package-name)
                       (make-package package-name :use '("COALTON" "COALTON-PRELUDE")))))
