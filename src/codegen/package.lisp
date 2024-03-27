@@ -27,6 +27,8 @@
 
   (:import-from
    #:coalton-impl/codegen/program
-   #:compile-translation-unit)
+   #:compile-translation-unit
+   #:emit-forms)
   (:export
-   #:compile-translation-unit))
+   #:compile-translation-unit
+   #:emit-forms))

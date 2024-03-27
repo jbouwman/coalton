@@ -1,7 +1,7 @@
 (in-package #:cl-user)
 
-(defun parsed-example ()
-  (with-open-file (stream "library/optional.coalton")
+(defun parse-coalton (input-file)
+  (with-open-file (stream input-file)
     (coalton-impl/parser:with-reader-context stream
       (coalton-impl/parser:read-program
        stream
@@ -9,13 +9,21 @@
                                              :name "file")
        :mode :file))))
 
-(defun compile-coalton (program file)
-  (with-open-file (stream file
-                          :direction :output
-                          :element-type 'character
-                          :if-exists :supersede)
-    (prin1 (coalton-impl/entry:entry-point program) stream)
-    (terpri stream)))
+(defun compile-coalton (input-file output-file)
+  (let ((program (parse-coalton input-file)))
+    (with-open-file (stream output-file
+                            :direction :output
+                            :element-type 'character
+                            :if-exists :supersede)
+      (coalton-impl/parser/module::generate-defpackage stream (coalton-impl/parser/toplevel::program-package-decl program))
+      (coalton-impl/codegen:emit-forms stream '(named-readtables:in-readtable coalton:coalton) stream)
+      (coalton-impl/entry::emit stream program))))
+
+
+(compile-coalton "small.coalton" "small.lisp")
+
+
+
 
 (defun compile-and-load (coalton-form)
   (uiop:with-temporary-file (:stream out-stream
@@ -35,5 +43,12 @@
       (values input-file output-file))))
 
 
-(compile-coalton (parsed-example) "/Users/jlbouwman/optional.lisp")
+(compile-coalton (parsed-example) "/Users/jlbouwman/doot.lisp")
+
+(coalton-impl/entry:entry-point (parsed-example))
+
+
+
+  (coalton-impl/parser/module::package-decl-use
+   (coalton-impl/parser/toplevel::program-package-decl (parsed-example)))
 

@@ -142,3 +142,54 @@
     (unless package
       (error "oops"))
     package))
+
+
+
+(defun package-decl-name (parsed-package)
+  (a:if-let ((package (cadr (find-if (lambda (x)
+                                       (eql (car x) :package))
+                                     parsed-package))))
+    (string-downcase package)
+    (error "Missing package in ~A" parsed-package)))
+
+;;(package-decl-name '((:package "x")))
+
+(defun package-decl-use (parsed-package)
+  (append '("coalton")
+          (mapcar (lambda (import)
+                    (string-downcase (cadr import)))
+                  (remove-if-not (lambda (x)
+                                   (eql (car x) :import-all))
+                                 parsed-package))))
+
+(defun package-decl-local-nicknames (parsed-package)
+  (mapcar (lambda (clause)
+            (list (string-downcase (cadr clause))
+                  (string-downcase (caddr clause))))
+          (remove-if-not (lambda (x)
+                           (eql (car x) :refer))
+                         parsed-package)))
+
+(defun package-decl-export (parsed-package)
+  (mapcan (lambda (clause)
+            (mapcar #'string-downcase (cdr clause)))
+          (remove-if-not (lambda (x)
+                           (eql (car x) :export))
+                         parsed-package)))
+
+;; (package-decl-use '((:import-all "x")))
+
+(defun generate-defpackage (stream package-decl)
+  (format stream "(defpackage #:~A"
+          (package-decl-name package-decl))
+  (a:when-let ((use (package-decl-use package-decl)))
+    (format stream "~%  (:use~%   ~{#:~A~^~%   ~})" use))
+  (a:when-let ((nn (package-decl-local-nicknames package-decl)))
+    (format stream "~%  (:local-nicknames")
+    (dolist (n nn)
+      (format stream "~%   (#:~A #:~A)" (car n) (cadr n)))
+    (format stream ")"))
+  (a:when-let ((export (package-decl-export package-decl)))
+    (format stream "~%  (:export~%   ~{#:~A~^~%   ~})" export))
+  (terpri stream)
+  (terpri stream))
