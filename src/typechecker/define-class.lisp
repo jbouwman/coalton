@@ -324,8 +324,8 @@
                                 :message "Invalid fundep redefinition"
                                 :primary-note (format nil "unable to redefine the fudndeps of class ~S." class-name))))
 
-           :when fundeps
-             :do (setf env (tc:initialize-fundep-environment env class-name))
+                 ;; :when fundeps
+                 ;;   :do (setf env (tc:initialize-fundep-environment env class-name))
 
            :do (setf env (tc:set-class env class-name class-entry))
 

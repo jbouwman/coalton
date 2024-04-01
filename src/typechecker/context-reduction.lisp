@@ -61,7 +61,7 @@ Returns (PREDS FOUNDP)"
   (declare (type environment env)
            (type ty-predicate pred)
            (values ty-predicate-list boolean))
-  (fset:do-seq (inst (lookup-class-instances env (ty-predicate-class pred) :no-error t))
+  (dolist (inst (lookup-class-instances env (ty-predicate-class pred)))
     (handler-case
         (let* ((subs (predicate-match (ty-class-instance-predicate inst) pred))
                (resulting-preds (mapcar (lambda (p) (apply-substitution subs p))
@@ -103,8 +103,10 @@ Returns (PREDS FOUNDP)"
                      (simp-loop (append (list (first ps)) rs) (rest ps))))))
     (simp-loop nil preds)))
 
+;; FIXME rename apply-substitution when workign against a toplevel environment
+
 (defun reduce-context (env preds subs)
-  (let ((env (apply-substitution subs env))
+  (let ((env (coalton-impl/typechecker/environment::env-substitute-values env subs))
         (preds (apply-substitution subs preds)))
     (simplify-context
      (lambda (preds pred)

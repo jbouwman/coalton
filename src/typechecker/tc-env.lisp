@@ -4,6 +4,7 @@
    #:coalton-impl/typechecker/base
    #:coalton-impl/typechecker/parse-type)
   (:local-nicknames
+   (#:env #:coalton-impl/environment)
    (#:util #:coalton-impl/util)
    (#:error #:coalton-impl/error)
    (#:parser #:coalton-impl/parser)
@@ -67,8 +68,7 @@
                                        (alexandria:hash-table-keys (tc-env-ty-table env)))
                                       (remove-if-not
                                        (lambda (s) (string= (symbol-name s) sym-name))
-                                       (coalton-impl/algorithm::immutable-map-keys
-                                        (tc:environment-value-environment (tc-env-env env)))))))
+                                       (env:keys env :value)))))
                        (error 'tc-error
                               :err (coalton-error
                                     :span (parser:node-source var)

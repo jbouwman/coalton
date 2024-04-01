@@ -328,10 +328,11 @@
   (let ((values nil)
         (package (find-package package)))
     ;; Sort the entires by package
-    (fset:do-map (sym entry (algo:immutable-map-data (tc:environment-name-environment env)))
-      ;; Only include exported symbols from our package
-      (when (exported-symbol-p sym package t)
-        (push (cons sym entry) values)))
+    (env:map env :name
+             (lambda (sym entry)
+               ;; Only include exported symbols from our package
+               (when (exported-symbol-p sym package t)
+                 (push (cons sym entry) values))))
 
     (mapcar
      (lambda (e)
@@ -452,7 +453,7 @@
                          (lambda (binding)
                            (exported-symbol-p (car binding) package t))
                          (tc:ty-class-unqualified-methods e))
-               :instances (reverse (fset:convert 'list (tc:lookup-class-instances env (tc:ty-class-name e) :no-error t)))
+               :instances (reverse (fset:convert 'list (tc:lookup-class-instances env (tc:ty-class-name e))))
                :documentation (tc:ty-class-docstring e)
                :location (tc:ty-class-location e)))
             values)))
