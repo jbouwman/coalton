@@ -550,7 +550,7 @@
                            (subseq (tc:function-type-arguments (node-rator-type node)) num-preds)
                            (tc:function-return-type (node-rator-type node))))
 
-                        (specialization (tc:lookup-specialization-by-type env rator-name rator-type :no-error t)))
+                        (specialization (tc:lookup-specialization-by-type env rator-name rator-type)))
                    (unless specialization
                      (return-from apply-specialization))
 

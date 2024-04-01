@@ -94,7 +94,7 @@ The compiler will auto-generate instances of `RuntimeRepr` for all defined types
 
   ;; The compiler will not auto-generate RuntimeRepr instances for
   ;; types defined in this file to avoid circular dependencies.
-  
+
   (define-instance (RuntimeRepr LispType)
     (define (runtime-repr _)
       (lisp LispType () '(cl:or cl:symbol cl:list))))
