@@ -240,9 +240,7 @@
   env)
 
 (defun make-function-table (env)
-  (declare (type tc:environment env)
-           (values hash-table))
   (let ((table (make-hash-table)))
-    (fset:do-map (name entry (immutable-map-data (tc:environment-function-environment env)))
+    (tc:do-env (name entry env :function)
       (setf (gethash name table) (tc:function-env-entry-arity entry)))
     table))

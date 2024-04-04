@@ -328,7 +328,7 @@
   (let ((values nil)
         (package (find-package package)))
     ;; Sort the entires by package
-    (fset:do-map (sym entry (algo:immutable-map-data (tc:environment-name-environment env)))
+    (tc::do-env (sym entry env :name)
       ;; Only include exported symbols from our package
       (when (exported-symbol-p sym package t)
         (push (cons sym entry) values)))
@@ -353,11 +353,11 @@
         (ctors nil)
         (package (find-package package)))
     ;; Sort the entires by package
-    (fset:do-map (sym entry (algo:immutable-map-data (tc:environment-type-environment env)))
+    (tc:do-env (sym entry env :type)
       ;; Only include exported symbols from our packages
       (when (exported-symbol-p sym package t)
         (push (cons sym entry) types)))
-    (fset:do-map (sym entry (algo:immutable-map-data (tc:environment-constructor-environment env)))
+    (tc:do-env (sym entry env :constructor)
       (when (equalp (symbol-package sym) package)
         (push (cons sym entry) ctors)))
 
@@ -437,7 +437,7 @@
   (let ((values nil)
         (package (find-package package)))
     ;; Sort the entires by package
-    (fset:do-map (sym entry (algo:immutable-map-data (tc:environment-class-environment env)))
+    (tc:do-env (sym entry env :class)
       ;; Only include exported symbols from our package
       (when (exported-symbol-p sym package t)
         (push entry values)))

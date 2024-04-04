@@ -13,7 +13,8 @@
   (let ((env entry:*global-environment*)
         (sorted-by-package (make-hash-table)))
     ;; Sort the entires by package
-    (fset:do-map (sym entry (algo:immutable-map-data (tc:environment-value-environment env)))
+
+    (tc:do-env (sym entry env :value)
       (push (cons sym entry) (gethash (symbol-package sym) sorted-by-package)))
 
     ;; Print out the entries for each package
@@ -38,7 +39,7 @@
   (let ((env entry:*global-environment*)
         (sorted-by-package (make-hash-table)))
     ;; Sort the entires by package
-    (fset:do-map (sym entry (algo:immutable-map-data (tc:environment-type-environment env)))
+    (tc:do-env (sym entry env :type)
       (push (cons sym entry) (gethash (symbol-package sym) sorted-by-package)))
 
     ;; Print out the entries for each package
@@ -62,7 +63,7 @@
   (let ((env entry:*global-environment*)
         (sorted-by-package (make-hash-table)))
     ;; Sort the entires by package
-    (fset:do-map (sym entry (algo:immutable-map-data (tc:environment-class-environment env)))
+    (tc:do-env (sym entry env :class)
       (push (cons sym entry) (gethash (symbol-package sym) sorted-by-package)))
 
     ;; Print out the entries for each package
@@ -93,7 +94,7 @@
   (let ((env entry:*global-environment*)
         (sorted-by-package (make-hash-table)))
     ;; Sort the entires by package
-    (fset:do-map (sym entry (algo:immutable-map-data (tc:environment-class-environment env)))
+    (tc:do-env (sym entry env :class)
       (push (cons entry (tc:lookup-class-instances env sym :no-error t))
             (gethash (symbol-package sym) sorted-by-package)))
 
@@ -113,7 +114,7 @@
                                      (tc:ty-predicate-types class-pred)
                                      (mapcar #'tc:kind-of (tc:ty-predicate-types class-pred)))))
 
-                         (fset:do-seq (instance instances)
+                         (dolist (instance instances)
                            (format t "    ")
                            ;; Generate type variable substitutions from instance constraints
                            (tc:with-pprint-variable-context ()
@@ -146,7 +147,7 @@
   "Print all specializations"
   (let ((env entry:*global-environment*)
         (sorted-by-package (make-hash-table)))
-    (fset:do-map (sym entry (algo:immutable-listmap-data (tc:environment-specialization-environment env)))
+    (tc:do-env (sym entry env :specialization)
       (push (cons sym entry) (gethash (symbol-package sym) sorted-by-package)))
 
     (labels ((print-package (package entries)
@@ -154,7 +155,7 @@
                (loop :for (name . specs) :in entries
                      :do (progn
                            (format t "  ~A :: ~A~%" name (tc:lookup-value-type env name))
-                           (fset:do-seq (spec specs)
+                           (dolist (spec specs)
                              (format t "    ~A :: ~A~%"
                                      (tc:specialization-entry-to spec)
                                      (tc:specialization-entry-to-ty spec)))
