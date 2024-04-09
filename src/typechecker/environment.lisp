@@ -43,7 +43,6 @@
    (#:error #:coalton-impl/error)
    (#:parser #:coalton-impl/parser))
   (:export
-   #:do-env
    #:explicit-repr                          ; TYPE
    #:type-entry                             ; STRUCT
    #:make-type-entry                        ; CONSTRUCTOR
@@ -156,9 +155,6 @@
    ))
 
 (in-package #:coalton-impl/typechecker/environment)
-
-(defmacro do-env ((k v env type) &body body)
-  `(env:map ,env ,type (lambda (,k ,v) ,@body)))
 
 ;;;
 ;;; Type environments
@@ -570,7 +566,7 @@
 
 (defmethod type-variables ((env environment))
   (let ((out nil))
-    (do-env (name type env :value)
+    (env:do-env (name type env :value)
       (declare (ignore name))
       (setf out (append (type-variables type) out)))
     (remove-duplicates out :test #'equalp)))

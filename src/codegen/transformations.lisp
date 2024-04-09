@@ -7,6 +7,7 @@
    #:coalton-impl/algorithm
    #:immutable-map-data)
   (:local-nicknames
+   (#:env #:coalton-impl/environment)
    (#:util #:coalton-impl/util)
    (#:tc #:coalton-impl/typechecker))
   (:export
@@ -241,6 +242,6 @@
 
 (defun make-function-table (env)
   (let ((table (make-hash-table)))
-    (tc:do-env (name entry env :function)
+    (env:do-env (name entry env :function)
       (setf (gethash name table) (tc:function-env-entry-arity entry)))
     table))

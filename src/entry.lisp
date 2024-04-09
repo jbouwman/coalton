@@ -31,13 +31,14 @@
   (nreverse
    (loop :for c := b :then (env::environment-ptr c)
          :while (and c (not (eq a c)))
-         :collect (case (env::environment-operation c)
-                    (:set
-                     (destructuring-bind (k v) (env::environment-operands c)
-                       `(set! ,(env::environment-type c) ',k ',v)))
-                    (:unset
-                     (destructuring-bind (k) (env::environment-operands c)
-                       `(unset! ,(env::environment-type c) ',k)))))))
+         :collect (destructuring-bind (op . args) (env::environment-op c)
+                    (ecase op
+                      (:set
+                       (destructuring-bind (k v) args
+                         `(set! ,(env::environment-ns c) ',k ',v)))
+                      (:unset
+                       (destructuring-bind (k) args
+                         `(unset! ,(env::environment-ns c) ',k))))))))
 
 (defun entry-point (program)
   (declare (type parser:program program))

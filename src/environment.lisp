@@ -7,6 +7,7 @@
    #:update
    #:map)
   (:export
+   #:do-env
    #:empty
    #:environment
    #:get
@@ -20,9 +21,8 @@
 (in-package #:coalton-impl/environment)
 
 (defstruct environment
-  (type      nil :type symbol)          ; namespace
-  (operation nil :type symbol)          ; set/unset
-  operands                              ; ks/kvs
+  (ns nil :type symbol)                 ; namespace
+  op                                    ; operation
   ptr                                   ; parent
   map)                                  ; namespace->k->v
 
@@ -39,51 +39,51 @@
 (defun empty ()
   (make-environment :map (fset:empty-map)))
 
-(defun type-environment (env type)
-  (or (fset:lookup (environment-map env) type)
+(defun type-environment (env ns)
+  (or (fset:lookup (environment-map env) ns)
       (fset:empty-map)))
 
-(defun get (env type k)
-  (fset:lookup (type-environment env type) k))
+(defun get (env ns k)
+  (fset:lookup (type-environment env ns) k))
 
-(defun set (env type k v)
+(defun set (env ns k v)
   (let ((map (environment-map env)))
-    (make-environment :type type
-                      :operation :set
-                      :operands (list k v)
+    (make-environment :ns ns
+                      :op (list :set k v)
                       :ptr env
                       :map (fset:with map
-                                      type (fset:with (or (fset:lookup map type)
-                                                          (fset:empty-map))
-                                                      k v)))))
+                                      ns (fset:with (or (fset:lookup map ns)
+                                                        (fset:empty-map))
+                                                    k v)))))
 
-(defun set* (env type &rest kvs)
+(defun set* (env ns &rest kvs)
   (loop :for (k v) :on kvs :by #'cddr
-        :do (setf env (set env type k v)))
+        :do (setf env (set env ns k v)))
   env)
 
-(defun unset (env type k)
+(defun unset (env ns k)
   (let ((map (environment-map env)))
-    (make-environment :type type
-                      :operation :unset
-                      :operands (list k)
+    (make-environment :ns ns
+                      :op (list :unset k)
                       :ptr env
                       :map (fset:with map
-                                      type (fset:less (or (fset:lookup map type)
-                                                          (fset:empty-map))
-                                                      k)))))
+                                      ns (fset:less (or (fset:lookup map ns)
+                                                        (fset:empty-map))
+                                                    k)))))
 
-(defun keys (env type)
-  (fset:convert 'list
-                (fset:domain (type-environment env type))))
+(defun keys (env ns)
+  (fset:convert 'list (fset:domain (type-environment env ns))))
 
-(defun map (env type f)
-  "Map over k->v bindings in type namespace."
-  (dolist (k (keys env type))
-    (funcall f k (get env type k))))
+(defun map (env ns f)
+  "Map (f k v) bindings in ns of env."
+  (dolist (k (keys env ns))
+    (funcall f k (get env ns k))))
 
-(defun update (env type f)
+(defmacro do-env ((k v env ns) &body body)
+  `(map ,env ,ns (lambda (,k ,v) ,@body)))
+
+(defun update (env ns f)
   (reduce (lambda (env k)
-            (set env type k (funcall f (get env type k))))
-          (keys env type)
+            (set env ns k (funcall f (get env ns k))))
+          (keys env ns)
           :initial-value env))

@@ -327,8 +327,8 @@
            (values documentation-value-entry-list))
   (let ((values nil)
         (package (find-package package)))
-    ;; Sort the entires by package
-    (tc::do-env (sym entry env :name)
+    ;; Sort the entries by package
+    (env:do-env (sym entry env :name)
       ;; Only include exported symbols from our package
       (when (exported-symbol-p sym package t)
         (push (cons sym entry) values)))
@@ -352,12 +352,12 @@
   (let ((types nil)
         (ctors nil)
         (package (find-package package)))
-    ;; Sort the entires by package
-    (tc:do-env (sym entry env :type)
+    ;; Sort the entries by package
+    (env:do-env (sym entry env :type)
       ;; Only include exported symbols from our packages
       (when (exported-symbol-p sym package t)
         (push (cons sym entry) types)))
-    (tc:do-env (sym entry env :constructor)
+    (env:do-env (sym entry env :constructor)
       (when (equalp (symbol-package sym) package)
         (push (cons sym entry) ctors)))
 
@@ -436,8 +436,8 @@
            (values documentation-class-entry-list))
   (let ((values nil)
         (package (find-package package)))
-    ;; Sort the entires by package
-    (tc:do-env (sym entry env :class)
+    ;; Sort the entries by package ; TODO helper
+    (env:do-env (sym entry env :class)
       ;; Only include exported symbols from our package
       (when (exported-symbol-p sym package t)
         (push entry values)))
