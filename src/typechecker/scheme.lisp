@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/typechecker/scheme
   (:use
    #:cl
+   #:coalton-impl/generics
    #:coalton-impl/typechecker/base
    #:coalton-impl/typechecker/kinds
    #:coalton-impl/typechecker/types
@@ -36,8 +37,9 @@
   (kinds (util:required 'kinds) :type list         :read-only t)
   (type  (util:required 'type)  :type qualified-ty :read-only t))
 
-(defmethod make-load-form ((self ty-scheme) &optional env)
-  (make-load-form-saving-slots self :environment env))
+(defmethod emit-load-form ((self ty-scheme))
+  `(make-ty-scheme :kinds (list ,@(mapcar #'emit-load-form (ty-scheme-kinds self)))
+                   :type ,(emit-load-form (ty-scheme-type self))))
 
 (defun scheme-list-p (x)
   (and (alexandria:proper-list-p x)

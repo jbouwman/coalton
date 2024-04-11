@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/codegen/ast
   (:use
    #:cl
+   #:coalton-impl/generics
    #:coalton-impl/codegen/pattern)
   (:local-nicknames
    (#:util #:coalton-impl/util)
@@ -115,9 +116,6 @@
 (defstruct (node (:constructor nil))
   (type (util:required 'type) :type tc:ty :read-only t))
 
-(defmethod make-load-form ((self node) &optional env)
-  (make-load-form-saving-slots self :environment env))
-
 (defun node-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'node-p x)))
@@ -145,16 +143,31 @@
   (rator (util:required 'rator) :type node      :read-only t)
   (rands (util:required 'rands) :type node-list :read-only t))
 
+(defmethod emit-load-form ((self node-application))
+  `(make-node-application :type `,(node-type self)
+                          :rator `,(node-application-rator self)
+                          :rands `,(node-application-rands self)))
+
 (defstruct (node-direct-application (:include node))
   "Fully saturated function application of a known function"
   (rator-type (util:required 'rator-type) :type tc:ty             :read-only t)
   (rator      (util:required 'rator)      :type parser:identifier :read-only t)
   (rands      (util:required 'rands)      :type node-list         :read-only t))
 
+(defmethod emit-load-form ((self node-direct-application))
+  `(make-node-direct-application :type `,(node-type self)
+                                 :rator-type `,(node-direct-application-rator-type self)
+                                 :rator `,(node-direct-application-rator self)
+                                 :rands `,(node-direct-application-rands self)))
+
 (defstruct (node-abstraction (:include node))
   "Lambda literals (fn (x) x)"
   (vars    (util:required 'vars)    :type parser:identifier-list :read-only t)
   (subexpr (util:required 'subexpr) :type node                   :read-only t))
+
+(defmethod emit-load-form ((self node-abstraction))
+  `(make-node-abstraction :vars `,(node-abstraction-vars self)
+                          :subexpr `,(node-abstraction-subexpr self)))
 
 (defstruct (node-let (:include node))
   "Introduction of local mutually-recursive bindings (let ((x 2)) (+ x x))"
@@ -170,9 +183,6 @@
   "A branch of a match statement"
   (pattern  (util:required 'pattern)  :type pattern            :read-only t)
   (body     (util:required 'body)     :type node               :read-only t))
-
-(defmethod make-load-form ((self match-branch) &optional env)
-  (make-load-form-saving-slots self :environment env))
 
 (defun branch-list-p (x)
   (and (alexandria:proper-list-p x)

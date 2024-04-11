@@ -2,6 +2,7 @@
   (:use
    #:cl
    #:coalton-impl/error
+   #:coalton-impl/generics
    #:coalton-impl/parser/base
    #:coalton-impl/parser/types
    #:coalton-impl/parser/pattern

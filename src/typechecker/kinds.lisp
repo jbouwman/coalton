@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/typechecker/kinds
   (:use
-   #:cl)
+   #:cl
+   #:coalton-impl/generics)
   (:local-nicknames
    (#:util #:coalton-impl/util)
    (#:settings #:coalton-impl/settings)
@@ -48,10 +49,7 @@
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defstruct (kind (:constructor nil)
-                   (:copier nil)))
-
-  (defmethod make-load-form ((self kind) &optional env)
-    (make-load-form-saving-slots self :environment env)))
+                   (:copier nil))))
 
 (defun kind-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -64,11 +62,18 @@
   (defstruct (kstar (:include kind)
                     (:copier nil))))
 
+(defmethod emit-load-form ((self kstar))
+  `(make-kstar))
+
 (alexandria:define-constant +kstar+ (make-kstar) :test #'equalp)
 
 (defstruct (kfun (:include kind))
   (from (util:required 'from) :type kind :read-only t)
   (to   (util:required 'to)   :type kind :read-only t))
+
+(defmethod emit-load-form ((self kfun))
+  `(make-kfun :from ,(emit-load-form (kfun-from self))
+              :to ,(emit-load-form (kfun-to self))))
 
 (defstruct (kyvar (:include kind)) 
   (id (util:required 'id) :type fixnum :read-only t))

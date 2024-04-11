@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/typechecker/predicate
   (:use
    #:cl
+   #:coalton-impl/generics
    #:coalton-impl/typechecker/kinds
    #:coalton-impl/typechecker/types
    #:coalton-impl/typechecker/substitutions)
@@ -39,8 +40,10 @@
   (types (util:required 'types) :type ty-list        :read-only t)
   (source nil                   :type (or cons null) :read-only t))
 
-(defmethod make-load-form ((self ty-predicate) &optional env)
-  (make-load-form-saving-slots self :environment env))
+(defmethod emit-load-form ((self ty-predicate))
+  `(make-ty-predicate :class ',(ty-predicate-class self)
+                      :types ,(emit-load-forms (ty-predicate-types self))
+                      :source ',(ty-predicate-source self)))
 
 (defun ty-predicate-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -66,8 +69,9 @@
   (predicates (util:required 'predicates) :type ty-predicate-list :read-only t)
   (type       (util:required 'type)       :type ty                :read-only t))
 
-(defmethod make-load-form ((self qualified-ty) &optional env)
-  (make-load-form-saving-slots self :environment env))
+(defmethod emit-load-form ((self qualified-ty))
+  `(make-qualified-ty :predicates (list ,@(mapcar #'emit-load-form (qualified-ty-predicates self)))
+                      :type ,(emit-load-form (qualified-ty-type self))))
 
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type qualified-ty))

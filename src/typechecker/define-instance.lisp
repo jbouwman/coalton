@@ -159,7 +159,9 @@
 
         (loop :for method-name :in method-names
               :for method-codegen-sym := (gethash method-name method-codegen-syms) :do
-                (setf env (tc:set-method-inline env method-name instance-codegen-sym method-codegen-sym)))
+                (setf env (tc:set-method-inline env
+                                                (cons method-name instance-codegen-sym)
+                                                method-codegen-sym)))
 
         (values instance-entry env)))))
 
@@ -354,6 +356,7 @@
 (defun check-for-orphan-instance (instance file)
   (declare (type parser:toplevel-define-instance instance) 
            (type coalton-file file)
+           (optimize (debug 3))
            (values null))
 
 
@@ -389,8 +392,9 @@
            (parser:identifier-src-name (parser:ty-predicate-class (parser:toplevel-define-instance-pred instance)))
            (loop :for type :in (parser:ty-predicate-types (parser:toplevel-define-instance-pred instance))
                  :append (mapcar #'parser:tycon-name (parser:collect-referenced-types type))))))
-
+ 
     (unless (find *package* instance-syms :key #'symbol-package)
+      
       (error 'tc-error
              :err (coalton-error
                    :span (parser:toplevel-define-instance-head-src instance)

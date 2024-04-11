@@ -2,6 +2,7 @@
   (:use
    #:cl
    #:coalton-impl/error
+   #:coalton-impl/generics
    #:coalton-impl/parser/base)
   (:shadowing-import-from
    #:coalton-impl/parser/base
@@ -113,6 +114,11 @@
   (class  (util:required 'class)  :type identifier-src :read-only t)
   (types  (util:required 'types)  :type ty-list        :read-only t)
   (source (util:required 'source) :type cons           :read-only t))
+
+(defmethod emit-load-form ((self ty-predicate))
+  `(make-ty-predicate :class ,'(ty-predicate-class self) ; TODO check
+                      :types ,'(ty-predicate-types self) ; TODO check
+                      :source ,'(ty-predicate-source self))) ; TODO check
 
 (defun ty-predicate-list-p (x)
   (and (alexandria:proper-list-p x)

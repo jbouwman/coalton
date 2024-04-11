@@ -26,6 +26,18 @@
    #:translate-expression)
 
   (:import-from
+   #:coalton-impl/codegen/output
+   #:emit
+   #:emit-ast
+   #:emit-comment
+   #:emit-env)
+  (:export
+   #:emit
+   #:emit-ast
+   #:emit-comment
+   #:emit-env)
+
+  (:import-from
    #:coalton-impl/codegen/program
    #:compile-translation-unit)
   (:export

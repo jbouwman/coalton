@@ -34,12 +34,21 @@
 ;;;
 
 ;;;
+;;; Generics
+;;;
+
+(defgeneric emit-load-form (self))
+
+(defun emit-load-forms (list)
+  `(list ,@(mapcar #'emit-load-form list)))
+
+;;;
 ;;; Pretty printer control
 ;;;
 
-(defvar *pprint-variable-symbol-code*)
+(defvar *pprint-variable-symbol-code* (char-code #\A))
 
-(defvar *pprint-variable-symbol-suffix*)
+(defvar *pprint-variable-symbol-suffix* 0)
 
 (defmacro with-pprint-variable-scope (() &body body)
   "If there is no pretty printing variable scope then create one for BODY"

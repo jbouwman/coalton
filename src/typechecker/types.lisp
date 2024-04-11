@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/typechecker/types
   (:use
    #:cl
+   #:coalton-impl/generics
    #:coalton-impl/typechecker/base
    #:coalton-impl/typechecker/kinds)
   (:local-nicknames
@@ -82,9 +83,6 @@
 
 (defstruct (ty (:constructor nil)))
 
-(defmethod make-load-form ((self ty) &optional env)
-  (make-load-form-saving-slots self :environment env))
-
 (defun ty-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'ty-p x)))
@@ -103,6 +101,10 @@
   (id   (util:required 'id)   :type fixnum :read-only t)
   (kind (util:required 'kind) :type kind   :read-only t))
 
+(defmethod emit-load-form ((self tyvar))
+  `(make-tyvar :id ,(tyvar-id self)
+               :kind ,(emit-load-form (tyvar-kind self))))
+
 (defun tyvar-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'tyvar-p x)))
@@ -114,15 +116,23 @@
   (name (util:required 'name) :type symbol :read-only t)
   (kind (util:required 'kind) :type kind   :read-only t))
 
+(defmethod emit-load-form ((self tycon))
+  `(make-tycon :name ',(tycon-name self)
+               :kind ,(emit-load-form (tycon-kind self))))
+
 (defstruct (tapp (:include ty))
   (from (util:required 'from) :type ty :read-only t)
   (to   (util:required 'to)   :type ty :read-only t))
 
+(defmethod emit-load-form ((self tapp))
+  `(make-tapp :from ,(emit-load-form (tapp-from self))
+              :to ,(emit-load-form (tapp-to self))))
+
 (defstruct (tgen (:include ty))
   (id (util:required 'id) :type fixnum :read-only t))
 
-(defmethod make-load-form ((self tgen) &optional env)
-  (make-load-form-saving-slots self :environment env))
+(defmethod emit-load-form ((self tgen))
+  `(make-tgen :id ,(tgen-id self)))
 
 ;;;
 ;;; Type Variables
