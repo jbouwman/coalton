@@ -66,12 +66,15 @@
       (a:when-let ((type (tc:lookup-type (tc-env-env env) var-name :no-error t)))
         (suggest "Did you mean a constructor of type ~A?" (tc:type-entry-name type)))
 
-      ;; ...
+      ;; There is more we can do here to return useful suggestions,
+      ;; including checking other places in the environment and
+      ;; catching simple spelling errors.
+
       )
     (nreverse suggestions)))
 
 (defun tc-env-lookup-value (env var file)
-  "Lookup a value named VAR in ENV."
+  "Lookup the value of a variable named VAR in ENV."
   (declare (type tc-env env)
            (type parser:node-variable var)
            (type coalton-file file)
@@ -88,12 +91,10 @@
                    :file file
                    :message "Unknown variable"
                    :primary-note "unknown variable"
-                   :help-notes (mapcar
-                                (lambda (suggestion)
-                                  (error:make-coalton-error-help :span (parser:node-source var)
-                                                                 :replacement #'identity
-                                                                 :message suggestion))
-                                (tc-env-suggest-value env var-name)))))
+                   :help-notes (loop :for suggestion :in (tc-env-suggest-value env var-name)
+                                     :collect (error:make-coalton-error-help :span (parser:node-source var)
+                                                                             :replacement #'identity
+                                                                             :message suggestion)))))
     (let ((qualified-type (tc:fresh-inst scheme)))
       (values (tc:qualified-ty-type qualified-type)
               (loop :for pred :in (tc:qualified-ty-predicates qualified-type)
