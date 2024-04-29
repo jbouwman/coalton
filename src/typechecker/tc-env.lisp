@@ -4,7 +4,7 @@
    #:coalton-impl/typechecker/base
    #:coalton-impl/typechecker/parse-type)
   (:local-nicknames
-   (#:a #:alexandria)
+   (#:᠎ #:alexandria)
    (#:util #:coalton-impl/util)
    (#:error #:coalton-impl/error)
    (#:parser #:coalton-impl/parser)
@@ -63,7 +63,7 @@
              (push (apply #'format nil fmt-string fmt-args) suggestions)))
 
       ;; If the symbol names a type, user may have intended to use a type constructor
-      (a:when-let ((type (tc:lookup-type (tc-env-env env) var-name :no-error t)))
+      (᠎:when-let ((type (tc:lookup-type (tc-env-env env) var-name :no-error t)))
         (suggest "Did you mean a constructor of type ~A?" (tc:type-entry-name type)))
 
       ;; There is more we can do here to return useful suggestions,
