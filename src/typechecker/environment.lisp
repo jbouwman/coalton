@@ -16,6 +16,7 @@
   (:use
    #:cl
    #:coalton-impl/algorithm
+   #:coalton-impl/generics
    #:coalton-impl/typechecker/type-errors
    #:coalton-impl/typechecker/types
    #:coalton-impl/typechecker/predicate
@@ -179,7 +180,7 @@
 
 (defun make-update-record (name arg-list)
   `(setf env (,name env ,@(loop :for arg :in (cdr arg-list)
-                                :collect (util:runtime-quote arg)))))
+                                :collect (make-source-form arg)))))
 
 (defmacro define-env-updater (name arg-list &body body)
   `(defun ,name (&rest args)
@@ -247,6 +248,14 @@
 
 (defmethod make-load-form ((self type-entry) &optional env)
   (make-load-form-saving-slots self :environment env))
+
+(defmethod make-source-form ((self type-entry))
+  `(make-type-entry :name ,(make-source-form (type-entry-name self))
+                    :runtime-type ',(type-entry-runtime-type self)
+                    :-type ,(make-source-form (type-entry-type self))
+                    :tyvars ,(make-source-form (type-entry-tyvars self))
+                    :constructors ,(make-source-form (type-entry-constructors self))))
+                    
 
 (defmethod kind-of ((entry type-entry))
   (kind-of (type-entry-type entry)))

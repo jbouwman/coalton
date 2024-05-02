@@ -30,6 +30,7 @@
   :serial t
   :components ((:file "package")
                (:file "settings")
+               (:file "generics")
                (:file "utilities")
                (:file "global-lexical")
                (:file "constants")
