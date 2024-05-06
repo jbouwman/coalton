@@ -4,6 +4,9 @@
    #:coalton-impl/typechecker/base
    #:coalton-impl/typechecker/parse-type
    #:coalton-impl/typechecker/partial-type-env)
+  (:shadow
+   #:add-method
+   #:make-method)
   (:local-nicknames
    (#:util #:coalton-impl/util)
    (#:algo #:coalton-impl/algorithm)
@@ -181,31 +184,124 @@
                      classes))
      env)))
 
-(defun infer-class-scc-kinds (classes env file)
-  (declare (type parser:toplevel-define-class-list classes)
+
+(defun add-method (env method-name method-type method-arity)
+  (setf env (tc:set-value-type env method-name method-type))
+  (setf env (tc:set-name env method-name (tc:make-name-entry :name method-name
+                                                             :type :method
+                                                             :docstring nil
+                                                             :location (or *compile-file-pathname* *load-truename*))))
+  (if (not (zerop method-arity))
+      (setf env (tc:set-function env method-name (tc:make-function-env-entry :name method-name
+                                                                             :arity method-arity)))
+      (setf env (tc:unset-function env method-name)))
+  env)
+
+
+(defun make-method (qualified-type method-name pred env)
+  (let* ((type (tc:qualified-ty-type qualified-type))
+         (preds (tc:qualified-ty-predicates qualified-type))
+         (new-type (tc:qualify (cons pred preds) type))
+         (method-type (tc:quantify (tc:type-variables new-type) new-type))
+         (method-arity (+ (tc:function-type-arity (tc:qualified-ty-type (tc:fresh-inst method-type)))
+                          (length (tc:qualified-ty-predicates (tc:fresh-inst method-type))))))
+    (add-method env method-name method-type method-arity)))
+
+
+(defun make-class (class-def pred partial env file)
+  (let* ((class-name (tc:ty-predicate-class pred))
+         (prev-class (tc:lookup-class env class-name :no-error t))
+         (fundeps (loop :for fundep :in (parser:toplevel-define-class-fundeps class-def)
+                        :collect (tc:make-fundep
+                                  :from (mapcar #'parser:keyword-src-name (parser:fundep-left fundep))
+                                  :to (mapcar #'parser:keyword-src-name (parser:fundep-right fundep))))))
+
+    (cond ((and prev-class
+                (not (equalp (tc:ty-class-fundeps prev-class) fundeps)))
+           ;; Fundeps cannot be redefined
+           (error 'tc-error
+                  :err (coalton-error
+                        :span (parser:toplevel-define-class-head-src class-def)
+                        :file file
+                        :message "Invalid fundep redefinition"
+                        :primary-note (format nil "unable to redefine the fudndeps of class ~S." class-name))))
+          (fundeps
+           (setf env (tc:initialize-fundep-environment env class-name))))
+
+    (let* ((class-vars (mapcar #'parser:keyword-src-name (parser:toplevel-define-class-vars class-def)))
+           (codegen-sym (alexandria:format-symbol *package* "CLASS/~A" class-name))
+           (superclass-dict (loop :for super :in (partial-class-superclasses partial)
+                                  :for i :from 0
+                                  :collect (cons super
+                                                 (alexandria:format-symbol *package* (format nil "SUPER-~D" i)))))
+           (superclass-map (loop :with table := (make-hash-table :test #'eq)
+                                 :for (pred . super-name) :in superclass-dict
+                                 :for prefixed-name := (alexandria:format-symbol *package* "~A-~A" codegen-sym super-name)
+                                 :do (setf (gethash prefixed-name table) super-name)
+                                 :finally (return table)))
+           (class (tc:make-ty-class :name class-name
+                                    :predicate pred
+                                    :superclasses (partial-class-superclasses partial)
+                                    :superclass-dict superclass-dict
+                                    :superclass-map superclass-map
+                                    :class-variables class-vars
+                                    :class-variable-map (loop :with table := (make-hash-table :test #'eq)
+                                                              :for var :in class-vars
+                                                              :for i :from 0
+                                                              :do (setf (gethash var table) i)
+                                                              :finally (return table))
+                                    :fundeps fundeps
+                                    :unqualified-methods (loop :for method-ty :in (partial-class-method-tys partial)
+                                                               :for method :in (parser:toplevel-define-class-methods class-def)
+                                                               :for method-name := (parser:identifier-src-name
+                                                                                    (parser:method-definition-name method))
+                                                               :collect (cons method-name (tc:quantify nil method-ty)))
+                                    :codegen-sym codegen-sym
+                                    :docstring (parser:toplevel-define-class-docstring class-def)
+                                    :location (or *compile-file-pathname* *load-truename*))))
+
+      (setf env (tc:set-class env class-name class))
+
+      ;; If the class has a constructor function then define it in the
+      ;; function environment
+
+      (let ((class-arity (+ (length (partial-class-superclasses partial))
+                            (length (partial-class-method-tys partial)))))
+        (cond ((not (zerop class-arity))
+               (setf env (tc:set-function env codegen-sym (tc:make-function-env-entry :name codegen-sym
+                                                                                      :arity class-arity))))
+              ((tc:lookup-function env codegen-sym :no-error t)
+               (setf env (tc:unset-function env codegen-sym)))))
+
+      (loop :for method-type :in (partial-class-method-tys partial)
+            :for method-name :in (mapcar (alexandria:compose #'parser:identifier-src-name
+                                                             #'parser:method-definition-name)
+                                         (parser:toplevel-define-class-methods class-def))
+            :do (setf env (make-method method-type method-name pred env)))
+
+      (values class env))))
+
+
+(defun infer-class-scc-kinds (class-defs env file)
+  (declare (type parser:toplevel-define-class-list class-defs)
            (type tc:environment env)
            (type error:coalton-file file)
            (values tc:ty-class-list tc:environment))
 
-  (let* ((renamed-classes (parser:rename-type-variables classes))
+  (let* ((renamed-class-defs (parser:rename-type-variables class-defs))
 
          (partial-env (make-partial-type-env :env env))
 
          ;; Predefine each class in the environment
          (preds
-           (loop :for class :in renamed-classes
-
+           (loop :for class :in renamed-class-defs
                  :for class-name := (parser:identifier-src-name (parser:toplevel-define-class-name class))
-          
                  :for vars := (mapcar #'parser:keyword-src-name
                                       (parser:toplevel-define-class-vars class))
-
                  :for tvars := (loop :for var :in vars
                                      :collect (partial-type-env-add-var partial-env var))
-
-                 :for pred := (tc:make-ty-predicate
-                               :class class-name
-                               :types tvars)
+                 :for pred := (tc:make-ty-predicate :class class-name
+                                                    :types tvars)
 
                  :do (partial-type-env-add-class partial-env pred)
                  :collect pred))
@@ -214,7 +310,7 @@
 
          ;; Infer the kinds of each class
          (partial-classes
-           (loop :for class :in renamed-classes
+           (loop :for class :in renamed-class-defs
                  :collect (multiple-value-bind (partial-class ksubs_)
                               (infer-class-kinds class partial-env ksubs file)
                             (setf ksubs ksubs_)
@@ -227,156 +323,26 @@
     (setf partial-classes (tc:apply-ksubstitution ksubs partial-classes))
     (setf preds (tc:apply-ksubstitution ksubs preds))
 
-    (values
-     (loop :for class :in classes
-           :for pred :in preds
-           :for partial :in partial-classes
-
-           :for class-name := (tc:ty-predicate-class pred)
-           :for class-vars := (mapcar #'parser:keyword-src-name (parser:toplevel-define-class-vars class))
-
-           :for location := (or *compile-file-pathname* *load-truename*)
-
-           :for codegen-sym := (alexandria:format-symbol *package* "CLASS/~A" class-name)
-
-           :for method-names := (mapcar (alexandria:compose #'parser:identifier-src-name
-                                                            #'parser:method-definition-name)
-                                        (parser:toplevel-define-class-methods class))
-
-           :for unqualifed-methods
-             := (loop :for method-ty :in (partial-class-method-tys partial)
-                      :for method-name :in method-names
-
-                      :collect (cons method-name method-ty))
-
-           :for superclass-dict
-             := (loop :for super :in (partial-class-superclasses partial)
-                      :for i :from 0
-                      :collect (cons super
-                                     (alexandria:format-symbol
-                                      *package*
-                                      (format nil "SUPER-~D" i))))
-
-           :for superclass-map
-             := (loop :with table := (make-hash-table :test #'eq)
-                      :for (pred . super-name) :in superclass-dict
-                      :for prefixed-name := (alexandria:format-symbol
-                                             *package*
-                                             "~A-~A"
-                                             codegen-sym
-                                             super-name)
-                      :do (setf (gethash prefixed-name table) super-name)
-                      :finally (return table))
-
-           :for fundeps
-             := (loop :for fundep :in (parser:toplevel-define-class-fundeps class)
-                      :collect (tc:make-fundep
-                                :from (mapcar #'parser:keyword-src-name (parser:fundep-left fundep))
-                                :to (mapcar #'parser:keyword-src-name (parser:fundep-right fundep))))
-
-           :for class-entry
-             :=  (tc:make-ty-class
-                  :name class-name
-                  :predicate pred
-                  :superclasses (partial-class-superclasses partial)
-                  :class-variables class-vars
-
-                  :class-variable-map (loop :with table := (make-hash-table :test #'eq)
-                                            :for var :in class-vars
-                                            :for i :from 0
-                                            :do (setf (gethash var table) i)
-                                            :finally (return table))
-
-                  :fundeps fundeps
-
-                  :unqualified-methods (loop :for method-ty :in (partial-class-method-tys partial)
-                                             :for method :in (parser:toplevel-define-class-methods class)
-
-                                             :for method-name := (parser:identifier-src-name
-                                                                  (parser:method-definition-name method))
-
-                                             :collect (cons method-name (tc:quantify nil method-ty)))
-                  :codegen-sym codegen-sym
-                  :superclass-dict superclass-dict
-                  :superclass-map superclass-map
-                  :docstring (parser:toplevel-define-class-docstring class)
-                  :location location)
-
-           :for method-tys := (loop :for (name . qual-ty) :in unqualifed-methods
-                                    :for type := (tc:qualified-ty-type qual-ty)
-                                    :for preds := (tc:qualified-ty-predicates qual-ty)
-                                    :for new-qual-ty := (tc:qualify (cons pred preds) type)
-                                    :collect (tc:quantify (tc:type-variables new-qual-ty) new-qual-ty))
-
-           :for class-arity := (+ (length (partial-class-superclasses partial))
-                                  (length method-tys))
-
-           :for prev-class := (tc:lookup-class env class-name :no-error t)
-
-           ;; Fundeps cannot be redefined
-           :when (and prev-class (not (equalp (tc:ty-class-fundeps prev-class)
-                                              fundeps))) 
-             :do (progn
-                   (error 'tc-error
-                          :err (coalton-error
-                                :span (parser:toplevel-define-class-head-src class)
-                                :file file
-                                :message "Invalid fundep redefinition"
-                                :primary-note (format nil "unable to redefine the fudndeps of class ~S." class-name))))
-
-           :when fundeps
-             :do (setf env (tc:initialize-fundep-environment env class-name))
-
-           :do (setf env (tc:set-class env class-name class-entry))
-
-               ;; If the class has a constructor function then define
-               ;; it in the function environment
-           :if (not (zerop class-arity))
-             :do (setf env (tc:set-function env codegen-sym (tc:make-function-env-entry
-                                                             :name codegen-sym
-                                                             :arity class-arity)))
-           :else
-             :when (tc:lookup-function env codegen-sym :no-error t)
-               :do (setf env (tc:unset-function env codegen-sym))
-
-           :do (loop :for method-ty :in method-tys
-                     :for method-name :in method-names
-
-                     :for method-arity := (+ (tc:function-type-arity
-                                              (tc:qualified-ty-type
-                                               (tc:fresh-inst method-ty)))
-                                             (length (tc:qualified-ty-predicates
-                                                      (tc:fresh-inst method-ty))))
-
-                     :do (setf env (tc:set-value-type env method-name method-ty))
-
-                     :do (setf env (tc:set-name env method-name (tc:make-name-entry
-                                                                 :name method-name
-                                                                 :type :method
-                                                                 :docstring nil
-                                                                 :location location)))
-
-                     :if (not (zerop method-arity))
-                       :do (setf env (tc:set-function env method-name (tc:make-function-env-entry
-                                                                       :name method-name
-                                                                       :arity method-arity)))
-                     :else
-                       :do (setf env (tc:unset-function env method-name))) 
-
-           :collect class-entry)
-     env)))
+    (values (loop :for class-def :in class-defs
+                  :for pred :in preds
+                  :for partial :in partial-classes
+                  :for (class class-env)
+                    := (multiple-value-list (make-class class-def pred partial env file))
+                  :do (setf env class-env)
+                  :collect class)
+            env)))
 
 
-(defun infer-class-kinds (class env ksubs file)
-  (declare (type parser:toplevel-define-class class)
+(defun infer-class-kinds (class-def env ksubs file)
+  (declare (type parser:toplevel-define-class class-def)
            (type partial-type-env env)
            (type tc:ksubstitution-list ksubs)
            (type error:coalton-file file)
            (values partial-class tc:ksubstitution-list))
 
-  (let ((var-names (mapcar #'parser:keyword-src-name (parser:toplevel-define-class-vars class))))
+  (let ((var-names (mapcar #'parser:keyword-src-name (parser:toplevel-define-class-vars class-def))))
 
-    ;; Ensure fudneps don't have duplicate variables
+    ;; Ensure fundeps don't have duplicate variables
     (labels ((check-duplicate-fundep-variables (vars)
                (check-duplicates
                 vars
@@ -395,7 +361,7 @@
                                  :type :primary
                                  :span (parser:keyword-src-source second)
                                  :message "second usage here"))))))))
-      (loop :for fundep :in (parser:toplevel-define-class-fundeps class)
+      (loop :for fundep :in (parser:toplevel-define-class-fundeps class-def)
             :do (check-duplicate-fundep-variables (parser:fundep-left fundep))
             :do (check-duplicate-fundep-variables (parser:fundep-right fundep))))
 
@@ -410,29 +376,27 @@
                                         :message "Unkown type variable"
                                         :primary-note (format nil "unknown type variable ~S"
                                                               (parser:keyword-src-name var)))))))
-      (loop :for fundep :in (parser:toplevel-define-class-fundeps class)
+      (loop :for fundep :in (parser:toplevel-define-class-fundeps class-def)
             :do (check-fundep-variables (parser:fundep-left fundep))
             :do (check-fundep-variables (parser:fundep-right fundep))))
 
-    (let* (
-
-           (fundeps
-             (loop :for fundep :in (parser:toplevel-define-class-fundeps class)
+    (let* ((fundeps
+             (loop :for fundep :in (parser:toplevel-define-class-fundeps class-def)
                    :collect (tc:make-fundep
                              :from (mapcar #'parser:keyword-src-name (parser:fundep-left fundep))
                              :to (mapcar #'parser:keyword-src-name (parser:fundep-right fundep)))))
 
            ;; Parse each of the superclasses
            (preds
-             (loop :for pred :in (parser:toplevel-define-class-preds class)
+             (loop :for pred :in (parser:toplevel-define-class-preds class-def)
                    :collect (multiple-value-bind (pred ksubs_)
                                 (infer-predicate-kinds pred ksubs env file)
                               (setf ksubs ksubs_)
                               pred)))
-           
+
            ;; Parse each of the methods
            (method-tys
-             (loop :for method :in (parser:toplevel-define-class-methods class)
+             (loop :for method :in (parser:toplevel-define-class-methods class-def)
 
                    :for ty := (parser:method-definition-type method)
 
@@ -468,7 +432,7 @@
                                                 :file file
                                                 :message "Invalid method predicate"
                                                 :primary-note "method predicate contains only class variables")))
-                      
+
                    :do (loop :for tyvar :in new-tyvars
                              :do (partial-type-env-add-var env tyvar))
 
