@@ -114,6 +114,11 @@
   (types  (util:required 'types)  :type ty-list        :read-only t)
   (source (util:required 'source) :type cons           :read-only t))
 
+(defmethod make-source-form ((self ty-predicate))
+  `(make-ty-predicate :class ,(make-source-form (ty-predicate-class self))
+                      :types ,(make-source-form (ty-predicate-types self))
+                      :source ',(ty-predicate-source self)))
+
 (defun ty-predicate-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'ty-predicate-p x)))

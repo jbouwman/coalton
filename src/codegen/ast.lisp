@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/codegen/ast
   (:use
    #:cl
+   #:coalton-impl/generics
    #:coalton-impl/codegen/pattern)
   (:local-nicknames
    (#:util #:coalton-impl/util)
@@ -136,14 +137,27 @@
   "Literal values like 1 or \"hello\""
   (value (util:required 'value) :type util:literal-value :read-only t))
 
+(defmethod make-source-form ((self node-literal))
+  `(make-node-literal :type ,(make-source-form (node-type self))
+                      :value ,(node-literal-value self)))
+
 (defstruct (node-variable (:include node))
   "Variables like x or y"
   (value (util:required 'value) :type parser:identifier :read-only t))
+
+(defmethod make-source-form ((self node-variable))
+  `(make-node-variable :type ,(make-source-form (node-type self))
+                       :value ,(make-source-form (node-variable-value self))))
 
 (defstruct (node-application (:include node))
   "Function application (f x)"
   (rator (util:required 'rator) :type node      :read-only t)
   (rands (util:required 'rands) :type node-list :read-only t))
+
+(defmethod make-source-form ((self node-application))
+  `(make-node-application :type ,(make-source-form (node-type self))
+                          :rator ,(make-source-form (node-application-rator self))
+                          :rands ,(make-source-form (node-application-rands self))))
 
 (defstruct (node-direct-application (:include node))
   "Fully saturated function application of a known function"
@@ -151,25 +165,50 @@
   (rator      (util:required 'rator)      :type parser:identifier :read-only t)
   (rands      (util:required 'rands)      :type node-list         :read-only t))
 
+(defmethod make-source-form ((self node-direct-application))
+  `(make-node-direct-application :type ,(make-source-form (node-type self))
+                                 :rator-type ,(make-source-form (node-direct-application-rator-type self))
+                                 :rator ,(make-source-form (node-direct-application-rator self))
+                                 :rands ,(make-source-form (node-direct-application-rands self))))
+
 (defstruct (node-abstraction (:include node))
   "Lambda literals (fn (x) x)"
   (vars    (util:required 'vars)    :type parser:identifier-list :read-only t)
   (subexpr (util:required 'subexpr) :type node                   :read-only t))
+
+(defmethod make-source-form ((self node-abstraction))
+  `(make-node-abstraction :type ,(make-source-form (node-type self))
+                          :vars ,(make-source-form (node-abstraction-vars self))
+                          :subexpr ,(make-source-form (node-abstraction-subexpr self))))
 
 (defstruct (node-let (:include node))
   "Introduction of local mutually-recursive bindings (let ((x 2)) (+ x x))"
   (bindings (util:required 'bindings) :type binding-list :read-only t)
   (subexpr  (util:required 'subexpr)  :type node         :read-only t))
 
+(defmethod make-source-form ((self node-let))
+  `(make-node-let :type ,(make-source-form (node-type self))
+                  :bindings ,(make-source-alist (node-let-bindings self))
+                  :subexpr ,(make-source-form (node-let-subexpr self))))
+
 (defstruct (node-lisp (:include node))
   "An embedded lisp form"
   (vars (util:required 'vars) :type list :read-only t)
   (form (util:required 'form) :type t    :read-only t))
 
+(defmethod make-source-form ((self node-lisp))
+  `(make-node-lisp :type ,(make-source-form (node-type self))
+                   :vars ',(node-lisp-vars self)
+                   :form ',(node-lisp-form self)))
+
 (defstruct match-branch
   "A branch of a match statement"
   (pattern  (util:required 'pattern)  :type pattern            :read-only t)
   (body     (util:required 'body)     :type node               :read-only t))
+
+(defmethod make-source-form ((self match-branch))
+  `(make-match-branch :pattern ,(make-source-form (match-branch-pattern self))
+                      :body ,(make-source-form (match-branch-body self))))
 
 (defmethod make-load-form ((self match-branch) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -185,6 +224,11 @@
   "A pattern matching construct. Uses MATCH-BRANCH to represent branches"
   (expr (util:required 'expr) :type node :read-only t)
   (branches (util:required 'branches) :type branch-list :read-only t))
+
+(defmethod make-source-form ((self node-match))
+  `(make-node-match :type ,(make-source-form (node-type self))
+                    :expr ,(make-source-form (node-match-expr self))
+                    :branches ,(make-source-form (node-match-branches self))))
 
 (defstruct (node-while (:include node))
   "A looping construct. Executes a body until an expression is false."
@@ -217,14 +261,27 @@ call to (break)."
   "A series of statements to be executed sequentially"
   (nodes (util:required 'nodes) :type node-list :read-only t))
 
+(defmethod make-source-form ((self node-seq))
+  `(make-node-seq :type ,(make-source-form (node-type self))
+                  :nodes ,(make-source-form (node-seq-nodes self))))
+
 (defstruct (node-return (:include node))
   "A return statement, used for early returns in functions"
   (expr (util:required 'expr) :type node :read-only t))
+
+(defmethod make-source-form ((self node-return))
+  `(make-node-return :type ,(make-source-form (node-type self))
+                     :expr ,(make-source-form (node-return-expr self))))
 
 (defstruct (node-field (:include node))
   "Accessing a superclass on a typeclass dictionary"
   (name (util:required 'name) :type parser:identifier :read-only t)
   (dict (util:required 'dict) :type node              :read-only t))
+
+(defmethod make-source-form ((self node-field))
+  `(make-node-field :type ,(make-source-form (node-type self))
+                    :name ',(node-field-name self)
+                    :dict ,(make-source-form (node-field-dict self))))
 
 (defstruct (node-dynamic-extent (:include node))
   "A single stack allocated binding"
@@ -237,6 +294,12 @@ call to (break)."
   (name (util:required 'name) :type parser:identifier :read-only t)
   (expr (util:required 'expr) :type node              :read-only t)
   (body (util:required 'body) :type node              :read-only t))
+
+(defmethod make-source-form ((self node-bind))
+  `(make-node-bind :type ,(make-source-form (node-type self))
+                   :name ',(node-bind-name self)
+                   :expr ,(make-source-form (node-bind-expr self))
+                   :body ,(make-source-form (node-bind-body self))))
 
 ;;;
 ;;; Functions

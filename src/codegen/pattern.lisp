@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/codegen/pattern
   (:use
-   #:cl)
+   #:cl
+   #:coalton-impl/generics)
   (:local-nicknames
    (#:util #:coalton-impl/util)
    (#:tc #:coalton-impl/typechecker))
@@ -49,6 +50,10 @@
             (:copier nil))
   (name (util:required 'name) :type symbol :read-only t))
 
+(defmethod make-source-form ((self pattern-var))
+  `(make-pattern-var :type ,(make-source-form (pattern-type self))
+                     :name ',(pattern-var-name self)))
+
 (defstruct (pattern-literal
             (:include pattern)
             (:copier nil))
@@ -58,11 +63,19 @@
             (:include pattern)
             (:copier nil)))
 
+(defmethod make-source-form ((self pattern-wildcard))
+  `(make-pattern-wildcard :type ,(make-source-form (pattern-type self))))
+
 (defstruct (pattern-constructor
             (:include pattern)
             (:copier nil))
   (name     (util:required 'name)     :type symbol       :read-only t)
   (patterns (util:required 'patterns) :type pattern-list :read-only t))
+
+(defmethod make-source-form ((self pattern-constructor))
+  `(make-pattern-constructor :type ,(make-source-form (pattern-type self))
+                             :name ',(pattern-constructor-name self)
+                             :patterns ,(make-source-form (pattern-constructor-patterns self))))
 
 (defun pattern-variables (pattern)
   (delete-duplicates (pattern-variables-generic% pattern) :test #'eq))

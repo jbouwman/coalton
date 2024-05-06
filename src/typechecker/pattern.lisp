@@ -4,7 +4,8 @@
 
 (defpackage #:coalton-impl/typechecker/pattern
   (:use
-   #:cl)
+   #:cl
+   #:coalton-impl/generics)
   (:local-nicknames
    (#:util #:coalton-impl/util)
    (#:parser #:coalton-impl/parser)

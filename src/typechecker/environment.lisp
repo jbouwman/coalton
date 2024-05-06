@@ -250,12 +250,16 @@
   (make-load-form-saving-slots self :environment env))
 
 (defmethod make-source-form ((self type-entry))
-  `(make-type-entry :name ,(make-source-form (type-entry-name self))
+  `(make-type-entry :name ',(type-entry-name self)
                     :runtime-type ',(type-entry-runtime-type self)
-                    :-type ,(make-source-form (type-entry-type self))
+                    :type ,(make-source-form (type-entry-type self))
                     :tyvars ,(make-source-form (type-entry-tyvars self))
-                    :constructors ,(make-source-form (type-entry-constructors self))))
-                    
+                    :constructors ',(type-entry-constructors self)
+                    :explicit-repr ',(type-entry-explicit-repr self)
+                    :enum-repr ',(type-entry-enum-repr self)
+                    :newtype ',(type-entry-newtype self)
+                    :docstring ',(type-entry-docstring self)
+                    :location ',(type-entry-location self)))
 
 (defmethod kind-of ((entry type-entry))
   (kind-of (type-entry-type entry)))
@@ -420,6 +424,13 @@
 (defmethod make-load-form ((self constructor-entry) &optional env)
   (make-load-form-saving-slots self :environment env))
 
+(defmethod make-source-form ((self constructor-entry))
+  `(make-constructor-entry :name ',(constructor-entry-name self)
+                           :arity ,(constructor-entry-arity self)
+                           :constructs ',(constructor-entry-constructs self)
+                           :classname ',(constructor-entry-classname self)
+                           :compressed-repr ',(constructor-entry-compressed-repr self)))
+
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type constructor-entry))
 
@@ -498,6 +509,12 @@
 (defmethod make-load-form ((self struct-entry) &optional env)
   (make-load-form-saving-slots self :environment env))
 
+(defmethod make-source-form ((self struct-entry))
+  `(make-struct-entry :name ',(struct-entry-name self)
+                      :fields ',(struct-entry-fields self)
+                      :field-tys ,(make-source-hash (struct-entry-field-tys self))
+                      :field-idx ,(make-source-hash (struct-entry-field-idx self))))
+
 (defun struct-entry-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'struct-entry-p x)))
@@ -532,6 +549,21 @@
 
 (defmethod make-load-form ((self ty-class) &optional env)
   (make-load-form-saving-slots self :environment env))
+
+(defmethod make-source-form ((self ty-class))
+  `(make-ty-class
+    :name ',(ty-class-name self)
+    :predicate ,(make-source-form (ty-class-predicate self))
+    :superclasses ,(make-source-form (ty-class-superclasses self))
+    :class-variables (list ,@(ty-class-class-variables self))
+    :class-variable-map ,(make-source-hash (ty-class-class-variable-map self))
+    :fundeps ',(ty-class-fundeps self)
+    :unqualified-methods ,(make-source-alist (ty-class-unqualified-methods self))
+    :codegen-sym ',(ty-class-codegen-sym self)
+    :superclass-dict ',(ty-class-superclass-dict self)
+    :superclass-map ,(make-source-form (ty-class-superclass-map self))
+    :docstring ',(ty-class-docstring self)
+    :location ',(ty-class-location self)))
 
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type ty-class))
@@ -594,6 +626,14 @@
 (defmethod make-load-form ((self ty-class-instance) &optional env)
   (make-load-form-saving-slots self :environment env))
 
+(defmethod make-source-form ((self ty-class-instance))
+  `(make-ty-class-instance
+    :constraints ,(make-source-form (ty-class-instance-constraints self))
+    :predicate ,(make-source-form (ty-class-instance-predicate self))
+    :codegen-sym ',(ty-class-instance-codegen-sym self)
+    :method-codegen-syms ,(make-source-form (ty-class-instance-method-codegen-syms self))
+    :docstring ,(ty-class-instance-docstring self)))
+
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type ty-class-instance))
 
@@ -635,6 +675,10 @@
 (defmethod make-load-form ((self function-env-entry) &optional env)
   (make-load-form-saving-slots self :environment env))
 
+(defmethod make-source-form ((self function-env-entry))
+  `(make-function-env-entry :name ',(function-env-entry-name self)
+                            :arity ,(function-env-entry-arity self)))
+
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type function-env-entry))
 
@@ -662,6 +706,12 @@
 
 (defmethod make-load-form ((self name-entry) &optional env)
   (make-load-form-saving-slots self :environment env))
+
+(defmethod make-source-form ((self name-entry))
+  `(make-name-entry :name ',(name-entry-name self)
+                    :type ',(name-entry-type self)
+                    :docstring ',(name-entry-docstring self)
+                    :location ',(name-entry-location self)))
 
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type name-entry))
@@ -700,6 +750,11 @@
 
 (defmethod make-load-form ((self specialization-entry) &optional env)
   (make-load-form-saving-slots self :environment env))
+
+(defmethod make-source-form ((self specialization-entry))
+  `(make-specialization-entry :from ',(specialization-entry-from self)
+                              :to ',(specialization-entry-to self)
+                              :to-ty ',(specialization-entry-to-ty self)))
 
 (defun specialization-entry-list-p (x)
   (and (alexandria:proper-list-p x)

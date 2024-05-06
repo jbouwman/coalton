@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/typechecker/scheme
   (:use
    #:cl
+   #:coalton-impl/generics
    #:coalton-impl/typechecker/base
    #:coalton-impl/typechecker/kinds
    #:coalton-impl/typechecker/types
@@ -38,6 +39,10 @@
 
 (defmethod make-load-form ((self ty-scheme) &optional env)
   (make-load-form-saving-slots self :environment env))
+
+(defmethod make-source-form ((self ty-scheme))
+  `(make-ty-scheme :kinds ,(make-source-form (ty-scheme-kinds self))
+                   :type ,(make-source-form (ty-scheme-type self))))
 
 (defun scheme-list-p (x)
   (and (alexandria:proper-list-p x)

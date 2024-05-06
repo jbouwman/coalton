@@ -2,6 +2,7 @@
   (:use
    #:cl
    #:coalton-impl/error
+   #:coalton-impl/generics
    #:coalton-impl/parser/base)
   (:shadowing-import-from
    #:coalton-impl/parser/base
@@ -64,6 +65,11 @@
             (:copier nil))
   (name      (util:required 'name)      :type identifier :read-only t)
   (orig-name (util:required 'orig-name) :type identifier :read-only t))
+ 
+(defmethod make-source-form ((self pattern-var))
+  `(make-pattern-var :source ',(pattern-source self)
+                     :name ,(make-source-form (pattern-var-name self))
+                     :orig-name ,(make-source-form (pattern-var-orig-name self))))
 
 (defun pattern-var-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -81,11 +87,19 @@
             (:include pattern)
             (:copier nil)))
 
+(defmethod make-source-form ((self pattern-wildcard))
+  `(make-pattern-wildcard :source ',(pattern-source self)))
+
 (defstruct (pattern-constructor
             (:include pattern)
             (:copier nil))
   (name     (util:required 'name)     :type identifier   :read-only t)
   (patterns (util:required 'patterns) :type pattern-list :read-only t))
+
+(defmethod make-source-form ((self pattern-constructor))
+  `(make-pattern-constructor :source ',(pattern-source self)
+                             :name ,(make-source-form (pattern-constructor-name self))
+                             :patterns ,(make-source-form (pattern-constructor-patterns self))))
 
 (defun parse-pattern (form file)
   (declare (type cst:cst form)

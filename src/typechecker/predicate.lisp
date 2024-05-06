@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/typechecker/predicate
   (:use
    #:cl
+   #:coalton-impl/generics
    #:coalton-impl/typechecker/kinds
    #:coalton-impl/typechecker/types
    #:coalton-impl/typechecker/substitutions)
@@ -42,6 +43,11 @@
 (defmethod make-load-form ((self ty-predicate) &optional env)
   (make-load-form-saving-slots self :environment env))
 
+(defmethod make-source-form ((self ty-predicate))
+  `(make-ty-predicate :class ',(ty-predicate-class self)
+                      :types ,(make-source-form (ty-predicate-types self))
+                      :source ',(ty-predicate-source self)))
+
 (defun ty-predicate-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'ty-predicate-p x)))
@@ -68,6 +74,10 @@
 
 (defmethod make-load-form ((self qualified-ty) &optional env)
   (make-load-form-saving-slots self :environment env))
+
+(defmethod make-source-form ((self qualified-ty))
+  `(make-qualified-ty :predicates ,(make-source-form (qualified-ty-predicates self))
+                      :type ,(make-source-form (qualified-ty-type self))))
 
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type qualified-ty))

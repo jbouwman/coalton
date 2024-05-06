@@ -10,6 +10,7 @@ QUICKLISP=$(SBCL) --load $(QUICKLISP_HOME)/setup.lisp \
 .PHONY: test test-safe
 test:
 	sbcl --noinform \
+		--dynamic-space-size 4096 \
 		--non-interactive \
 		--eval "(asdf:test-system :coalton)"
 

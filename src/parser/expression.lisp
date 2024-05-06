@@ -2,6 +2,7 @@
   (:use
    #:cl
    #:coalton-impl/error
+   #:coalton-impl/generics
    #:coalton-impl/parser/base
    #:coalton-impl/parser/types
    #:coalton-impl/parser/pattern
@@ -344,6 +345,11 @@ Rebound to NIL parsing an anonymous FN.")
             (:copier nil))
   (params (util:required 'params) :type pattern-list :read-only t)
   (body   (util:required 'body)   :type node-body    :read-only t))
+
+(defmethod make-source-form ((self node-abstraction))
+  `(make-node-abstraction :source ',(node-source self)
+                          :params ,(make-source-form (node-abstraction-params self))
+                          :body ,(make-source-form (node-abstraction-body self))))
 
 (defstruct (node-let-binding
             (:copier nil))
