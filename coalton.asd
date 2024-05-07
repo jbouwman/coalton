@@ -44,6 +44,7 @@
                 :serial t
                 :components ((:file "base")
                              (:file "reader")
+                             (:file "coalton-package")
                              (:file "types")
                              (:file "pattern")
                              (:file "macro")
@@ -98,7 +99,8 @@
                              (:file "package")))
                (:module "codegen"
                 :serial t
-                :components ((:file "pattern")
+                :components ((:file "base")
+                             (:file "pattern")
                              (:file "ast")
                              (:file "ast-substitutions")
                              (:file "resolve-instance")
@@ -118,6 +120,7 @@
                              (:file "package")))
                (:file "unlock-package" :if-feature :sb-package-locks)
                (:file "entry")
+               (:file "compiler")
                (:file "reader")
                (:file "debug")
                (:file "faux-macros")
@@ -319,6 +322,7 @@
                (:file "tarjan-scc-tests")
                (:file "reader-tests")
                (:file "error-tests")
+               (:file "package-tests")
                (:file "parser-tests")
                (:file "type-inference-tests")
                (:file "fundep-tests")
