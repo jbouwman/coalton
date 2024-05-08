@@ -23,9 +23,6 @@
 (defstruct immutable-map
   (data (fset:empty-map) :type fset:map :read-only t))
 
-(defmethod make-load-form ((self immutable-map) &optional env)
-  (make-load-form-saving-slots self :environment env))
-
 (defun immutable-map-lookup (m key)
   "Lookup KEY in M"
   (declare (type immutable-map m)

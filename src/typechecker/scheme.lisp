@@ -36,9 +36,6 @@
   (kinds (util:required 'kinds) :type list         :read-only t)
   (type  (util:required 'type)  :type qualified-ty :read-only t))
 
-(defmethod make-load-form ((self ty-scheme) &optional env)
-  (make-load-form-saving-slots self :environment env))
-
 (defun scheme-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'ty-scheme-p x)))

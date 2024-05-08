@@ -115,9 +115,6 @@
 (defstruct (node (:constructor nil))
   (type (util:required 'type) :type tc:ty :read-only t))
 
-(defmethod make-load-form ((self node) &optional env)
-  (make-load-form-saving-slots self :environment env))
-
 (defun node-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'node-p x)))
@@ -170,9 +167,6 @@
   "A branch of a match statement"
   (pattern  (util:required 'pattern)  :type pattern            :read-only t)
   (body     (util:required 'body)     :type node               :read-only t))
-
-(defmethod make-load-form ((self match-branch) &optional env)
-  (make-load-form-saving-slots self :environment env))
 
 (defun branch-list-p (x)
   (and (alexandria:proper-list-p x)

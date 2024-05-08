@@ -1,5 +1,5 @@
 ;;;;
-;;;; Central environment managment. Coalton stores all persistent
+;;;; Central environment management. Coalton stores all persistent
 ;;;; state in a single immutable struct. State is partitioned into a
 ;;;; series of sub-environments. Each sub-environment is analogous to
 ;;;; a database table, and holds multiple entries which function like
@@ -16,6 +16,7 @@
   (:use
    #:cl
    #:coalton-impl/algorithm
+   #:coalton-impl/typechecker/base
    #:coalton-impl/typechecker/type-errors
    #:coalton-impl/typechecker/types
    #:coalton-impl/typechecker/predicate
@@ -38,7 +39,7 @@
    (#:error #:coalton-impl/error)
    (#:parser #:coalton-impl/parser))
   (:export
-   #:*env-update-log*                       ; VARIABLE
+   #:with-update-hook                       ; MACRO
    #:value-environment                      ; STRUCT
    #:explicit-repr                          ; TYPE
    #:type-entry                             ; STRUCT
@@ -142,8 +143,6 @@
    #:lookup-struct                          ; FUNCTION
    #:set-struct                             ; FUNCTION
    #:unset-struct                           ; FUNCTION
-   #:set-constructor                        ; FUNCTION
-   #:unset-constructor                      ; FUNCTION
    #:lookup-class                           ; FUNCTION
    #:set-class                              ; FUNCTION
    #:lookup-function                        ; FUNCTION
@@ -175,16 +174,17 @@
 
 (in-package #:coalton-impl/typechecker/environment)
 
-(defvar *env-update-log* nil)
+(defvar *update-hook*)
 
-(defun make-update-record (name arg-list)
-  `(setf env (,name env ,@(loop :for arg :in (cdr arg-list)
-                                :collect (util:runtime-quote arg)))))
+(defmacro with-update-hook (fn &body body)
+  "Call FN with environment updates within the scope of BODY."
+  `(let ((*update-hook* ,fn)) ,@body))
 
 (defmacro define-env-updater (name arg-list &body body)
   `(defun ,name (&rest args)
      (declare (values environment &optional))
-     (push (make-update-record ',name args) *env-update-log*)
+     (when (boundp '*update-hook*)
+       (funcall *update-hook* ',name (cdr args)))
      (destructuring-bind ,arg-list args ,@body)))
 
 ;;;
@@ -244,9 +244,6 @@
 
   (docstring (util:required 'docstring)       :type (or null string) :read-only t)
   (location  (util:required 'location)        :type t                :read-only t))
-
-(defmethod make-load-form ((self type-entry) &optional env)
-  (make-load-form-saving-slots self :environment env))
 
 (defmethod kind-of ((entry type-entry))
   (kind-of (type-entry-type entry)))
@@ -408,9 +405,6 @@
   ;; compressed-repr is the runtime value of this nullary constructor
   (compressed-repr (util:required 'compressed-repr) :type t                              :read-only t))
 
-(defmethod make-load-form ((self constructor-entry) &optional env)
-  (make-load-form-saving-slots self :environment env))
-
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type constructor-entry))
 
@@ -486,9 +480,6 @@
   ;; Mapping of "field name" -> "field index"
   (field-idx (util:required 'field-idx) :type hash-table       :read-only t))
 
-(defmethod make-load-form ((self struct-entry) &optional env)
-  (make-load-form-saving-slots self :environment env))
-
 (defun struct-entry-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'struct-entry-p x)))
@@ -520,9 +511,6 @@
   (superclass-map      (util:required 'superclass-map)      :type hash-table          :read-only t)
   (docstring           (util:required 'docstring)           :type (or null string)    :read-only t)
   (location            (util:required 'location)            :type t                   :read-only t))
-
-(defmethod make-load-form ((self ty-class) &optional env)
-  (make-load-form-saving-slots self :environment env))
 
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type ty-class))
@@ -582,9 +570,6 @@
   (method-codegen-syms (util:required 'method-codegen-syms) :type hash-table        :read-only t)
   (docstring           (util:required 'docstring)           :type (or null string)  :read-only t))
 
-(defmethod make-load-form ((self ty-class-instance) &optional env)
-  (make-load-form-saving-slots self :environment env))
-
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type ty-class-instance))
 
@@ -623,9 +608,6 @@
   (name  (util:required 'name)  :type symbol :read-only t)
   (arity (util:required 'arity) :type fixnum :read-only t))
 
-(defmethod make-load-form ((self function-env-entry) &optional env)
-  (make-load-form-saving-slots self :environment env))
-
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type function-env-entry))
 
@@ -648,11 +630,8 @@
 (defstruct name-entry
   (name      (util:required 'name)      :type symbol                               :read-only t)
   (type      (util:required 'type)      :type (member :value :method :constructor) :read-only t)
-  (docstring (util:required 'docstring) :type (or null string)                     :read-only t)
-  (location  (util:required 'location)  :type t                                    :read-only t))
-
-(defmethod make-load-form ((self name-entry) &optional env)
-  (make-load-form-saving-slots self :environment env))
+  (docstring nil                        :type (or null string)                     :read-only t)
+  (location  nil                        :type t                                    :read-only t))
 
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type name-entry))
@@ -688,9 +667,6 @@
   (from (util:required 'from)   :type symbol :read-only t)
   (to (util:required 'to)       :type symbol :read-only t)
   (to-ty (util:required 'to-ty) :type ty     :read-only t))
-
-(defmethod make-load-form ((self specialization-entry) &optional env)
-  (make-load-form-saving-slots self :environment env))
 
 (defun specialization-entry-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -732,10 +708,6 @@
   (declare (type stream stream)
            (type environment env))
   (print-unreadable-object (env stream :type t :identity t)))
-
-
-(defmethod make-load-form ((self environment) &optional env)
-  (make-load-form-saving-slots self :environment env))
 
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type environment))
@@ -1130,15 +1102,15 @@
                                          (ty-class-instance-codegen-sym value)
                                          value))))
 
-(define-env-updater set-method-inline (env method instance codegen-sym)
+(define-env-updater set-method-inline (env method-instance codegen-sym)
   (declare (type environment env)
-           (type symbol method instance codegen-sym))
+           (type symbol codegen-sym))
   (update-environment
    env
    :method-inline-environment
    (immutable-map-set
     (environment-method-inline-environment env)
-    (cons method instance)
+    method-instance
     codegen-sym
     #'make-method-inline-environment)))
 
@@ -1273,9 +1245,6 @@
 (defstruct fundep-entry
   (from      (util:required 'from) :type ty-list :read-only t)
   (to        (util:required 'to)   :type ty-list :read-only t))
-
-(defmethod make-load-form ((self fundep-entry) &optional env)
-  (make-load-form-saving-slots self :environment env))
 
 (defun insert-fundep-entry% (env class fundep entry)
   (declare (type environment env)

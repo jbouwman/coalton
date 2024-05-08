@@ -27,7 +27,7 @@
    #:tapp-from                          ; ACCESSOR
    #:tapp-to                            ; ACCESSOR
    #:tapp-p                             ; FUNCTION
-   #:tget                               ; STRUCT
+   #:tgen                               ; STRUCT
    #:make-tgen                          ; CONSTRUCTOR
    #:tgen-id                            ; ACCESOR
    #:tgen-p                             ; FUNCTION
@@ -82,9 +82,6 @@
 
 (defstruct (ty (:constructor nil)))
 
-(defmethod make-load-form ((self ty) &optional env)
-  (make-load-form-saving-slots self :environment env))
-
 (defun ty-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'ty-p x)))
@@ -120,9 +117,6 @@
 
 (defstruct (tgen (:include ty))
   (id (util:required 'id) :type fixnum :read-only t))
-
-(defmethod make-load-form ((self tgen) &optional env)
-  (make-load-form-saving-slots self :environment env))
 
 ;;;
 ;;; Type Variables
