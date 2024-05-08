@@ -115,7 +115,8 @@
                              (:file "package")))
                (:module "codegen"
                 :serial t
-                :components ((:file "pattern")
+                :components ((:file "base")
+                             (:file "pattern")
                              (:file "ast")
                              (:file "ast-substitutions")
                              (:file "resolve-instance")
@@ -135,6 +136,7 @@
                              (:file "package")))
                (:file "unlock-package" :if-feature :sb-package-locks)
                (:file "entry")
+               (:file "compiler")
                (:file "reader")
                (:file "debug")
                (:file "faux-macros")
