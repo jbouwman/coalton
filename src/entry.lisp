@@ -202,7 +202,7 @@
                          :stream file-stream
                          :name filename)))
       (multiple-value-bind (code env)
-          (entry-point (parser:read-program file-stream coalton-file :mode :file))
+          (entry-point (parser:read-program file-stream coalton-file))
 
         (setf *global-environment* env)
 

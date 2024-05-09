@@ -44,6 +44,7 @@
                 :serial t
                 :components ((:file "base")
                              (:file "reader")
+                             (:file "coalton-package")
                              (:file "types")
                              (:file "pattern")
                              (:file "macro")
@@ -319,6 +320,7 @@
                (:file "tarjan-scc-tests")
                (:file "reader-tests")
                (:file "error-tests")
+               (:file "package-tests")
                (:file "parser-tests")
                (:file "type-inference-tests")
                (:file "fundep-tests")
