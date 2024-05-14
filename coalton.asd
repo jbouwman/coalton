@@ -136,6 +136,7 @@
                              (:file "package")))
                (:file "unlock-package" :if-feature :sb-package-locks)
                (:file "entry")
+               (:file "ir")
                (:file "compiler")
                (:file "reader")
                (:file "debug")

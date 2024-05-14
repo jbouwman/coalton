@@ -39,9 +39,6 @@
   (types (util:required 'types) :type ty-list        :read-only t)
   (source nil                   :type (or cons null) :read-only t))
 
-(defmethod make-load-form ((self ty-predicate) &optional env)
-  (make-load-form-saving-slots self :environment env))
-
 (defun ty-predicate-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'ty-predicate-p x)))
@@ -65,9 +62,6 @@
 (defstruct qualified-ty
   (predicates (util:required 'predicates) :type ty-predicate-list :read-only t)
   (type       (util:required 'type)       :type ty                :read-only t))
-
-(defmethod make-load-form ((self qualified-ty) &optional env)
-  (make-load-form-saving-slots self :environment env))
 
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type qualified-ty))

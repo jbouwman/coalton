@@ -6,6 +6,7 @@
    #:compile-file)
   (:local-nicknames
    (#:codegen #:coalton-impl/codegen)
+   (#:env #:coalton-impl/ir)
    (#:util #:coalton-impl/util)
    (#:error #:coalton-impl/error)
    (#:parser #:coalton-impl/parser)
@@ -75,6 +76,25 @@
        (eql (second a)
             (second b))))
 
+(defun emit-load-form (name args)
+  (case name
+    ((coalton-impl/typechecker/environment::add-specialization
+      coalton-impl/typechecker/environment::update-instance-fundeps)
+     (destructuring-bind (pred) args
+       `(setf env (,name env ,(env:source-form pred)))))
+    ((coalton-impl/typechecker/environment::initialize-fundep-environment)
+     (destructuring-bind (env-name) args
+       `(setf env (,name env ',env-name))))
+    ((coalton-impl/typechecker/environment::set-method-inline)
+     (destructuring-bind (env-name entry) args
+       `(setf env (,name env ',env-name ',entry))))
+    ((coalton-impl/typechecker/environment::set-function-source-parameter-names)
+     (destructuring-bind (env-name entry) args
+       `(setf env (,name env ',env-name (list ,@(mapcar #'env:source-form entry))))))
+    (t
+     (destructuring-bind (env-name entry) args
+       `(setf env (,name env ',env-name ,(env:source-form entry)))))))
+
 (defun toplevel-result (backend)
   "Return the result of evaluating a coalton-toplevel form."
   (with-slots (env code) backend
@@ -82,7 +102,7 @@
       `(progn
          (let ((env entry:*global-environment*))
            ,@(loop :for (name . args) :in updates
-                   :collect `(setf env (,name env ,@(mapcar #'util:runtime-quote args))))
+                   :collect (emit-load-form name args))
            (setf entry:*global-environment* env))
          ,@(coerce code 'list)))))
 

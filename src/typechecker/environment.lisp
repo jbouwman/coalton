@@ -245,9 +245,6 @@
   (docstring (util:required 'docstring)       :type (or null string) :read-only t)
   (location  (util:required 'location)        :type t                :read-only t))
 
-(defmethod make-load-form ((self type-entry) &optional env)
-  (make-load-form-saving-slots self :environment env))
-
 (defmethod kind-of ((entry type-entry))
   (kind-of (type-entry-type entry)))
 
@@ -408,9 +405,6 @@
   ;; compressed-repr is the runtime value of this nullary constructor
   (compressed-repr (util:required 'compressed-repr) :type t                              :read-only t))
 
-(defmethod make-load-form ((self constructor-entry) &optional env)
-  (make-load-form-saving-slots self :environment env))
-
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type constructor-entry))
 
@@ -486,9 +480,6 @@
   ;; Mapping of "field name" -> "field index"
   (field-idx (util:required 'field-idx) :type hash-table       :read-only t))
 
-(defmethod make-load-form ((self struct-entry) &optional env)
-  (make-load-form-saving-slots self :environment env))
-
 (defun struct-entry-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'struct-entry-p x)))
@@ -520,9 +511,6 @@
   (superclass-map      (util:required 'superclass-map)      :type hash-table          :read-only t)
   (docstring           (util:required 'docstring)           :type (or null string)    :read-only t)
   (location            (util:required 'location)            :type t                   :read-only t))
-
-(defmethod make-load-form ((self ty-class) &optional env)
-  (make-load-form-saving-slots self :environment env))
 
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type ty-class))
@@ -582,9 +570,6 @@
   (method-codegen-syms (util:required 'method-codegen-syms) :type hash-table        :read-only t)
   (docstring           (util:required 'docstring)           :type (or null string)  :read-only t))
 
-(defmethod make-load-form ((self ty-class-instance) &optional env)
-  (make-load-form-saving-slots self :environment env))
-
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type ty-class-instance))
 
@@ -623,9 +608,6 @@
   (name  (util:required 'name)  :type symbol :read-only t)
   (arity (util:required 'arity) :type fixnum :read-only t))
 
-(defmethod make-load-form ((self function-env-entry) &optional env)
-  (make-load-form-saving-slots self :environment env))
-
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type function-env-entry))
 
@@ -648,11 +630,8 @@
 (defstruct name-entry
   (name      (util:required 'name)      :type symbol                               :read-only t)
   (type      (util:required 'type)      :type (member :value :method :constructor) :read-only t)
-  (docstring (util:required 'docstring) :type (or null string)                     :read-only t)
-  (location  (util:required 'location)  :type t                                    :read-only t))
-
-(defmethod make-load-form ((self name-entry) &optional env)
-  (make-load-form-saving-slots self :environment env))
+  (docstring nil                        :type (or null string)                     :read-only t)
+  (location  nil                        :type t                                    :read-only t))
 
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type name-entry))
@@ -688,9 +667,6 @@
   (from (util:required 'from)   :type symbol :read-only t)
   (to (util:required 'to)       :type symbol :read-only t)
   (to-ty (util:required 'to-ty) :type ty     :read-only t))
-
-(defmethod make-load-form ((self specialization-entry) &optional env)
-  (make-load-form-saving-slots self :environment env))
 
 (defun specialization-entry-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -732,10 +708,6 @@
   (declare (type stream stream)
            (type environment env))
   (print-unreadable-object (env stream :type t :identity t)))
-
-
-(defmethod make-load-form ((self environment) &optional env)
-  (make-load-form-saving-slots self :environment env))
 
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type environment))
@@ -1273,9 +1245,6 @@
 (defstruct fundep-entry
   (from      (util:required 'from) :type ty-list :read-only t)
   (to        (util:required 'to)   :type ty-list :read-only t))
-
-(defmethod make-load-form ((self fundep-entry) &optional env)
-  (make-load-form-saving-slots self :environment env))
 
 (defun insert-fundep-entry% (env class fundep entry)
   (declare (type environment env)

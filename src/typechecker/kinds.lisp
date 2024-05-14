@@ -48,10 +48,7 @@
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defstruct (kind (:constructor nil)
-                   (:copier nil)))
-
-  (defmethod make-load-form ((self kind) &optional env)
-    (make-load-form-saving-slots self :environment env)))
+                   (:copier nil))))
 
 (defun kind-list-p (x)
   (and (alexandria:proper-list-p x)
