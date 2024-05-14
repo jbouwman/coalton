@@ -29,6 +29,7 @@
   :pathname "src/"
   :serial t
   :components ((:file "package")
+               (:file "generics")
                (:file "settings")
                (:file "utilities")
                (:file "global-lexical")
@@ -119,6 +120,7 @@
                              (:file "package")))
                (:file "unlock-package" :if-feature :sb-package-locks)
                (:file "entry")
+               (:file "ir")
                (:file "compiler")
                (:file "reader")
                (:file "debug")
