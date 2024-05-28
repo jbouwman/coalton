@@ -23,7 +23,7 @@
 (defun entry-point (program)
   (declare (type parser:program program))
 
-  (let* ((*package* (parser:program-package program))
+  (let* ((*package* (parser:program-lisp-package program))
 
          (program (parser:rename-variables program))
 

@@ -338,6 +338,7 @@
                (:file "error-tests")
                (:file "parser-tests")
                (:file "entry-tests")
+               (:file "toplevel-tests")
                (:file "type-inference-tests")
                (:file "fundep-tests")
                (:file "fundep-fib-test")
