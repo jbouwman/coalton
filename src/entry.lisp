@@ -20,6 +20,12 @@
 
 (defvar *global-environment* (tc:make-default-environment))
 
+(defvar *env-update-log*)
+
+(defun make-update-record (name arg-list)
+  `(setf env (,name env ,@(loop :for arg :in (cdr arg-list)
+                                :collect (util:runtime-quote arg)))))
+
 (defun entry-point (program)
   (declare (type parser:program program))
 
@@ -31,7 +37,11 @@
 
          (env *global-environment*)
 
-         (tc:*env-update-log* nil))
+         ;; TODO lift out of entry-point
+
+         (*env-update-log* nil)
+         (tc:*update-hook* (lambda (name args)
+                             (push (make-update-record name args) *env-update-log*))))
 
     (multiple-value-bind (type-definitions instances env)
         (tc:toplevel-define-type (parser:program-types program)
@@ -100,10 +110,10 @@
                                    `(error "~A was compiled in development mode but loaded in release."
                                            ,(or *compile-file-pathname* *load-truename*)))))
 
-                          (let ((coalton-impl/typechecker/environment::env *global-environment*))
-                            ,@(loop :for elem :in (reverse tc:*env-update-log*)
+                          (let ((env *global-environment*))
+                            ,@(loop :for elem :in (reverse *env-update-log*)
                                     :collect elem)
-                            (setf *global-environment* coalton-impl/typechecker/environment::env))
+                            (setf *global-environment* env))
 
                           ,program))
                    env))))))))))

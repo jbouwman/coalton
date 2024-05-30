@@ -27,7 +27,7 @@
    #:tapp-from                          ; ACCESSOR
    #:tapp-to                            ; ACCESSOR
    #:tapp-p                             ; FUNCTION
-   #:tget                               ; STRUCT
+   #:tgen                               ; STRUCT
    #:make-tgen                          ; CONSTRUCTOR
    #:tgen-id                            ; ACCESOR
    #:tgen-p                             ; FUNCTION

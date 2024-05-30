@@ -135,6 +135,7 @@
                              (:file "package")))
                (:file "unlock-package" :if-feature :sb-package-locks)
                (:file "entry")
+               ;; (:file "compiler")
                (:file "reader")
                (:file "debug")
                (:file "faux-macros")
