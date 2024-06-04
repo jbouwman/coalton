@@ -38,7 +38,7 @@
    (#:error #:coalton-impl/error)
    (#:parser #:coalton-impl/parser))
   (:export
-   #:*env-update-log*                       ; VARIABLE
+   #:*update-hook*                          ; VARIABLE
    #:value-environment                      ; STRUCT
    #:explicit-repr                          ; TYPE
    #:type-entry                             ; STRUCT
@@ -175,16 +175,13 @@
 
 (in-package #:coalton-impl/typechecker/environment)
 
-(defvar *env-update-log* nil)
-
-(defun make-update-record (name arg-list)
-  `(setf env (,name env ,@(loop :for arg :in (cdr arg-list)
-                                :collect (util:runtime-quote arg)))))
+(defvar *update-hook*)
 
 (defmacro define-env-updater (name arg-list &body body)
   `(defun ,name (&rest args)
      (declare (values environment &optional))
-     (push (make-update-record ',name args) *env-update-log*)
+     (when (boundp '*update-hook*)
+       (funcall *update-hook* ',name args))
      (destructuring-bind ,arg-list args ,@body)))
 
 ;;;

@@ -16,6 +16,24 @@
   "Is the Coalton reader allowed to parse the current input?
 Used to forbid reading while inside quasiquoted forms.")
 
+(defun make-update-record (name arg-list)
+  `(setf env (,name env ,@(loop :for arg :in (cdr arg-list)
+                                :collect (util:runtime-quote arg)))))
+
+(defun compile-toplevel (stream file)
+  (let* ((update-log nil)
+         (tc:*update-hook* (lambda (name arg-list)
+                             (push (make-update-record name arg-list) update-log))))
+    (multiple-value-bind (program env)
+        (entry:entry-point (parser:read-program stream file :mode :toplevel-macro))
+      (setf entry:*global-environment* env)
+      `(progn
+         ,(entry:make-prologue)
+         (let ((env entry:*global-environment*))
+           ,@(reverse update-log)
+           (setf entry:*global-environment* env))
+         ,program))))
+
 (defun read-coalton-toplevel-open-paren (stream char)
   (declare (optimize (debug 2)))
 
@@ -37,7 +55,6 @@ Used to forbid reading while inside quasiquoted forms.")
             (unwind-protect
                  (let* ((pathname (or *compile-file-truename* *load-truename*))
                         (filename (if pathname (namestring pathname) "<unknown>"))
-
                         (file-input-stream
                           (cond
                             ((or #+sbcl (sb-int:form-tracking-stream-p stream)
@@ -58,10 +75,7 @@ Used to forbid reading while inside quasiquoted forms.")
                         (error:coalton-base-warning
                           (lambda (c)
                             (error:render-coalton-warning c))))
-                     (multiple-value-bind (program env)
-                         (entry:entry-point (parser:read-program stream file :mode :toplevel-macro))
-                       (setf entry:*global-environment* env)
-                       program)))
+                     (compile-toplevel stream file)))
               ;; Clean up any opened file streams
               (dolist (s opened-streams)
                 (close s)))))
@@ -92,12 +106,8 @@ Used to forbid reading while inside quasiquoted forms.")
                         (error:coalton-base-warning
                           (lambda (c)
                             (error:render-coalton-warning c))))
-                     (let ((settings:*coalton-skip-update* t)
-                           (settings:*emit-type-annotations* nil))
-                       (multiple-value-bind (program env)
-                           (entry:entry-point (parser:read-program stream file :mode :toplevel-macro))
-                         (declare (ignore env))
-                         `',program))))
+                     (let ((settings:*emit-type-annotations* nil))
+                       `',(entry:entry-point (parser:read-program stream file :mode :toplevel-macro)))))
               ;; Clean up any opened file streams
               (dolist (s opened-streams)
                 (close s)))))
@@ -128,13 +138,10 @@ Used to forbid reading while inside quasiquoted forms.")
                         (error:coalton-base-warning
                           (lambda (c)
                             (error:render-coalton-warning c))))
-                     (let ((settings:*coalton-skip-update* t)
-                           (settings:*emit-type-annotations* nil)
+                     (let ((settings:*emit-type-annotations* nil)
                            (settings:*coalton-dump-ast* t))
-                       (multiple-value-bind (program env)
-                           (entry:entry-point (parser:read-program stream file :mode :toplevel-macro))
-                         (declare (ignore program env))
-                         nil))))
+                       (entry:entry-point (parser:read-program stream file :mode :toplevel-macro))
+                       (values))))
               ;; Clean up any opened file streams
               (dolist (s opened-streams)
                 (close s)))))
