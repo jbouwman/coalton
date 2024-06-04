@@ -1,4 +1,6 @@
-(package small-coalton-programs/classical)
+(package small-coalton-programs/classical
+  (import
+    coalton-prelude))
 
 ;; fact: compute the factorial of a given integer
 

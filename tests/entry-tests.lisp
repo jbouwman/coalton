@@ -21,30 +21,25 @@
 ;; native package form supports the definition of imports and exports.
 
 (defpackage #:small-coalton-programs/classical
-  (:use
-   #:coalton
-   #:coalton-prelude
-   #:coalton-library/math)
-  (:local-nicknames (#:list #:coalton-library/list))
   (:export
    #:fact))
 
 (deftest test-compile-to-fasl ()
   "Test that the Coalton compiler compiles a test file into a working .fasl that persists environment updates."
-  (fmakunbound 'small-coalton-programs/classical:fact)
+  (fmakunbound 'small-coalton-programs/classical::fact)
   (setf entry:*global-environment*
         (tc:unset-function entry:*global-environment*
-                           'small-coalton-programs/classical:fact))
+                           'small-coalton-programs/classical::fact))
   (let ((fasl-file (merge-pathnames (format nil "~A-test.fasl" (gensym))
                                     (uiop:temporary-directory))))
     (entry:compile-coalton (compile-test-file)
                            :output-file fasl-file
                            :format :default)
     (load fasl-file :verbose t :print t)
-    (is (= 120 (small-coalton-programs/classical:fact 5)))
+    (is (= 120 (small-coalton-programs/classical::fact 5)))
     (is (equalp (tc:make-function-env-entry
-                 :name 'small-coalton-programs/classical:fact
+                 :name 'small-coalton-programs/classical::fact
                  :arity 1)
                 (tc:lookup-function entry:*global-environment*
-                                   'small-coalton-programs/classical:fact
+                                   'small-coalton-programs/classical::fact
                                    :no-error t)))))
