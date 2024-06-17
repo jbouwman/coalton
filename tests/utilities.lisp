@@ -95,3 +95,11 @@ Returns (values SOURCE-PATHNAME COMPILED-PATHNAME)."
 (defun test-file (pathname)
   "Create a pathname relative to the coalton/test system."
   (merge-pathnames pathname (asdf:system-source-directory "coalton/tests")))
+
+(defun check-parse (string fn)
+  "Apply FN to a form read from STRING."
+  (with-input-from-string (stream string)
+    (parser:with-reader-context stream
+      (funcall fn
+               (parser:maybe-read-form stream parser::*coalton-eclector-client*)
+               (se:make-file :stream stream :name "<string>")))))
