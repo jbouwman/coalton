@@ -95,3 +95,27 @@ Returns (values SOURCE-PATHNAME COMPILED-PATHNAME)."
 (defun test-file (pathname)
   "Create a pathname relative to the coalton/test system."
   (merge-pathnames pathname (asdf:system-source-directory "coalton/tests")))
+
+(defun collect-compiler-error (program)
+  (with-input-from-string (stream program)
+    (handler-case
+        (progn
+          (entry:compile stream "test")
+          nil)
+      (se:source-base-error (c)
+        (string-trim '(#\Space #\Newline)
+                     (princ-to-string c))))))
+
+(defun run-suite (pathname)
+  (let ((file (test-file pathname)))
+    (loop :for (line description program expected-error)
+            :in (coalton-tests/loader:load-suite file)
+          :for generated-error := (collect-compiler-error program)
+          :do (cond ((null generated-error)
+                     (is nil "program should have failed to compile: ~A" description))
+                    (t
+                     (check-string= (format nil "program text.~%~
+input file: ~A~%line number: ~A~%test case: ~A~%expected error (A) and generated error (B)"
+                                            file line description)
+                                    expected-error
+                                    generated-error))))))
