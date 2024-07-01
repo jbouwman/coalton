@@ -258,33 +258,15 @@
   (with-output-to-string (output)
     (compile-to-lisp stream name output)))
 
-  :DEFAULT Generate Lisp source, and compile immediately to .fasl. If no output file is specified, compiled Lisp code will be written to a temporary file, and that path will be returned.
-  :SOURCE  Write compiled Lisp code to console or specified output file."
-  (with-open-file (stream coal-file
-                               :direction ':input
-                               :element-type 'character)
-    (let* ((coal-stream (stream:make-char-position-stream stream))
-           (coal-file-name (etypecase coal-file
-                             (pathname (pathname-name coal-file))
-                             (string coal-file))))
-      (ecase format
-        (:default
-         (uiop:with-temporary-file (:stream lisp-stream
-                                    :pathname lisp-file
-                                    :suffix "lisp"
-                                    :direction ':output
-                                    :keep t)
-           (compile-to-lisp coal-file-name coal-stream lisp-stream)
-           :close-stream
-           (compile-file lisp-file :output-file output-file)))
-        (:source
-         (cond
-           (output-file
-            (with-open-file (lisp-stream output-file
-                                         :direction ':output
-                                         :element-type 'character
-                                         :if-exists ':supersede)
-              (compile-to-lisp coal-file-name coal-stream lisp-stream)))
-           (t
-            (with-output-to-string (lisp-stream)
-              (compile-to-lisp coal-file-name coal-stream lisp-stream)))))))))
+(defun compile (stream name &key (load t) (output-file nil))
+   "Compile Coalton code in STREAM, returning the pathname of the generated .fasl file. If OUTPUT-FILE is nil, the built-in compiler default output location will be used."
+   (uiop:with-temporary-file (:stream lisp-stream
+                              :pathname lisp-file
+                              :type "lisp"
+                              :direction ':output)
+     (compile-to-lisp stream name lisp-stream)
+     :close-stream
+     (let ((output-file (compile-file lisp-file :output-file (or output-file ""))))
+       (when load
+         (load output-file))
+       output-file)))

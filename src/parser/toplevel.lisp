@@ -445,9 +445,9 @@
   (specializations (util:required 'specializations) :type toplevel-specialize-list      :read-only nil))
 
 (defun read-program (stream file &key mode)
-  "Read a PROGRAM from the COALTON-FILE.
+  "Read a PROGRAM from FILE (an instance of source-error:file).
 If MODE is :file, a package form is required."
-  (declare (type coalton-file file)
+  (declare (type se:file file)
            (type (member :file :toplevel-macro :test) mode)
            (values program))
 
@@ -562,13 +562,17 @@ consume all attributes"))))
 ;; consisting of (CST . FILE), in order to simplify #'PARSE-PACKAGE
 ;; and related functions.
 
+(declaim (inline package-syntax-error-span))
+(defun package-syntax-error-span (span file note)
+  (error 'parse-error
+         :err (se:source-error :span span
+                               :file file
+                               :message "Malformed package declaration"
+                               :primary-note note)))
+
 (declaim (inline package-syntax-error))
 (defun package-syntax-error (form file note)
-  (error 'parse-error
-         :err (coalton-error :span (cst:source form)
-                             :file file
-                             :message "Malformed package declaration"
-                             :primary-note note)))
+  (package-syntax-error-span (cst:source form) file note))
 
 (defun next-value (iter)
   "Return the next value from iterator ITER. The underlying value must be a nonempty cons cell."
@@ -587,25 +591,36 @@ consume all attributes"))))
     (and (cst:consp form)
          (cst:first form))))
 
-(defun consume-value (iter &optional accept)
-  "Consume the next value in ITER. The value is first provided to the single argument function ACCEPT before the iterator is destructively updated so that error context is preserved. Returns the consumed value."
-  (multiple-value-bind (value rest) (next-value iter)
-    (when accept
-      (funcall accept value))
-    (rplaca iter rest)
+(defun consume-value (iter)
+  "Consume and return the next value in ITER."
+  (when (next-value-p iter)
+    (multiple-value-bind (value rest) (next-value iter)
+      (rplaca iter rest)
+      value)))
+
+(defun consume-symbol (iter &key missing not-symbol)
+  "Return the next value in ITER, a CST:NODE. If the next value is not a symbol, signal PARSE-ERROR."
+  (let* ((end-of-list (cdr (cst:source (car iter))))
+         (value (consume-value iter)))
+    (cond ((null value)
+           (package-syntax-error-span (cons (1- end-of-list) end-of-list)
+                                      (cdr iter)
+                                      (or missing "expected a symbol")))
+          ((not (identifierp (cst:raw value)))
+           (package-syntax-error-span (cst:source value)
+                                      (cdr iter)
+                                      (or not-symbol "expected a symbol"))))
     value))
 
-(defun consume-symbol (iter &optional accept)
-  "Provide the next value in ITER to the single argument function ACCEPT. If the next value is not a symbol, signal PARSE-ERROR."
-  (let ((return-value nil))
-    (consume-value iter
-                   (lambda (value)
-                     (unless (identifierp (cst:raw value))
-                       (package-syntax-error value (cdr iter) "expected a symbol"))
-                     (when accept
-                       (funcall accept (cst:raw value)))
-                     (setf return-value (cst:raw value))))
-    return-value))
+(defun require-symbol (iter value &optional message)
+  "Consume the next symbol in ITER, requiring it to have VALUE."
+  (let ((symbol (consume-symbol iter)))
+    (unless (string= (string-upcase value)
+                     (string-upcase (symbol-name (cst:raw symbol))))
+      (package-syntax-error symbol (cdr iter)
+                            (or message
+                                (format nil "expected '~S'" value))))
+    symbol))
 
 (defun consume-string (iter &key optional)
   "Return the next value in ITER as a string. If next value is not a string and optional is null, signal PARSE-ERROR."
@@ -619,17 +634,15 @@ consume all attributes"))))
 
 (defun collect-symbols (iter)
   (loop :while (next-value-p iter)
-        :collect (symbol-name (consume-symbol iter))))
+        :collect (symbol-name (cst:raw (consume-symbol iter)))))
 
 (defun parse-import-statement (toplevel-package form file)
   (cond ((cst:consp form)
          (let* ((iter (cons form file))
                 (source-nick nil)
-                (source-package (consume-symbol iter)))
-           (consume-symbol iter (lambda (symbol)
-                                  (unless (string= "AS" (string-upcase (symbol-name symbol)))
-                                    (package-syntax-error (car iter) file "expected 'as'"))))
-           (setf source-nick (consume-symbol iter))
+                (source-package (cst:raw (consume-symbol iter))))
+           (require-symbol iter "AS")
+           (setf source-nick (cst:raw (consume-symbol iter)))
            (when (next-value-p iter)
              (package-syntax-error (car iter) file "unexpected value"))
            (with-slots (import-as) toplevel-package
@@ -655,7 +668,7 @@ consume all attributes"))))
   (unless (cst:consp form)
     (package-syntax-error form file "malformed package clause"))
   (let* ((iter (cons form file))
-         (clause-type (symbol-name (consume-symbol iter))))
+         (clause-type (symbol-name (cst:raw (consume-symbol iter)))))
     (cond ((string= clause-type "IMPORT")
            (loop :while (next-value-p iter)
                  :do (parse-import-statement toplevel-package (consume-value iter) file)))
@@ -666,13 +679,13 @@ consume all attributes"))))
              (setf export (append export (collect-symbols iter)))))
           (t
            (error 'parse-error
-                  :err (coalton-error
+                  :err (se:source-error
                         :span (cst:source form)
                         :file file
                         :message "Malformed package declaration"
                         :primary-note "Unknown package clause"
                         :help-notes (list
-                                     (make-coalton-error-help
+                                     (se:make-source-error-help
                                       :span (cst:source (cst:first form))
                                       :replacement #'identity
                                       :message "Must be one of import or export"))))))))
@@ -680,16 +693,15 @@ consume all attributes"))))
 (defun parse-package (form file)
   "Parse a coalton package declaration."
   (declare (type cst:cst form)
-           (type coalton-file file)
+           (type se:file file)
            (values toplevel-package))
   (let ((iter (cons form file)))
-    (consume-symbol iter
-                    (lambda (symbol)
-                      (unless (string= (symbol-name symbol) "PACKAGE")
-                        (package-syntax-error (cst:first form) file "package declarations must start with `package`"))))
-    (let ((package (make-instance 'toplevel-package
-                     :name (symbol-name (consume-symbol iter))
-                     :docstring (consume-string iter :optional t))))
+    (require-symbol iter "PACKAGE" "package declarations must start with `package`")
+    (let* ((package-name (cst:raw (consume-symbol iter :missing "missing package name"
+                                                       :not-symbol "package name must be a symbol" )))
+           (package (make-instance 'toplevel-package
+                      :name (symbol-name package-name)
+                      :docstring (consume-string iter :optional t))))
       (loop :while (next-value-p iter)
             :do (parse-package-clause package (consume-value iter) file))
       package)))
@@ -708,7 +720,7 @@ consume all attributes"))))
              (maybe-read-form stream *coalton-eclector-client*)
            (unless presentp
              (error 'parse-error
-                    :err (coalton-error
+                    :err (se:source-error
                           :span (cons (- (file-position stream) 2)
                                       (- (file-position stream) 1))
                           :file file
