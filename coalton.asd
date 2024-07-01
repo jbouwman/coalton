@@ -25,7 +25,8 @@
                #:eclector-concrete-syntax-tree
                #:named-readtables
                #:source-error
-               #:trivial-gray-streams)
+               #:trivial-gray-streams
+               #:trivial-package-local-nicknames)
   :pathname "src/"
   :serial t
   :components ((:file "package")

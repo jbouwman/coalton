@@ -10,18 +10,10 @@
   (:shadowing-import-from
    #:coalton-impl/parser/base
    #:parse-error)
-  (:import-from
-   #+sbcl      #:sb-ext
-   #+ccl       #:ccl
-   #+allegro   #:excl
-   #-(or sbcl ccl allegro) #:package-local-nicknames
-   #:package-local-nicknames
-   #:package-locally-nicknamed-by-list
-   #:add-package-local-nickname
-   #:remove-package-local-nickname)
   (:local-nicknames
    (#:cst #:concrete-syntax-tree)
    (#:se #:source-error)
+   (#:pn #:trivial-package-local-nicknames)
    (#:util #:coalton-impl/util))
   (:export
    #:attribute                                   ; TYPE
@@ -740,7 +732,7 @@ Ensure the package exists, import the COALTON package and required dependencies,
                                         :import-from import-from
                                         :export export)))
       (loop :for (local-nickname actual-package) :in import-as
-            :do (add-package-local-nickname actual-package package))
+            :do (pn:add-package-local-nickname actual-package package))
       package)))
 
 (defun program-lisp-package (program)
