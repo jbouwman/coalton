@@ -266,7 +266,10 @@
                               :direction ':output)
      (compile-to-lisp stream name lisp-stream)
      :close-stream
-     (let ((output-file (compile-file lisp-file :output-file (or output-file ""))))
-       (when load
-         (load output-file))
-       output-file)))
+     (cond (output-file
+            (compile-file lisp-file :output-file output-file))
+           (t
+            (setf output-file (compile-file lisp-file))))
+     (when load
+       (load output-file))
+     output-file))
