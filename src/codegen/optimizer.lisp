@@ -501,7 +501,8 @@
                     (superclass-dict (tc:ty-class-superclass-dict class))
 
                     ;; Map the accessor to a named superclass
-                    (superclass-name (gethash (node-field-name node) (tc:ty-class-superclass-map class)))
+                    (superclass-name (util:get-alist (tc:ty-class-superclass-map class)
+                                                     (node-field-name node)))
 
                     ;; Find the predicate of the accessed superclass
                     (superclass-pred (car (find superclass-name superclass-dict :key #'cdr)))

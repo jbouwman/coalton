@@ -113,8 +113,8 @@
                      (format nil "type '~S' is not a struct" ty-name))))
 
       (let* ((subs (tc:match struct-ty (accessor-from accessor)))
-             (field-ty (gethash (accessor-field accessor)
-                                (tc:struct-entry-field-tys struct-entry))))
+             (field-ty (util:get-alist (tc:struct-entry-field-tys struct-entry)
+                                       (accessor-field accessor))))
 
         (unless field-ty
           (error 'tc:tc-error

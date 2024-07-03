@@ -176,8 +176,8 @@
               (html-entities:encode-entities (symbol-name name)))
 
       (loop :for field :in fields
-            :for field-ty := (gethash field field-tys)
-            :for field-docstring := (gethash field field-docstrings)
+            :for field-ty := (util:get-alist field-tys field)
+            :for field-docstring := (util:get-alist field-docstrings field)
             :do (format stream "- <code>~A :: ~S</code>~A~%"
                         field
                         field-ty
@@ -216,7 +216,7 @@
                 :constraints context
                 :predicate predicate
                 :codegen-sym nil
-                :method-codegen-syms (make-hash-table)
+                :method-codegen-syms nil
                 :docstring nil)))
 
       (when documentation

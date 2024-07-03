@@ -29,6 +29,11 @@
    #:project-indices                   ; FUNCTION
    #:project-map                        ; FUNCTION
    #:maybe-read-form                    ; FUNCTION
+
+   #:make-alist
+   #:get-alist
+   #:set-alist
+   #:alist-set-p
    ))
 
 (in-package #:coalton-impl/util)
@@ -207,11 +212,33 @@
 
 (defun project-map (indices map data)
   (declare (type symbol-list indices)
-           (type hash-table map)
+           (type list map)
            (type list data))
   (project-indices
    (sort
     (loop :for key :in indices
-          :collect (gethash key map))
+          :collect (cdr (assoc key map)))
     #'<)
    data))
+
+;;; Functions for working with association lists, mainly to improve readability.
+
+(defun make-alist (&optional alist)
+  "Make an association list, optionally initialized with contents ALIST."
+  (declare (type list alist))
+  data)
+
+(defun get-alist (alist key)
+  "Consult ALIST and return the value associated with KEY. Nil values and absence are not distinguished."
+  (declare (type list alist))
+  (cdr (assoc key alist :test #'equal)))
+
+(defun set-alist (alist key value)
+  "Nondestructively add KEY VALUE association to ALIST and return the extended list."
+  (declare (type list alist))
+  (cons (cons key value) alist))
+
+(defun alist-set-p (alist key)
+  "Return T if KEY is present in ALIST. Value may be NIL."
+  (declare (type list alist))
+  (not (null (assoc key alist :test #'equal))))
