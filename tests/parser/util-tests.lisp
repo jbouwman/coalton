@@ -26,6 +26,9 @@
     (is (equalp (collect-symbols form)
                 '(a b c)))))
 
-(let ((p (coalton-impl/parser/toplevel::make-toplevel-package :name "test")))
-  (with-cst-form (form (read-cst "(import test)"))
-    (coalton-impl/parser/toplevel::parse-import p form)))
+
+(with-input-from-string (stream "()")
+    (let ((p (coalton-impl/parser/toplevel::make-toplevel-package :name "test")))
+      (with-cst-form (form (read-cst "(import 1)"))
+        (coalton-impl/parser/toplevel::parse-import p form))
+      p)))

@@ -573,7 +573,7 @@ consume all attributes"))))
                             (symbol-name source-package))
                       (toplevel-package-import-as package)))))
         ((symbol-form-p form)
-         (pushnew (symbol-name (cst-form-pointer form))
+         (pushnew (symbol-name (cst:raw (cst-form-pointer form)))
                   (toplevel-package-import package)))
         (t
          (syntax-error form "expected PACKAGE or (PACKAGE as NICK)"))))
@@ -654,8 +654,15 @@ consume all attributes"))))
                           :file file
                           :message "Unexpected EOF"
                           :primary-note "missing package form")))
-           (with-cst-form (form package-form)
-             (parse-package form)))
+           (handler-bind ((syntax-error (lambda (c)
+                                          (error 'parse-error
+                                                 :err (source-error:source-error
+                                                       :span (error-span c)
+                                                       :file file
+                                                       :message "Malformed package declaration"
+                                                       :primary-note (error-note c))))))
+             (with-cst-form (form package-form)
+               (parse-package form))))
       (do-symbols (symbol)
         (unintern symbol)))))
 

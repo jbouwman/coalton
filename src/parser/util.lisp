@@ -18,7 +18,8 @@
    #:require-symbol
    #:symbol-form-p
    #:syntax-error
-   #:syntax-error-span
+   #:error-note
+   #:error-span
    #:with-cst-form))
 
 (in-package #:coalton-impl/parser/util)
