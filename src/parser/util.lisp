@@ -3,100 +3,128 @@
 (defpackage #:coalton-impl/parser/util
   (:use
    #:cl)
-  (:shadowing-import-from
-   #:coalton-impl/parser/base
-   #:parse-error)
   (:local-nicknames
-   (#:cst #:concrete-syntax-tree)
-   (#:se #:source-error)
-   (#:util #:coalton-impl/util))
+   (#:cst #:concrete-syntax-tree))
   (:export
-   ))
+   #:collect-symbols
+   #:cons-form-p
+   #:consume-string
+   #:consume-symbol
+   #:consume-value
+   #:cst-form
+   #:cst-form-pointer
+   #:next-value
+   #:next-value-p
+   #:require-symbol
+   #:symbol-form-p
+   #:syntax-error
+   #:syntax-error-span
+   #:with-cst-form))
 
 (in-package #:coalton-impl/parser/util)
 
-(declaim (inline package-syntax-error-span))
-(defun package-syntax-error-span (span file note)
-  (error 'parse-error
-         :err (se:source-error :span span
-                               :file file
-                               :message "Malformed package declaration"
-                               :primary-note note)))
+(defstruct cst-form
+  form                                  ; the entire form that is being read
+  pointer)                              ; current pointer when reading sequentially
 
-(declaim (inline package-syntax-error))
-(defun package-syntax-error (form file note)
-  (package-syntax-error-span (cst:source form) file note))
+(define-condition syntax-error (error)
+  ((span :initarg :span
+         :reader error-span)
+   (note :initarg :note
+         :reader error-note)))
 
-(declaim (inline make-iter))
-(defun make-iter (form file)
-  (cons form file))
+(defun syntax-error-span (span note)
+  (error 'syntax-error
+         :span span
+         :note note))
 
-(defun next-value (iter)
-  "Return the next value from iterator ITER. The underlying value must be a nonempty cons cell."
-  (destructuring-bind (form . file) iter
-    (unless (cst:consp form)
-      (package-syntax-error form file "expected a list"))
-    (let ((value (cst:first form)))
+(defun syntax-error (form note &key pointer)
+  (declare (type cst-form form))
+  (let ((span (cst:source (or pointer (cst-form-pointer form)))))
+    (syntax-error-span span note)))
+
+(defun next-value (form)
+  "Return the next value from iterator FORM."
+  (declare (type cst-form form))
+  (let ((pointer (cst-form-pointer form)))
+    (unless (cst:consp pointer)
+      (syntax-error-span (cons (cdr (cst:source pointer))
+                               (cdr (cst:source pointer)))
+                         "attempt to read past end of list"))
+    (let ((value (cst:first pointer)))
       (unless value
-        (package-syntax-error form file "empty list"))
-      (values value (cst:rest form)))))
+        (syntax-error form "empty list"))
+      (values value (cst:rest pointer)))))
 
-(defun next-value-p (iter)
-  "Return T if the next value of iterator ITER is a nonempty cons cell."
-  (and (cst:consp (car iter))
-       (cst:first (Car iter))))
+(defun next-value-p (form)
+  "Return T if the next value of iterator CST-FORM is a nonempty cons cell."
+  (declare (type cst-form form))
+  (let ((pointer (cst-form-pointer form)))
+    (and (cst:consp pointer)
+         (cst:first pointer))))
 
-(defun consume-value (iter)
-  "Consume and return the next value in ITER."
-  (multiple-value-bind (value rest) (next-value iter)
-    (rplaca iter rest)
+(defun consume-value (form)
+  "Consume and return the next value in FORM."
+  (declare (type cst-form form))
+  (multiple-value-bind (value rest)
+      (next-value form)
+    (setf (cst-form-pointer form) rest)
     value))
 
-(defun consume-symbol (iter &key missing not-symbol)
-  "Return the next value in ITER, a CST:NODE. If the next value is not a symbol, signal PARSE-ERROR."
-  (let ((end-of-list (cdr (cst:source (car iter)))))
-    (unless (next-value-p iter)
-      (package-syntax-error-span (cons (1- end-of-list) end-of-list)
-                                 (cdr iter)
-                                 (or missing "expected a symbol")))
-    (let ((value (consume-value iter)))
-      (unless (identifierp (cst:raw value))
-        (package-syntax-error-span (cst:source value)
-                                   (cdr iter)
-                                   (or not-symbol "expected a symbol")))
+(defun %consume-symbol (form missing not-symbol)
+  "Return the next value in FORM, a CST:NODE. If the next value is not a symbol, signal PARSE-ERROR."
+  (declare (type cst-form form))
+  (let ((end-of-list (cdr (cst:source (cst-form-pointer form)))))
+    (unless (next-value-p form)
+      (syntax-error-span (cons (1- end-of-list) end-of-list)
+                         (or missing "expected a symbol")))
+    (let ((value (consume-value form)))
+      (unless (symbolp (cst:raw value))
+        (syntax-error form
+                      (or not-symbol "expected a symbol")
+                      :pointer value))
       value)))
 
-(defun require-symbol (iter value &optional message)
-  "Consume the next symbol in ITER, requiring it to have VALUE."
-  (let ((symbol (consume-symbol iter)))
+(defun consume-symbol (form &key missing not-symbol)
+  "Return the next value in FORM, a CST:NODE. If the next value is not a symbol, signal PARSE-ERROR."
+  (declare (type cst-form form))
+  (cst:raw (%consume-symbol form missing not-symbol)))
+
+(defun require-symbol (form value &optional message)
+  "Consume the next symbol in FORM, requiring it to have VALUE."
+  (declare (type cst-form form))
+  (let ((symbol (%consume-symbol form message message)))
     (unless (string-equal value (cst:raw symbol))
-      (package-syntax-error symbol (cdr iter)
-                            (or message
-                                (format nil "expected '~A'" value))))
+      (syntax-error form
+                    (or message
+                        (format nil "expected '~A'" value))
+                    :pointer symbol))
     symbol))
 
-(defun consume-string (iter &key optional)
-  "Return the next value in ITER as a string. If next value is not a string and optional is null, signal PARSE-ERROR."
-  (let ((value (and (next-value-p iter)
-                    (next-value iter))))
+(defun consume-string (form &key optional)
+  "Return the next value in FORM as a string. If next value is not a string and optional is null, signal PARSE-ERROR."
+  (declare (type cst-form form))
+  (let ((value (and (next-value-p form)
+                    (next-value form))))
     (cond ((stringp (and value (cst:raw value)))
-           (consume-value iter)
+           (consume-value form)
            (cst:raw value))
           ((not optional)
-           (package-syntax-error (car iter) (cdr iter) "expected a string")))))
+           (syntax-error form "expected a string")))))
 
-(defun collect-symbols (iter)
-  (loop :while (next-value-p iter)
-        :collect (symbol-name (cst:raw (consume-symbol iter)))))
+(defun collect-symbols (form)
+  (declare (type cst-form form))
+  (loop :while (next-value-p form)
+        :collect (consume-symbol form)))
 
-(defstruct cst-form
-  form
-  pointer
-  context)
+(defun cons-form-p (form)
+  (declare (type cst-form form))
+  (cst:consp (cst-form-pointer form)))
 
-(defvar *current-form*)
+(defun symbol-form-p (form)
+  (declare (type cst-form form))
+  (symbolp (cst:raw (cst-form-pointer form))))
 
-(defmacro with-cst-form ((var form context) &body body)
-  `(let* ((*current-form* (make-cst-form :form form :pointer form :context context))
-          (,var *current-form*))
+(defmacro with-cst-form ((form cst) &body body)
+  `(let ((,form (make-cst-form :form ,cst :pointer ,cst)))
      ,@body))

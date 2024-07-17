@@ -43,5 +43,5 @@
     (dolist (file (test-files "tests/parser-test-files/good-files/*.coal"))
       (parse-file file))))
 
-(deftest test-parse-package ()
+(deftest test-parse-package-suite ()
   (run-suite "tests/parser-test-files/package.txt"))

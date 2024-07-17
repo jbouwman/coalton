@@ -4,9 +4,9 @@
   "Parse the package form pressent in STRING."
   (with-input-from-string (stream string)
     (parser:with-reader-context stream
-      (coalton-impl/parser/toplevel::parse-package
-       (parser:maybe-read-form stream parser::*coalton-eclector-client*)
-       (se:make-file :stream stream :name "<string>")))))
+      (let ((package-form (parser:maybe-read-form stream parser::*coalton-eclector-client*)))
+        (coalton-impl/parser/util:with-cst-form (form package-form)
+          (coalton-impl/parser/toplevel::parse-package form))))))
 
 (deftest test-parse-package ()
   "Coalton toplevel package forms are successfully parsed."
