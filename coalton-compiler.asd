@@ -36,6 +36,7 @@
                (:module "parser"
                 :serial t
                 :components ((:file "base")
+                             (:file "util")
                              (:file "reader")
                              (:file "types")
                              (:file "pattern")
