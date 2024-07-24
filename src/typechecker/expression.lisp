@@ -9,6 +9,7 @@
    #:coalton-impl/typechecker/pattern)
   (:local-nicknames
    (#:parser #:coalton-impl/parser)
+   (#:source #:coalton-impl/source)
    (#:tc #:coalton-impl/typechecker/stage-1)
    (#:util #:coalton-impl/util))
   (:export
@@ -170,7 +171,7 @@
             (:constructor nil)
             (:copier nil))
   (type   (util:required 'type)   :type tc:qualified-ty :read-only t)
-  (source (util:required 'source) :type cons            :read-only t))
+  (source (util:required 'source) :type source:source-location            :read-only t))
 
 (defun node-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -210,7 +211,7 @@
             (:copier nil))
   (pattern (util:required 'pattern) :type pattern :read-only t)
   (expr    (util:required 'expr)    :type node    :read-only t)
-  (source  (util:required 'source)  :type cons    :read-only t))
+  (source  (util:required 'source)  :type source:source-location    :read-only t))
 
 (deftype node-body-element ()
   '(or node node-bind))
@@ -240,7 +241,7 @@
             (:copier nil))
   (name   (util:required 'name)   :type node-variable :read-only t)
   (value  (util:required 'value)  :type node          :read-only t)
-  (source (util:required 'source) :type cons          :read-only t))
+  (source (util:required 'source) :type source:source-location          :read-only t))
 
 (defun node-let-binding-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -266,7 +267,7 @@
             (:copier nil))
   (pattern    (util:required 'pattern) :type pattern   :read-only t)
   (body       (util:required 'body)    :type node-body :read-only t)
-  (source     (util:required 'source)  :type cons      :read-only t))
+  (source     (util:required 'source)  :type source:source-location      :read-only t))
 
 (defun node-match-branch-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -372,7 +373,7 @@
             (:copier nil))
   (expr   (util:required 'expr)   :type node      :read-only t)
   (body   (util:required 'body)   :type node-body :read-only t)
-  (source (util:required 'source) :type cons      :read-only t))
+  (source (util:required 'source) :type source:source-location      :read-only t))
 
 (defun node-cond-clause-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -390,7 +391,7 @@
             (:copier nil))
   (pattern (util:required 'pattern) :type pattern :read-only t)
   (expr    (util:required 'expr)    :type node    :read-only t)
-  (source  (util:required 'source)  :type cons    :read-only t))
+  (source  (util:required 'source)  :type source:source-location    :read-only t))
 
 (deftype node-do-body-element ()
   '(or node node-bind node-do-bind))

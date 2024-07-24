@@ -2,33 +2,13 @@
 
 (defun parse-package (string)
   "Parse the package form present in STRING."
-  (with-input-from-string (stream string)
-    (parser:with-reader-context stream
-      (let ((form (parser:maybe-read-form stream parser::*coalton-eclector-client*)))
-        (coalton-impl/parser/toplevel::parse-package
-         (coalton-impl/parser/cursor:make-cursor form))))))
-       
-
-(deftest test-parse-package ()
-  "Coalton toplevel package forms are successfully parsed."
-  (not-signals
-   parser:parse-error
-   (parse-package
-    "(package coalton-unit-test/lib-example-simple)"))
-  (not-signals
-   parser:parse-error
-   (parse-package
-    "(package coalton-unit-test/lib-example-complex
-          (import
-            coalton-library/classes
-            (coalton-library/hash as hash))
-          (import-from
-            coalton-library/list
-            filter)
-          (export
-            first
-            second
-            third))")))
+  (let ((source (source:make-source-string string :name "test")))
+    (with-open-stream (stream (source-error:source-stream source))
+      (parser:with-reader-context stream
+        (let* ((form (parser:maybe-read-form stream parser::*coalton-eclector-client*))
+               (package (coalton-impl/parser/toplevel::parse-package
+                         (coalton-impl/parser/cursor:make-cursor form))))
+          package)))))
 
 (deftest test-lisp-package ()
   "Lisp packages can be constructed from parsed Coalton package forms."

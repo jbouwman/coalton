@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/parser/toplevel
   (:use
    #:cl
+   #:coalton-impl/source
    #:coalton-impl/parser/base
    #:coalton-impl/parser/reader
    #:coalton-impl/parser/types
@@ -132,7 +133,6 @@
    #:program                                     ; STRUCT
    #:make-program                                ; CONSTRUCTOR
    #:program-package                             ; ACCESSOR
-   #:program-file                                ; ACCESSOR
    #:program-lisp-forms                          ; ACCESSOR
    #:program-types                               ; ACCESSOR
    #:program-structs                             ; ACCESSOR
@@ -222,7 +222,7 @@
 (defstruct (attribute
             (:constructor nil)
             (:copier nil))
-  (source (util:required 'source) :type cons :read-only t))
+  (source (util:required 'source) :type source-location :read-only t))
 
 (defstruct (attribute-monomorphize
             (:include attribute)))
@@ -238,9 +238,9 @@
 
 (defstruct (constructor
             (:copier nil))
-  (name   (util:required 'name)   :type identifier-src :read-only t)
-  (fields (util:required 'fields) :type ty-list        :read-only t)
-  (source (util:required 'source) :type cons           :read-only t))
+  (name   (util:required 'name)   :type identifier-src  :read-only t)
+  (fields (util:required 'fields) :type ty-list         :read-only t)
+  (source (util:required 'source) :type source-location :read-only t))
 
 (defun constructor-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -255,9 +255,9 @@
   (vars      (util:required 'vars)      :type keyword-src-list         :read-only t)
   (docstring (util:required 'docstring) :type (or null string)         :read-only t)
   (ctors     (util:required 'ctors)     :type constructor-list         :read-only t)
-  (source    (util:required 'source)    :type cons                     :read-only t)
+  (source    (util:required 'source)    :type source-location          :read-only t)
   (repr      (util:required 'repr)      :type (or null attribute-repr) :read-only nil)
-  (head-src  (util:required 'head-src)  :type cons                     :read-only t))
+  (head-src  (util:required 'head-src)  :type source-location                     :read-only t))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defun toplevel-define-type-list-p (x)
@@ -272,7 +272,7 @@
   (name      (util:required 'name)      :type string           :read-only t)
   (type      (util:required 'type)      :type ty               :read-only t)
   (docstring (util:required 'docstring) :type (or null string) :read-only t)
-  (source    (util:required 'source)    :type cons             :read-only t))
+  (source    (util:required 'source)    :type source-location             :read-only t))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defun struct-field-list-p (x)
@@ -288,9 +288,9 @@
   (vars      (util:required 'vars)      :type keyword-src-list         :read-only t)
   (docstring (util:required 'docstring) :type (or null string)         :read-only t)
   (fields    (util:required 'fields)    :type struct-field-list        :read-only t)
-  (source    (util:required 'source)    :type cons                     :read-only t)
+  (source    (util:required 'source)    :type source-location          :read-only t)
   (repr      (util:required 'repr)      :type (or null attribute-repr) :read-only nil)
-  (head-src  (util:required 'head-src)  :type cons                     :read-only t))
+  (head-src  (util:required 'head-src)  :type source-location          :read-only t))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defun toplevel-define-struct-list-p (x)
@@ -302,9 +302,9 @@
 
 (defstruct (toplevel-declare
             (:copier nil))
-  (name         (util:required 'name)         :type identifier-src                  :read-only t)
-  (type         (util:required 'type)         :type qualified-ty                    :read-only t)
-  (source       (util:required 'source)       :type cons                            :read-only t)
+  (name         (util:required 'name)         :type identifier-src                   :read-only t)
+  (type         (util:required 'type)         :type qualified-ty                     :read-only t)
+  (source       (util:required 'source)       :type source-location                  :read-only t)
   (monomorphize (util:required 'monomorphize) :type (or null attribute-monomorphize) :read-only nil))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
@@ -322,7 +322,7 @@
   (orig-params  (util:required 'orig-params)  :type pattern-list                     :read-only t)
   (docstring    (util:required 'docstring)    :type (or null string)                 :read-only t)
   (body         (util:required 'body)         :type node-body                        :read-only t)
-  (source       (util:required 'source)       :type cons                             :read-only t)
+  (source       (util:required 'source)       :type source-location                  :read-only t)
   (monomorphize (util:required 'monomorphize) :type (or null attribute-monomorphize) :read-only nil))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
@@ -337,7 +337,7 @@
             (:copier nil))
   (left   (util:required 'left)   :type keyword-src-list :read-only t)
   (right  (util:required 'right)  :type keyword-src-list :read-only t)
-  (source (util:required 'source) :type cons             :read-only t))
+  (source (util:required 'source) :type source-location  :read-only t))
 
 (defun fundep-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -351,7 +351,7 @@
   (name      (util:required 'name)      :type identifier-src   :read-only t)
   (type      (util:required 'type)      :type qualified-ty     :read-only t)
   (docstring (util:required 'docstring) :type (or string null) :read-only t)
-  (source    (util:required 'source)    :type cons             :read-only t))
+  (source    (util:required 'source)    :type source-location  :read-only t))
 
 (defmethod make-load-form ((self method-definition) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -371,9 +371,9 @@
   (fundeps   (util:required 'fundeps)   :type fundep-list            :read-only t)
   (docstring (util:required 'docstring) :type (or null string)       :read-only t)
   (methods   (util:required 'methods)   :type method-definition-list :read-only t)
-  (source    (util:required 'source)    :type cons                   :read-only t)
+  (source    (util:required 'source)    :type source-location        :read-only t)
   ;; Source information for context, name, and vars
-  (head-src  (util:required 'head-src) :type cons                   :read-only t))
+  (head-src  (util:required 'head-src) :type source-location         :read-only t))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defun toplevel-define-class-list-p (x)
@@ -385,10 +385,10 @@
 
 (defstruct (instance-method-definition
             (:copier nil))
-  (name      (util:required 'name)      :type node-variable       :read-only t)
-  (params    (util:required 'params)    :type pattern-list        :read-only t)
-  (body      (util:required 'body)      :type node-body           :read-only t)
-  (source    (util:required 'source)    :type cons                :read-only t))
+  (name      (util:required 'name)      :type node-variable   :read-only t)
+  (params    (util:required 'params)    :type pattern-list    :read-only t)
+  (body      (util:required 'body)      :type node-body       :read-only t)
+  (source    (util:required 'source)    :type source-location :read-only t))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defun instance-method-definition-list-p (x)
@@ -404,9 +404,9 @@
   (pred               (util:required 'pred)               :type ty-predicate                    :read-only t)
   (docstring          (util:required 'docstring)          :type (or null string)                :read-only t)
   (methods            (util:required 'methods)            :type instance-method-definition-list :read-only t)
-  (source             (util:required 'source)             :type cons                            :read-only t)
+  (source             (util:required 'source)             :type source-location                 :read-only t)
   ;; Source information for the context and the pred
-  (head-src           (util:required 'head-src)           :type cons                            :read-only t)
+  (head-src           (util:required 'head-src)           :type source-location                 :read-only t)
   (compiler-generated (util:required 'compiler-generated) :type boolean                         :read-only t))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
@@ -420,7 +420,7 @@
 (defstruct (toplevel-lisp-form
             (:copier nil))
   (body   (util:required 'body)   :type cons  :read-only t)
-  (source (util:required 'source) :type cons  :read-only t))
+  (source (util:required 'source) :type source-location :read-only t))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defun toplevel-lisp-form-list-p (x)
@@ -432,10 +432,10 @@
 
 (defstruct (toplevel-specialize
             (:copier nil))
-  (from   (util:required 'from)   :type node-variable :read-only t)
-  (to     (util:required 'to)     :type node-variable :read-only t)
-  (type   (util:required 'type)   :type ty            :read-only t)
-  (source (util:required 'source) :type cons          :read-only t))
+  (from   (util:required 'from)   :type node-variable   :read-only t)
+  (to     (util:required 'to)     :type node-variable   :read-only t)
+  (type   (util:required 'type)   :type ty              :read-only t)
+  (source (util:required 'source) :type source-location :read-only t))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defun toplevel-specialize-list-p (x)
@@ -455,18 +455,16 @@
   (import-from nil                   :type list)
   (export      nil                   :type list))
 
-(defstruct (program
-            (:copier nil))
-  (package         (util:required 'package)         :type (or null toplevel-package)    :read-only t)
-  (file            (util:required 'file)            :type se:file                       :read-only t)
-  (types           (util:required 'types)           :type toplevel-define-type-list     :read-only nil)
-  (structs         (util:required 'structs)         :type toplevel-define-struct-list   :read-only nil)
-  (declares        (util:required 'declares)        :type toplevel-declare-list         :read-only nil)
-  (defines         (util:required 'defines)         :type toplevel-define-list          :read-only nil)
-  (classes         (util:required 'classes)         :type toplevel-define-class-list    :read-only nil)
-  (instances       (util:required 'instances)       :type toplevel-define-instance-list :read-only nil)
-  (lisp-forms      (util:required 'lisp-forms)      :type toplevel-lisp-form-list       :read-only nil)
-  (specializations (util:required 'specializations) :type toplevel-specialize-list      :read-only nil))
+(defstruct program
+  (package         nil :type (or null toplevel-package)    :read-only t)
+  (types           nil :type toplevel-define-type-list     :read-only nil)
+  (structs         nil :type toplevel-define-struct-list   :read-only nil)
+  (declares        nil :type toplevel-declare-list         :read-only nil)
+  (defines         nil :type toplevel-define-list          :read-only nil)
+  (classes         nil :type toplevel-define-class-list    :read-only nil)
+  (instances       nil :type toplevel-define-instance-list :read-only nil)
+  (lisp-forms      nil :type toplevel-lisp-form-list       :read-only nil)
+  (specializations nil :type toplevel-specialize-list      :read-only nil))
 
 (defun read-program (stream file &optional mode)
   "Read a PROGRAM from FILE (an instance of source-error:file).
@@ -474,74 +472,61 @@ MODE may be one of :file or :macro.
 
 If MODE is :file, a package form is required.
 If MODE is :macro, a package form is forbidden, and an explicit check is made for EOF."
-  (declare (type se:file file)
-           (type (member :file :macro nil) mode)
+  (declare (type (member :file :macro nil) mode)
            (values program))
 
-  (let* (;; Setup eclector readtable
-         (eclector.readtable:*readtable*
+  (let* ((eclector.readtable:*readtable*
            (eclector.readtable:copy-readtable eclector.readtable:*readtable*))
 
          ;; In mode :file, the value of package is a toplevel-package structure
-         (package nil))
+         (package
+           (when (eq mode ':file)
+             (read-toplevel-package stream file)))
+         (program
+           (make-program :package package))
+         (*package*
+           (program-lisp-package program))
+         (attributes
+           (make-array 0 :adjustable t :fill-pointer t)))
 
-    (when (eq mode ':file)
-      (setf package (read-toplevel-package stream file)))
+    (loop :do
+      (multiple-value-bind (form presentp eofp)
+          (maybe-read-form stream file *coalton-eclector-client*)
 
-    (let* ((program (make-program
-                     :package package
-                     :file file
-                     :types nil
-                     :structs nil
-                     :declares nil
-                     :defines nil
-                     :classes nil
-                     :instances nil
-                     :lisp-forms nil
-                     :specializations nil))
-           (*package* (program-lisp-package program))
+        (when (and eofp (eq mode ':macro))
+          (error 'parse-error
+                 :err (se:source-error
+                       :span (cons (- (file-position stream) 2)
+                                   (- (file-position stream) 1))
+                       :file file
+                       :message "Unexpected EOF"
+                       :primary-note "missing close parenthesis")))
 
-           (attributes (make-array 0 :adjustable t :fill-pointer t)))
+        (unless presentp
+          (return))
 
-      (loop :do
-        (multiple-value-bind (form presentp eofp)
-            (maybe-read-form stream *coalton-eclector-client*)
+        (when (and (parse-toplevel-form form program attributes file)
+                   (plusp (length attributes)))
+          (util:coalton-bug "parse-toplevel-form indicated that a form was parsed but did not consume all attributes"))))
 
-          (when (and eofp (eq mode ':macro))
-            (error 'parse-error
-                   :err (se:source-error
-                         :span (cons (- (file-position stream) 2)
-                                     (- (file-position stream) 1))
-                         :file file
-                         :message "Unexpected EOF"
-                         :primary-note "missing close parenthesis")))
+    (unless (zerop (length attributes))
+      (error 'parse-error
+             :err (se:source-error
+                   :span (cst:source (cdr (aref attributes 0)))
+                   :file file
+                   :message "Orphan attribute"
+                   :primary-note "attribute must be attached to another form")))
 
-          (unless presentp
-            (return))
+    (setf (program-types program) (nreverse (program-types program)))
+    (setf (program-structs program) (nreverse (program-structs program)))
+    (setf (program-declares program) (nreverse (program-declares program)))
+    (setf (program-defines program) (nreverse (program-defines program)))
+    (setf (program-classes program) (nreverse (program-classes program)))
+    (setf (program-instances program) (nreverse (program-instances program)))
+    (setf (program-lisp-forms program) (nreverse (program-lisp-forms program)))
+    (setf (program-specializations program) (nreverse (program-specializations program)))
 
-          (when (and (parse-toplevel-form form program attributes file)
-                     (plusp (length attributes)))
-            (util:coalton-bug "parse-toplevel-form indicated that a form was parsed but did not
-consume all attributes"))))
-
-      (unless (zerop (length attributes))
-        (error 'parse-error
-               :err (se:source-error
-                     :span (cst:source (cdr (aref attributes 0)))
-                     :file file
-                     :message "Orphan attribute"
-                     :primary-note "attribute must be attached to another form")))
-
-      (setf (program-types program) (nreverse (program-types program)))
-      (setf (program-structs program) (nreverse (program-structs program)))
-      (setf (program-declares program) (nreverse (program-declares program)))
-      (setf (program-defines program) (nreverse (program-defines program)))
-      (setf (program-classes program) (nreverse (program-classes program)))
-      (setf (program-instances program) (nreverse (program-instances program)))
-      (setf (program-lisp-forms program) (nreverse (program-lisp-forms program)))
-      (setf (program-specializations program) (nreverse (program-specializations program)))
-
-      program)))
+    program))
 
 (defun read-expression (stream file)
   (let* (;; Setup eclector readtable
@@ -550,7 +535,7 @@ consume all attributes"))))
 
     ;; Read the coalton form
     (multiple-value-bind (form presentp)
-        (maybe-read-form stream *coalton-eclector-client*)
+        (maybe-read-form stream file *coalton-eclector-client*)
 
       (unless presentp
         (error 'parse-error
@@ -563,7 +548,7 @@ consume all attributes"))))
 
       ;; Ensure there is only one form
       (multiple-value-bind (form presentp)
-          (maybe-read-form stream *coalton-eclector-client*)
+          (maybe-read-form stream file *coalton-eclector-client*)
 
         (when presentp
           (error 'parse-error
@@ -676,7 +661,7 @@ consume all attributes"))))
                                            "Malformed package declaration"
                                            syntax-error))))
       (multiple-value-bind (form presentp)
-          (maybe-read-form stream *coalton-eclector-client*)
+          (maybe-read-form stream file *coalton-eclector-client*)
         (unless presentp
           (cursor:span-error (cons (- (file-position stream) 2)
                                    (- (file-position stream) 1))
@@ -728,7 +713,7 @@ consume all attributes"))))
       (and (<= 3 (length name))
            (string= name "DEF" :end1 3)))))
 
-(defun parse-lisp-toplevel-form (form program)
+(defun parse-lisp-toplevel-form (form program file)
   "Parse lisp forms that are to be literally included in compiler output.
 
 If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the enclosed forms."
@@ -749,14 +734,13 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
           :do (dolist (form (cddr form))
                 (eval form)))
   (push (make-toplevel-lisp-form :body (cddr (cst:raw form))
-                                 :source (cst:source form))
+                                 :source (source-location form file))
         (program-lisp-forms program)))
 
 (defun parse-toplevel-form (form program attributes file)
   (declare (type cst:cst form)
            (type program program)
            (type (vector (cons attribute cst:cst)) attributes)
-           (type se:file file)
            (values boolean &optional))
 
   (when (cst:atom form)
@@ -795,7 +779,6 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
 
     ((coalton:define)
      (let ((define (parse-define form file))
-
            monomorphize
            monomorphize-form)
        (loop :for (attribute . attribute-form) :across attributes
@@ -811,7 +794,7 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
                                  (list
                                   (se:make-source-error-note
                                    :type ':secondary
-                                   :span (node-source (toplevel-define-name define))
+                                   :span (source-location-span (node-source (toplevel-define-name define)))
                                    :message "when parsing define")))))
 
                    (attribute-monomorphize
@@ -830,7 +813,7 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
                                      :message "previous attribute here")
                                     (se:make-source-error-note
                                      :type ':secondary
-                                     :span (node-source (toplevel-define-name define))
+                                     :span (source-location-span (node-source (toplevel-define-name define)))
                                      :message "when parsing define")))))
 
                     (setf monomorphize attribute)
@@ -914,7 +897,7 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
                                      :message "previous attribute here")
                                     (se:make-source-error-note
                                      :type ':secondary
-                                     :span (toplevel-define-type-head-src type)
+                                     :span (source-location-span (toplevel-define-type-head-src type))
                                      :message "when parsing define-type")))))
 
                     (setf repr attribute)
@@ -931,7 +914,7 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
                                  (list
                                   (se:make-source-error-note
                                    :type ':secondary
-                                   :span (toplevel-define-type-head-src type)
+                                   :span (source-location-span (toplevel-define-type-head-src type))
                                    :message "when parsing define-type")))))))
 
        (setf (fill-pointer attributes) 0)
@@ -963,7 +946,7 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
                                      :message "previous attribute here")
                                     (se:make-source-error-note
                                      :type ':secondary
-                                     :span (toplevel-define-struct-head-src struct) 
+                                     :span (source-location-span (toplevel-define-struct-head-src struct) )
                                      :message "when parsing define-struct")))))
 
                     (unless (eq :transparent (keyword-src-name (attribute-repr-type attribute)))
@@ -977,7 +960,7 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
                                    (list
                                     (se:make-source-error-note
                                      :type ':secondary
-                                     :span (toplevel-define-struct-head-src struct)
+                                     :span (source-location-span (toplevel-define-struct-head-src struct))
                                      :message "when parsing define-struct")))))
 
                     (setf repr attribute)
@@ -994,7 +977,7 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
                                  (list
                                   (se:make-source-error-note
                                    :type ':secondary
-                                   :span (identifier-src-source (toplevel-define-struct-name struct))
+                                   :span (source-location-span (identifier-src-source (toplevel-define-struct-name struct)))
                                    :message "when parsing define-type")))))))
 
        (setf (fill-pointer attributes) 0)
@@ -1016,7 +999,7 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
                       (list
                        (se:make-source-error-note
                         :type ':secondary
-                        :span (toplevel-define-class-head-src class)
+                        :span (source-location-span (toplevel-define-class-head-src class))
                         :message "while parsing define-class")))))
 
        (push class (program-classes program))
@@ -1036,7 +1019,7 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
                       (list
                        (se:make-source-error-note
                         :type ':secondary
-                        :span (toplevel-define-instance-head-src instance)
+                        :span (source-location-span (toplevel-define-instance-head-src instance))
                         :message "while parsing define-instance")))))
 
 
@@ -1059,7 +1042,7 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
        (unless (zerop (length attributes))
          (cursor:span-error (cst:source (cdr (aref attributes 0)))
                             "lisp-toplevel cannot have attributes"))
-       (parse-lisp-toplevel-form form program))
+       (parse-lisp-toplevel-form form program file))
      t)
 
     ((coalton:specialize)
@@ -1141,7 +1124,6 @@ consume all attributes")))
 
 (defun parse-define (form file)
   (declare (type cst:cst form)
-           (type se:file file)
            (values toplevel-define))
 
   (assert (cst:consp form))
@@ -1177,11 +1159,10 @@ consume all attributes")))
        :docstring docstring
        :body body
        :monomorphize nil
-       :source (cst:source form)))))
+       :source (source-location form file)))))
 
 (defun parse-declare (form file)
   (declare (type cst:cst form)
-           (type se:file file)
            (values toplevel-declare))
 
   (assert (cst:consp form))
@@ -1225,14 +1206,13 @@ consume all attributes")))
   (make-toplevel-declare
    :name (make-identifier-src
           :name (cst:raw (cst:second form))
-          :source (cst:source (cst:second form)))
+          :source (source-location (cst:second form) file))
    :type (parse-qualified-type (cst:third form) file)
    :monomorphize nil
-   :source (cst:source form)))
+   :source (source-location form file)))
 
 (defun parse-define-type (form file)
   (declare (type cst:cst form)
-           (type se:file file)
            (values toplevel-define-type))
 
   (assert (cst:consp form))
@@ -1263,7 +1243,7 @@ consume all attributes")))
                       :primary-note "expected symbol")))
 
        (setf name (make-identifier-src :name (cst:raw (cst:second form))
-                                       :source (cst:source form))))
+                                       :source (source-location form file))))
 
       (t                                ; (define-type (T ...) ...)
        ;; (define-type ((T) ...) ...)
@@ -1293,7 +1273,7 @@ consume all attributes")))
                       :primary-note "expected symbol")))
 
        (setf name (make-identifier-src :name (cst:raw (cst:first (cst:second form)))
-                                       :source (cst:source (cst:first (cst:second form)))))
+                                       :source (source-location (cst:first (cst:second form)) file)))
 
        ;; (define-type (T) ...)
        (when (cst:atom (cst:rest (cst:second form)))
@@ -1329,12 +1309,11 @@ consume all attributes")))
                   :while (cst:consp constructors_)
                   :collect (parse-constructor (cst:first constructors_) form file))
      :repr nil
-     :source (cst:source form)
-     :head-src (cst:source (cst:second form)))))
+     :source (source-location form file)
+     :head-src (source-location (cst:second form) file))))
 
 (defun parse-define-struct (form file)
-  (declare (type cst:cst form)
-           (type se:file file))
+  (declare (type cst:cst form))
 
   (assert (cst:consp form))
 
@@ -1376,13 +1355,12 @@ consume all attributes")))
               #'parse-struct-field
               (cst:nthrest (if docstring 3 2) form)
               file)
-     :source (cst:source form)
+     :source (source-location form file)
      :repr nil
-     :head-src (cst:source (cst:second form)))))
+     :head-src (source-location (cst:second form) file))))
 
 (defun parse-define-class (form file)
   (declare (type cst:cst form)
-           (type se:file file)
            (values toplevel-define-class))
 
   (assert (cst:consp form))
@@ -1566,12 +1544,14 @@ consume all attributes")))
       (when right
         (if (cst:atom (first left))
             ;; (C1 ... => C2 ...)
-            (setf predicates (list (parse-predicate left (util:cst-source-range left) file)))
+            (setf predicates (list (parse-predicate left
+                                                    (make-source-location :file file
+                                                                          :span (util:cst-source-range left)))))
 
             ;; ((C1 ...) (C2 ...) ... => C3 ...)
             (setf predicates
                   (loop :for pred :in left
-                        :collect (parse-predicate (cst:listify pred) (cst:source pred) file)))))
+                        :collect (parse-predicate (cst:listify pred) (source-location pred file))))))
 
       (when (and (cst:consp (cst:rest (cst:rest form)))
                  (cst:atom (cst:third form))
@@ -1586,18 +1566,17 @@ consume all attributes")))
       (make-toplevel-define-class
        :name (make-identifier-src
               :name name
-              :source (cst:source unparsed-name))
+              :source (source-location unparsed-name file))
        :vars variables
        :preds predicates
        :fundeps fundeps
        :docstring docstring
        :methods methods
-       :source (cst:source form)
-       :head-src (cst:source (cst:second form))))))
+       :source (source-location form file)
+       :head-src (source-location (cst:second form) file)))))
 
 (defun parse-define-instance (form file)
   (declare (type cst:cst form)
-           (type se:file file)
            (values toplevel-define-instance))
 
   (assert (cst:consp form))
@@ -1706,11 +1685,13 @@ consume all attributes")))
 
       (when unparsed-context
         (if (cst:atom (first unparsed-context))
-            (setf context (list (parse-predicate unparsed-context (util:cst-source-range unparsed-context) file)))
+            (setf context (list (parse-predicate unparsed-context
+                                                 (make-source-location :file file
+                                                                       :span (util:cst-source-range unparsed-context)))))
 
             (setf context
                   (loop :for unparsed :in unparsed-context
-                        :collect (parse-predicate (cst:listify unparsed) (cst:source unparsed) file)))))
+                        :collect (parse-predicate (cst:listify unparsed) (source-location unparsed file))))))
 
       (when (and (cst:consp (cst:rest (cst:rest form)))
                  (cst:atom (cst:third form))
@@ -1719,19 +1700,20 @@ consume all attributes")))
 
       (make-toplevel-define-instance
        :context context
-       :pred (parse-predicate unparsed-predicate (util:cst-source-range unparsed-predicate) file)
+       :pred (parse-predicate unparsed-predicate
+                              (make-source-location :file file
+                                                    :span (util:cst-source-range unparsed-predicate)))
        :docstring docstring
        :methods (loop :for methods := (cst:nthrest (if docstring 3 2) form) :then (cst:rest methods)
                       :while (cst:consp methods)
                       :for method := (cst:first methods)
                       :collect (parse-instance-method-definition method (cst:second form) file))
-       :source (cst:source form)
-       :head-src (cst:source (cst:second form))
+       :source (source-location form file)
+       :head-src (source-location (cst:second form) file)
        :compiler-generated nil))))
 
 (defun parse-specialize (form file)
   (declare (type cst:cst form)
-           (type se:file file)
            (values toplevel-specialize))
 
   (assert (cst:consp form))
@@ -1779,11 +1761,10 @@ consume all attributes")))
    :from (parse-variable (cst:second form) file)
    :to (parse-variable (cst:third form) file)
    :type (parse-type (cst:fourth form) file)
-   :source (cst:source form)))
+   :source (source-location form file)))
 
 (defun parse-method (method-form form file)
   (declare (type cst:cst method-form)
-           (type se:file file)
            (values method-definition))
 
   ;; m or (m)
@@ -1878,17 +1859,16 @@ consume all attributes")))
     (make-method-definition
      :name (make-identifier-src
             :name (node-variable-name (parse-variable (cst:first method-form) file))
-            :source (cst:source (cst:first method-form)))
+            :source (source-location (cst:first method-form) file))
      :docstring docstring
      :type (parse-qualified-type (if docstring
                                      (cst:third method-form)
                                      (cst:second method-form))
                                  file)
-     :source (cst:source method-form))))
+     :source (source-location method-form file))))
 
 (defun parse-type-variable (form file)
   (declare (type cst:cst form)
-           (type se:file file)
            (values keyword-src &optional))
 
   (when (cst:consp form)
@@ -1917,11 +1897,10 @@ consume all attributes")))
 
   (make-keyword-src
    :name (cst:raw form)
-   :source (cst:source form)))
+   :source (source-location form file)))
 
 (defun parse-constructor (form enclosing-form file)
   (declare (type cst:cst form enclosing-form)
-           (type se:file file)
            (values constructor))
 
   (let (unparsed-name
@@ -1964,15 +1943,13 @@ consume all attributes")))
     (make-constructor
      :name (make-identifier-src
             :name (cst:raw unparsed-name)
-            :source (cst:source unparsed-name))
+            :source (source-location unparsed-name file))
      :fields (loop :for field :in unparsed-fields
                    :collect (parse-type field file))
-     :source (cst:source form))))
-
+     :source (source-location form file))))
 
 (defun parse-argument-list (form file)
   (declare (type cst:cst form)
-           (type se:file file)
            (values node-variable pattern-list))
 
   ;; (define x 1)
@@ -1993,14 +1970,13 @@ consume all attributes")))
    (if (cst:null (cst:rest form))
        (list
         (make-pattern-wildcard
-         :source (cst:source form)))
+         :source (source-location form file)))
        (loop :for vars := (cst:rest form) :then (cst:rest vars)
              :while (cst:consp vars)
              :collect (parse-pattern (cst:first vars) file)))))
 
 (defun parse-identifier (form file)
   (declare (type cst:cst form)
-           (type se:file file)
            (values identifier-src))
 
   (unless (cst:atom form)
@@ -2037,12 +2013,11 @@ consume all attributes")))
 
   (make-identifier-src
    :name (cst:raw form)
-   :source (cst:source form)))
+   :source (source-location form file)))
 
 (defun parse-definition-body (form enclosing-form file)
   (declare (type cst:cst form)
            (type cst:cst enclosing-form)
-           (type se:file file)
            (values (or null string) node-body))
 
   (let (docstring
@@ -2065,7 +2040,6 @@ consume all attributes")))
 (defun parse-instance-method-definition (form parent-form file)
   (declare (type cst:cst form)
            (type cst:cst parent-form)
-           (type se:file file)
            (values instance-method-definition))
 
   (let ((context-note
@@ -2118,11 +2092,10 @@ consume all attributes")))
        :name name
        :params params
        :body (parse-body (cst:rest (cst:rest form)) form file)
-       :source (cst:source form)))))
+       :source (source-location form file)))))
 
 (defun parse-fundep (form file)
   (declare (type cst:cst form)
-           (type se:file file)
            (values fundep))
 
   (unless (cst:consp form)
@@ -2170,12 +2143,11 @@ consume all attributes")))
                  :collect (parse-type-variable var file))
      :right (loop :for var :in (cdr right)
                   :collect (parse-type-variable var file))
-     :source (cst:source form))))
+     :source (source-location form file))))
 
 
 (defun parse-monomorphize (form file)
   (declare (type cst:cst form)
-           (type se:file file)
            (values attribute-monomorphize))
 
   (assert (cst:consp form))
@@ -2189,11 +2161,10 @@ consume all attributes")))
                  :primary-note "unexpected form")))
 
   (make-attribute-monomorphize
-   :source (cst:source form)))
+   :source (source-location form file)))
 
 (defun parse-repr (form file)
   (declare (type cst:cst form)
-           (type se:file file)
            (values attribute-repr))
 
   (assert (cst:consp form))
@@ -2231,7 +2202,7 @@ consume all attributes")))
           (make-attribute-repr
            :type type
            :arg (cst:third form)
-           :source (cst:source form)))
+           :source (source-location form file)))
 
         (progn ;; other reprs do not have an argument
           (when (cst:consp (cst:rest (cst:rest form)))
@@ -2257,11 +2228,10 @@ consume all attributes")))
           (make-attribute-repr
            :type type
            :arg nil
-           :source (cst:source form))))))
+           :source (source-location form file))))))
 
 (defun parse-struct-field (form file)
   (declare (type cst:cst form)
-           (type se:file file)
            (values struct-field))
 
   ;; 5
@@ -2323,4 +2293,4 @@ consume all attributes")))
      :type (parse-type (cst:first rest-field)
                        file)
      :docstring docstring
-     :source (cst:source form))))
+     :source (source-location form file))))

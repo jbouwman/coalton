@@ -2,6 +2,7 @@
   (:use
    #:cl
    #:coalton-impl/algorithm
+   #:coalton-impl/source
    #:coalton-impl/typechecker/base
    #:coalton-impl/typechecker/map
    #:coalton-impl/typechecker/type-errors
@@ -39,7 +40,7 @@
    #:type-entry-enum-repr                   ; ACCESSOR
    #:type-entry-newtype                     ; ACCESSOR
    #:type-entry-docstring                   ; ACCESSOR
-   #:type-entry-location                    ; ACCESSOR
+   #:type-entry-source                    ; ACCESSOR
    #:type-environment                       ; STRUCT
    #:constructor-entry                      ; STRUCT
    #:make-constructor-entry                 ; ACCESSOR
@@ -82,7 +83,7 @@
    #:ty-class-superclass-dict               ; ACCESSOR
    #:ty-class-superclass-map                ; ACCESSOR
    #:ty-class-docstring                     ; ACCESSOR
-   #:ty-class-location                      ; ACCESSOR
+   #:ty-class-source                      ; ACCESSOR
    #:ty-class-list                          ; TYPE
    #:class-environment                      ; STRUCT
    #:ty-class-instance                      ; STRUCT
@@ -105,7 +106,7 @@
    #:name-entry-name                        ; ACCESSOR
    #:name-entry-type                        ; ACCESSOR
    #:name-entry-docstring                   ; ACCESSOR
-   #:name-entry-location                    ; ACCESSOR
+   #:name-entry-source                      ; ACCESSOR
    #:name-environment                       ; STRUCT
    #:method-inline-environment              ; STRUCT
    #:code-environment                       ; STRUCT
@@ -273,7 +274,7 @@
   (newtype (util:required 'newtype)           :type boolean :read-only t)
 
   (docstring (util:required 'docstring)       :type (or null string) :read-only t)
-  (location  (util:required 'location)        :type t                :read-only t))
+  (source    (util:required 'source)          :type source-location :read-only t))
 
 (defmethod make-load-form ((self type-entry) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -288,6 +289,10 @@
 
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type type-environment))
+
+(defvar *builtin-location*
+  (make-source-location :file (make-source-file "src/typechecker/environment.lisp")
+                        :span (cons 0 0)))
 
 (defun make-default-type-environment ()
   "Create a TYPE-ENVIRONMENT containing early types"
@@ -305,7 +310,7 @@
             :enum-repr t
             :newtype nil
             :docstring "Either true or false represented by `t` and `nil` respectively."
-            :location ""))
+            :source *builtin-location*))
 
           ('coalton:Unit
            (make-type-entry
@@ -318,7 +323,7 @@
             :enum-repr t
             :newtype nil
             :docstring ""
-            :location ""))
+            :source *builtin-location*))
 
           ('coalton:Char
            (make-type-entry
@@ -331,7 +336,7 @@
             :enum-repr nil
             :newtype nil
             :docstring "A single character represented as a `character` type."
-            :location ""))
+            :source *builtin-location*))
 
           ('coalton:Integer
            (make-type-entry
@@ -344,7 +349,7 @@
             :enum-repr nil
             :newtype nil
             :docstring "Unbound integer. Uses `integer`."
-            :location ""))
+            :source *builtin-location*))
 
           ('coalton:Single-Float
            (make-type-entry
@@ -357,7 +362,7 @@
             :enum-repr nil
             :newtype nil
             :docstring "Single precision floating point number. Uses `single-float`."
-            :location ""))
+            :source *builtin-location*))
 
           ('coalton:Double-Float
            (make-type-entry
@@ -370,7 +375,7 @@
             :enum-repr nil
             :newtype nil
             :docstring "Double precision floating point number. Uses `double-float`."
-            :location ""))
+            :source *builtin-location*))
 
           ('coalton:String
            (make-type-entry
@@ -383,7 +388,7 @@
             :enum-repr nil
             :newtype nil
             :docstring "String of characters represented by Common Lisp `string`."
-            :location ""))
+            :source *builtin-location*))
 
           ('coalton:Fraction
            (make-type-entry
@@ -396,7 +401,7 @@
             :enum-repr nil
             :newtype nil
             :docstring "A ratio of integers always in reduced form."
-            :location ""))
+            :source *builtin-location*))
 
           ('coalton:Arrow
            (make-type-entry
@@ -409,7 +414,7 @@
             :enum-repr nil
             :newtype nil
             :docstring "Type constructor for function types."
-            :location ""))
+            :source *builtin-location*))
 
           ('coalton:List
            (make-type-entry
@@ -422,7 +427,7 @@
             :enum-repr nil
             :newtype nil
             :docstring "Homogeneous list of objects represented as a Common Lisp `list`."
-            :location "")))))
+            :source *builtin-location*)))))
 
 ;;;
 ;;; Constructor environment
@@ -582,7 +587,7 @@
   (superclass-dict     (util:required 'superclass-dict)     :type list                :read-only t)
   (superclass-map      (util:required 'superclass-map)      :type environment-map     :read-only t)
   (docstring           (util:required 'docstring)           :type (or null string)    :read-only t)
-  (location            (util:required 'location)            :type t                   :read-only t))
+  (source              (util:required 'source)              :type source-location :read-only t))
 
 (defmethod make-load-form ((self ty-class) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -619,7 +624,7 @@
                             (ty-class-superclass-dict class))
    :superclass-map (ty-class-superclass-map class)
    :docstring (ty-class-docstring class)
-   :location (ty-class-location class)))
+   :source (ty-class-source class)))
 
 (defstruct (class-environment (:include immutable-map)))
 
@@ -713,7 +718,7 @@
   (name      (util:required 'name)      :type symbol                               :read-only t)
   (type      (util:required 'type)      :type (member :value :method :constructor) :read-only t)
   (docstring (util:required 'docstring) :type (or null string)                     :read-only t)
-  (location  (util:required 'location)  :type t                                    :read-only t))
+  (source    (util:required 'source)    :type source-location                      :read-only t))
 
 (defmethod make-load-form ((self name-entry) &optional env)
   (make-load-form-saving-slots self :environment env))

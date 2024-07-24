@@ -8,6 +8,7 @@
 (defpackage #:coalton-impl/typechecker/toplevel
   (:use
    #:cl
+   #:coalton-impl/source
    #:coalton-impl/typechecker/pattern
    #:coalton-impl/typechecker/expression)
   (:local-nicknames
@@ -43,10 +44,10 @@
 
 (defstruct (toplevel-define
             (:copier nil))
-  (name    (util:required 'name)   :type node-variable :read-only t)
-  (params  (util:required 'params) :type pattern-list  :read-only t)
-  (body    (util:required 'body)   :type node-body     :read-only t)
-  (source  (util:required 'source) :type cons          :read-only t))
+  (name    (util:required 'name)   :type node-variable   :read-only t)
+  (params  (util:required 'params) :type pattern-list    :read-only t)
+  (body    (util:required 'body)   :type node-body       :read-only t)
+  (source  (util:required 'source) :type source-location :read-only t))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defun toplevel-define-list-p (x)
@@ -68,10 +69,10 @@
 
 (defstruct (instance-method-definition
             (:copier nil))
-  (name    (util:required 'name)    :type node-variable :read-only t)
-  (params  (util:required 'params)  :type pattern-list  :read-only t)
-  (body    (util:required 'body)    :type node-body     :read-only t)
-  (source  (util:required 'source)  :type cons          :read-only t))
+  (name    (util:required 'name)    :type node-variable   :read-only t)
+  (params  (util:required 'params)  :type pattern-list    :read-only t)
+  (body    (util:required 'body)    :type node-body       :read-only t)
+  (source  (util:required 'source)  :type source-location :read-only t))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defun instance-method-definition-list-p (x)
@@ -96,8 +97,8 @@
   (context  (util:required 'context)  :type tc:ty-predicate-list :read-only t)
   (pred     (util:required 'pred)     :type tc:ty-predicate      :read-only t)
   (methods  (util:required 'methods)  :type hash-table           :read-only t)
-  (source   (util:required 'source)   :type cons                 :read-only t)
-  (head-src (util:required 'head-src) :type cons                 :read-only t))
+  (source   (util:required 'source)   :type source-location      :read-only t)
+  (head-src (util:required 'head-src) :type source-location      :read-only t))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defun toplevel-define-instance-list-p (x)

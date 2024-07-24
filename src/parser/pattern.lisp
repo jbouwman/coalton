@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/parser/pattern
   (:use
    #:cl
+   #:coalton-impl/source
    #:coalton-impl/parser/base)
   (:shadowing-import-from
    #:coalton-impl/parser/base
@@ -47,7 +48,7 @@
 (defstruct (pattern
             (:constructor nil)
             (:copier nil))
-  (source (util:required 'source) :type cons :read-only t))
+  (source (util:required 'source) :type source-location :read-only t))
 
 (defmethod make-load-form ((self pattern) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -88,20 +89,19 @@
   (patterns (util:required 'patterns) :type pattern-list :read-only t))
 
 (defun parse-pattern (form file)
-  (declare (type cst:cst form)
-           (type se:file file))
+  (declare (type cst:cst form))
 
   (cond
     ((and (cst:atom form)
           (typep (cst:raw form) 'util:literal-value))
      (make-pattern-literal
       :value (cst:raw form)
-      :source (cst:source form)))
+      :source (source-location form file)))
 
     ((and (cst:atom form)
           (eq (cst:raw form) 'coalton:_))
      (make-pattern-wildcard
-      :source (cst:source form)))
+      :source (source-location form file)))
 
     ((and (cst:atom form)
           (identifierp (cst:raw form)))
@@ -115,7 +115,7 @@
      (make-pattern-var
       :name (cst:raw form)
       :orig-name (cst:raw form)
-      :source (cst:source form)))
+      :source (source-location form file)))
 
     ((cst:atom form)
      (error 'parse-error
@@ -148,7 +148,7 @@
       :patterns (loop :for patterns := (cst:rest form) :then (cst:rest patterns)
                       :while (cst:consp patterns)
                       :collect (parse-pattern (cst:first patterns) file))
-      :source (cst:source form)))))
+      :source (source-location form file)))))
 
 (defun pattern-variables (pattern)
   (declare (type t pattern)
