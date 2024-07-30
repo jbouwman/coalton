@@ -25,7 +25,7 @@ than as part of the core language. The core language should have
 little need for knowledge about the structure and contents of its
 libraries.
 
-\medskip
+\bigskip
 \underline{Recommendations}
 
 \begin{itemize}
@@ -42,13 +42,15 @@ applications written in Coalton, whereas contributed libraries should
 contain definitions that support specific application domains, for
 instance computer algebra, special kinds of network protocols, or io.
 
-\medskip
+\bigskip
 \underline{Recommendations}
 
 \begin{itemize}
 \item Move parts of \code{coalton-library/math/*} that are not
   relevant to common arithmetic and trigonometric operations with
   primitive types into a contributed library.
+\item Move big float and associated tests to secondary library (and
+  attempt to mitigate MPFR library presence related build errors).
 \item Build and test contributed libraries in a separate phasea
   subsequent to building the core language and standard library.
 \end{itemize}
@@ -58,7 +60,7 @@ instance computer algebra, special kinds of network protocols, or io.
 Full documentation is very important for both beginning and advanced
 users.
 
-\medskip
+\bigskip
 \underline{Recommendations}
 
 \begin{itemize}
@@ -67,6 +69,13 @@ users.
   with a known output.
 \item Provide direct links from generated documentation to
   corresponding, versioned definitions in GitHub.
+\item The documentation needs to be generated in some logical order,
+  either file, or alphabetical.
+\item Type variables are renamed in documentation: see, for instance 
+\todo{q}
+Free monad - why are the type variables renamed in the documentation?
+
+
 \end{itemize}
 
 \subsection{Self Sufficiency}
@@ -75,7 +84,7 @@ The language should be self sufficient, to the extent that the
 standard library is able to self-update, and load contributed
 libraries.
 
-\medskip
+\bigskip
 \underline{Recommendations}
 
 \begin{itemize}
@@ -91,7 +100,7 @@ structures? How hard is it to read and write data? How hard is it to
 write a CSV parser? Things that sound easy ought to be easy, and this
 should be demonstrable.
 
-\medskip
+\bigskip
 \underline{Recommendations}
 
 \begin{itemize}
@@ -105,27 +114,39 @@ should be demonstrable.
 
 \end{itemize}
 
-\section{IO}
+\subsection{Concrete Data Types and IO}
 
-\todo {readable data syntax}
-Discuss extended data syntax, with proposal to adopt EDN-style
-notation for maps and vectors.
+Provide general purpose concrete data types, and define read syntax for them.
+
+\begin{itemize}
+\item map: immutable map of keys to values (like dict, table, etc.)
+\item vector: mutable array with get, set, push, pop
+\item set: immutable set
+\end{itemize}
+
+\bigskip
+\underline{Recommendations}
+\begin{itemize}
+\item Define map, vector and set
+\item Consider adopting ``edn'' read syntax for these.
+\end{itemize}
 
 \section{Naming}
 
 \subsection{Symbols}
 
-\medskip
+\bigskip
 \underline{Recommendations}
 \begin{itemize}
-\item Apply consistent naming to symbols: Python case for classes and instances, lisp-style hyphenation for functions.
+\item Apply consistent naming to symbols: Python case for classes and
+  instances, lisp-style hyphenation for functions.
 \end{itemize}
 
 \subsection{Packages}
 
 The existing packages can have shorter names and better logical grouping.
 
-\medskip
+\bigskip
 \underline{Recommendations}
 \begin{itemize}
 \item Replace \code{coalton-library} with \code{coalton}.
@@ -167,13 +188,13 @@ which types are core types? It may be the best that no types are
 primitive types. What Coalton is really providing is abstraction.
 \todo{primitive}
 
-should both single and double floats be present in core? In which
-languages does this matter? When is the past time that a programmer
-reached for a short float? (Answer, recently, all the time: but
-they've transcended the short float to demand hardware for bfloats,
-and beyond)
+\todo{q}
+is there a way to eject builtin types from the typecheckers?
 
-\subsubsection{Tuples}
+\todo{q}
+How much does the typechecker need ot know about primitive types at compile time?
+
+\subsection{Tuples}
 
 The ought be no need to characterize tuples as Tuple2, Tuple3,
 Tupld4. At very least the numerically-suffixed structure classes that
@@ -184,7 +205,7 @@ Tuples receive ordinal accessors (first, second, third).
 It may be desirable to support named tuples, to provide better cues
 about function.
 
-\todo{question}
+\todo{q}
 Is there a conflict or overlap with coalton-library/struct?
 
 tuples as an existential type.
@@ -195,6 +216,112 @@ tuples as an existential type.
 There are a lot of disparate casting functions that ought to be
 replaced by into -- notable, as below, tointeger.
 
+\subsection{Package Audit}
+
+\subsubsection{coalton}
+
+This package exposes built-in types (Unit, UFix, Single-Float) and
+toplevel and syntactic forms (define-instance, let).
+
+\bigskip
+\underline{Recommendations}
+
+\begin{itemize}
+\item Documentation for all symbols should appear here: notably absent
+  are define-struct, define-class, define-instance.
+\end{itemize}
+
+\subsubsection{coalton-library/bits}
+
+Support for bitwise operations. The implementations are present in \code{coalton-library/math/num}.
+
+\bigskip
+\underline{Recommendations}
+
+\begin{itemize}
+\item Rename to \code{coalton/type/bit} to represent that these operations are generally against concrete machine values defined there.
+\end{itemize}
+
+\subsubsection{coalton-library/builtin}
+
+This package contains an assortment of definitions related to functions and boolean logic.
+
+\bigskip
+\underline{Recommendations}
+
+\begin{itemize}
+\item Remove this package
+\item Move \code{undefined} to functions
+\item Move all other functions to \code{coalton/type/boolean}
+\end{itemize}
+
+\subsubsection{coalton-library/char}
+
+\bigskip
+\underline{Recommendations}
+
+\begin{itemize}
+\item Define \code{char} at the top of this file, not as an early type.
+\end{itemize}
+
+\subsubsection{coalton-library/cell}
+
+\todo{q}
+How closely related are cell and random-access?
+
+\todo{q}
+It seems like 'cell' should be a pure mutation interface,
+that doesn't have any assumptions about the kind of type to which a
+reference is being maintained.
+
+\todo{q}
+Are vectors able to supersede a bunch of other stuff (cell, list)
+
+\subsubsection{coalton-library/classes}
+
+This package contains a mixture of comparison (Eq, Ord), control flow
+(Optional, Result, Signalable, Unwrappable), and storage (Tuple)
+classes.
+
+\bigskip
+\underline{Recommendations}
+
+\begin{itemize}
+\item Relocate tuple definition to \code{coalton/data/tuple}
+\item Relocate control flow and error classes to ``coalton/error''
+\item Improve tuple documentation ('heterogeneous collection of items')
+\end{itemize}
+
+\todo{note}
+There should be some way to easily define a bit or byte type -
+for U7, or whatever particular value. See also notes in ... math bits?
+... about taking machine types (U8, I8) and 1 taking their definitions
+out of core 2) into a single package in std lib.
+
+\todo{note}
+rationalization of max and min
+
+\subsubsection{coalton-library/functions}
+
+\todo{q}
+\code{/=} goes to classes
+
+\todo{q}
+can flip be gotten rid of?
+
+\todo{q}
+trace and trace object need ot be move to format library.
+
+\todo{rec}
+The proxy system (or its interface) should be reassessed. Consider
+the example of setting the element type when reading a vector.
+
+\todo{q}
+Boolean: when would you use Ord over Boolean?
+
+ascii - really means utf8 or whatever the platform uses
+
+the char package needs to have all of its assumptions checked
 
 \subsubsection{coalton-library/math/fraction}
 
@@ -209,125 +336,61 @@ the type definition should probably be in this file
 
 clearly mark that this is a CL rational
 
+\subsubsection{coalton-library/hash}
+
+\todo{q}
+do other languages "expose an interface to hashing."
+
+\todo{note}
+add example: hashable label type with string-typed label.
+
+HASH should be a nonexternal library: just provides one method to hash table.
+
+HASH should be in hashtable file.
+
+There should be documentation here that provides a rationale for a hash user.
+
 \subsubsection{coalton-library/tuple}
-
-\section{Hashing}
-
-Question: do other languages "expose an interface to hashing."
-
-\todo{note} add example: hashable label type with string-typed label.
-
-\section{ADTs}
-
-loading array into system - doesn't need a tmpfile
 
 write a whole para on traverse. the methods all need descriptions
 
 talk about traversable and sequence
 
-\subsection{Package Audit}
-
-\subsubsection{coalton-library/bits}
-
-Support for bitwise operations. The implementations are present in \code{coalton-library/math/num}.
-
-\medskip
-\underline{Recommendations}
-
-\begin{itemize}
-\item Rename to \code{coalton/type/bit} to represent that these operations are generally against concrete machine values defined there.
-\end{itemize}
-
-
-ascii - really means utf8 or whatever the platform uses
-
-the char package needs to have all of its assumptions checked
-
-\subsubsection{coalton-library/classes}
-
-This package contains a mixture of comparison (Eq, Ord), control flow
-(Optional, Result, Signalable, Unwrappable), and storage (Tuple)
-classes.
-
-\medskip
-\underline{Recommendations}
-
-\begin{itemize}
-\item Relocate tuple definition to \code{coalton/data/tuple}
-\item Relocate control flow and error classes to ``coalton/error''
-\item Improve tuple documentation ('heterogeneous collection of items')
-\end{itemize}
-
-Note: there should be some way to easily define a bit or byte type -
-for U7, or whatever particular value. See also notes in ... math bits?
-... about taking machine types (U8, I8) and 1 taking their definitions
-out of core 2) into a single package in std lib.
-
-N: rationalization of max and min
-
 \subsubsection{coalton-library/math/integral}
 
-Q: tointeger seems to overlap completely with (into Integer ..)
+\todo{q}
+tointeger seems to overlap completely with (into Integer ..)
 - can it be collapsed? What is the purpose, otherwise?
 
-Q: "to-" prefix: is it like "mk-" prefix?
+\todo{q}
+"to-" prefix: is it like "mk-" prefix?
 
 N: it may be confusing to have multiple (semantically identical)
 definitions
 
-Q: Are there problems with integral->num? Can it be killed? It seems
+\todo{q}
+Are there problems with integral-\gt{}num? Can it be killed? It seems
 ot only add syntax, in that it could be equally well expressed as
 (into X whatever) rather than (the foo (integral->num whatever)).
 
-Q: How sound is semigroup? What is it used for, what does it support?
+\todo{q}
+How sound is semigroup? What is it used for, what does it support?
 
-R: HASH should be a nonexternal library: just provides one method to hash table.
-
-HASH should be in hashtablr files.
-
-There should be documentation here that provides a rationale for a hash user.
-
-\subsubsection{coalton-library/builtin}
-
-Q can the file builtin go away?
-
-undefined can go to functions, the others can all go to boolean.
-
-\subsubsection{coalton-library/functions}
-
-Q /= goes to classes
-
-Q can flip be gotten rid of
-
-Any time there is some arbitrary haskell thing added to a part of the
-standard library, there ought to be an example.
-
-Question: trace and trace object need ot be move to format library.
-
-trace
-
-R: The proxy system (or its interface) should be reassessed. Consider
-the example of setting the element type when reading a vector.
-
-Q: Booolean: when would you use Ord over Boolean?
-
-R: 'builtin' is chop suey of boolean and debugging: tweeze
-
-Q: are there different 'flavors' of Boolean that should be picked apart?
-
-Q: is there a way to eject builtin types from the typecheckers?
-
-Q:  How much does the typechecker need ot know about primitive types at compile time?
+\todo{q}
+are there different 'flavors' of Boolean that should be picked apart?
 
 R: "/=" should be in classes, not in fucntions
 
-Question: we need a thin wrapper on lisp format.
+\todo{q}
+we need a thin wrapper on lisp format.
 
-Question: format error function
+\todo{q}
+format error function
 
 Recommendation: Move dyadic and dual to secondary packages.
 
-Note: bifunctor shouldn't in core, someone can define it as part of
+\todo{note}
+bifunctor shouldn't in core, someone can define it as part of
       something they need
 
 There needs to be some docstring for SEQUENCE [FUNCTION] - switches between types of containers
@@ -339,85 +402,55 @@ Optional and result should also go into that file.
 
 The repr for enum types should be exposed in the documentation.
 
-The documentation needs ot be either in file or alphabetical order.
-
 \subsubsection{coalton-library/math/arith}
 
-Note:- bits documentation is outright wrong about the twos complement stuff
+Split N string - > tuple string
 
-Question: define char at the top of this file, not as an 'early type'
+\todo{note}
+unchecked -> unsafe
 
-    - same for 'string'
+\todo{note}
+car/cdr,  first/rest
 
-nothing needs a char until the car file!
+\subsubsection{coalton-library/list}
 
-Note: docs should be generated in alphabetical order (or file order!)
+This is a big package.
 
-Splin N string - > tuple string
+\todo{note}
+The semantics of remove-if are weird: only operates on first match?
 
-Note: unchecked -> unsafe
+\todo{q}
+equivalence-classes?
 
-Question: documentation for all of the macros
-
-Question: where is the documentation for define-struct, define-class, define-instance!
-
-QQ And the lisp form.
-
-Note: car/cdr -> first and rest
-
-NN remanticsd of remove-if are weird - only operates on  fiorts match?
-
-Question: equivalence-classes?
-
-Note: audit fpor "XXX"! with return value + side effects or mutation
-
-Question: It seems like 'cell' should be a pure (atomic?) mutation interface, that doesn'tr have any assumptions about the kind of type to which a reference is being maintained.
-
-Question: is random-access like this? Is r-a something that is stored in cell?
-
-Note: are vectors able to supersede a bunch of other stuff (cell, list)
+\todo{todo}
+Audit for "XXX"! with return value + side effects or mutation
 
 "implemented by a linked list - what?
 
-Question: Free monad - why are the type variables renamed in the documentation?
+\todo{note}
+up-to and down-from are weird.
 
-NN up-to and down-from are weird.
+\todo{q}
+elementwise-hash! is specialized to the implementation of ord-trees, and belongs there
 
-Question: elementwise-hash! is specialized to the implementation of ord-trees, and belongs there
+\todo{q}
+remove-duplicates! shows up in a weird place and duplicates a documentation section
 
-Question: remove-duplicates! shows up in a weird place and duplicates a documentation section
+\todo{note}
+ord-tree collect! tree - should be into iterator?
 
-Note: ord-tree collect! tree - should be into iterator?
+\todo{q}
+".like replace-or-insert" - do those really have to have names that are so similar?
 
-Question: ".like replace-or-insert" - do those really have to have names that are so similar?
+\todo{q}
+ord-map: why is there not ord in entries?
 
-Q - ord-map - why is there not ord in entries?
+\todo{rec}
+The SEQ types seems hollowed out or superseded by vector and iterator stuff: does it stay or go?
 
-R: The SEQ types seems hollowed out or superseded by vector and iterator stuff: does it stay or go?
-
-N: In general, more consistency for foundational ADTs should be sought so that the available types conform to common understanding of roles and complexity classes.
-
-  - map
-  - vector
-  - list
-  - cons
-
-Also, mutable and immutable structures should be distinguished
-
-R: Replace -unsafe with -safe?
+\todo{rec}
+Replace -unsafe with -safe
 
 bounded (minvalue maxvalue) is kind of like hash in that i'ts ring-0 or lower order
-
-\section{Quasar Notes, Late July}
-
-MPFR dependency is annoying because it will tend to crash you out if
-you have a standard SBCL and run the test suites.
-
-Recommendation: move big float (and associated tests) to secondary library.
-
-Maybe 'math' (and all of its subpackages) is the 'premiere' secondary
-library. What in primary might depend on it?
-
-Concrete syntax: (, {, [ .. can it be done?
 
 \end{document}
