@@ -1545,7 +1545,7 @@ consume all attributes")))
         (if (cst:atom (first left))
             ;; (C1 ... => C2 ...)
             (setf predicates (list (parse-predicate left
-                                                    (make-source-location :file file
+                                                    (make-source-location :source file
                                                                           :span (util:cst-source-range left)))))
 
             ;; ((C1 ...) (C2 ...) ... => C3 ...)
@@ -1686,7 +1686,7 @@ consume all attributes")))
       (when unparsed-context
         (if (cst:atom (first unparsed-context))
             (setf context (list (parse-predicate unparsed-context
-                                                 (make-source-location :file file
+                                                 (make-source-location :source file
                                                                        :span (util:cst-source-range unparsed-context)))))
 
             (setf context
@@ -1701,7 +1701,7 @@ consume all attributes")))
       (make-toplevel-define-instance
        :context context
        :pred (parse-predicate unparsed-predicate
-                              (make-source-location :file file
+                              (make-source-location :source file
                                                     :span (util:cst-source-range unparsed-predicate)))
        :docstring docstring
        :methods (loop :for methods := (cst:nthrest (if docstring 3 2) form) :then (cst:rest methods)

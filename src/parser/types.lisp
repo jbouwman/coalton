@@ -199,7 +199,7 @@
              (if (cst:atom (first left))
                  (setf predicates (list (parse-predicate
                                          left
-                                         (make-source-location :file file
+                                         (make-source-location :source file
                                                                :span (cons (car (cst:source (first left)))
                                                                            (cdr (cst:source (car (last left)))))))))
 
@@ -212,7 +212,7 @@
                                           :message "Malformed type predicate"
                                           :primary-note "expected predicate"))
                        :do (push (parse-predicate (cst:listify pred)
-                                                  (make-source-location :file file
+                                                  (make-source-location :source file
                                                                         :span (cst:source form)))
                                  predicates)))
 
@@ -220,7 +220,7 @@
               :predicates (reverse predicates)
               :type (parse-type-list
                      (cdr right)
-                     (make-source-location :file file
+                     (make-source-location :source file
                                            :span (cons (car (cst:source (second right)))
                                                        (cdr (cst:source (car (last right)))))))
               :source (source-location form file))))))))
@@ -231,7 +231,7 @@
            (values ty-predicate))
 
   (assert forms)
-  (let ((file (source-location-file source)))
+  (let ((file (source-location-source source)))
     (cond
       ;; (T) ... => ....
       ((not (cst:atom (first forms)))
@@ -318,7 +318,7 @@
   (assert forms)
 
   (if (= 1 (length forms))
-      (parse-type (first forms) (source-location-file source))
+      (parse-type (first forms) (source-location-source source))
       (multiple-value-bind (left right)
           (util:take-until (lambda (cst)
                              (and (cst:atom cst)
@@ -331,7 +331,7 @@
            (error 'parse-error
                   :err (se:source-error
                         :span (cst:source (car right))
-                        :file (source-location-file source)
+                        :file (source-location-source source)
                         :message "Malformed function type"
                         :primary-note "missing return type")))
 
@@ -340,14 +340,14 @@
            (error 'parse-error
                   :err (se:source-error
                         :span (cst:source (car right))
-                        :file (source-location-file source)
+                        :file (source-location-source source)
                         :message "Malformed function type"
                         :primary-note "invalid function syntax")))
 
           (t
-           (let ((ty (parse-type (car left) (source-location-file source))))
+           (let ((ty (parse-type (car left) (source-location-source source))))
              (loop :for form_ :in (cdr left)
-                   :for ty_ := (parse-type form_ (source-location-file source))
+                   :for ty_ := (parse-type form_ (source-location-source source))
                    :do (setf ty (make-tapp :from ty
                                            :to ty_
                                            :source source)))
@@ -360,14 +360,14 @@
                          :from (make-tycon
                                 :name 'coalton:Arrow
                                 :source (source-location (first right)
-                                                         (source-location-file source)))
+                                                         (source-location-source source)))
                          :to ty
-                         :source (make-source-location :file (source-location-file source)
+                         :source (make-source-location :source (source-location-source source)
                                                        :span (cons (car (source-location-span (ty-source ty)))
                                                                    (cdr (cst:source (first right))))))
                   :to (parse-type-list
                        (cdr right)
-                       (make-source-location :file (source-location-file source)
+                       (make-source-location :source (source-location-source source)
                                              :span (cons
                                                     (car (cst:source (first right)))
                                                     (cdr (cst:source (car (last right)))))))

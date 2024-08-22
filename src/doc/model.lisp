@@ -78,7 +78,7 @@
   (:documentation "The source location of an object, including file and span."))
 
 (defun source (object)
-  (source:source-location-file (source-location object)))
+  (source:source-location-source (source-location object)))
 
 (defun source-location-href (object)
   (format nil "~a/~a"

@@ -10,7 +10,7 @@
    #:make-source-string
    #:source-error
    #:source-location
-   #:source-location-file
+   #:source-location-source
    #:source-location-span))
 
 (in-package #:coalton-impl/source)
@@ -128,7 +128,7 @@ OFFSET indicates starting character offset within the file."
   (or (original-name self) "<string input>"))
 
 (defstruct source-location
-  (file nil
+  (source nil
    :read-only t)
   (span nil
    :type (cons fixnum fixnum) :read-only t))
@@ -136,8 +136,8 @@ OFFSET indicates starting character offset within the file."
 (defmethod make-load-form ((self source-location) &optional env)
   (make-load-form-saving-slots self :environment env))
 
-(defmacro source-location (form file)
-  `(make-source-location :file ,file
+(defmacro source-location (form source)
+  `(make-source-location :source ,source
                          :span (cst:source ,form)))
 
 (defun source-error (&key (type :error) source (highlight :all)
@@ -145,7 +145,7 @@ OFFSET indicates starting character offset within the file."
   (declare (type source-location source))
   (source-error:source-error :type type
                              :span (source-location-span source)
-                             :file (source-location-file source)
+                             :file (source-location-source source)
                              :highlight highlight
                              :message message
                              :primary-note primary-note

@@ -291,7 +291,7 @@
 (declaim (sb-ext:freeze-type type-environment))
 
 (defvar *builtin-location*
-  (make-source-location :file (make-source-file "src/typechecker/environment.lisp")
+  (make-source-location :source (make-source-file "src/typechecker/environment.lisp")
                         :span (cons 0 0)))
 
 (defun make-default-type-environment ()
