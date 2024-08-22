@@ -32,29 +32,29 @@
     (let* ((f (source:make-source-file program-file :name "file"))
            (msg (with-output-to-string (output)
                   ;; an annotating error
-                  (se:display-source-error
-                   output
-                   (se:source-error
+                  (source:display-source-error
+                   qoutput
+                   (source:source-error
                     :span '(76 . 321)
                     :file f
                     :message "message"
                     :primary-note "define instance form"
                     :notes (list
-                            (se:make-source-error-note
-                             :type :secondary
+                            (source:make-note
+                             :type :secondary ; TODO FIXME
                              :span  '(132 . 319)
                              :message "message 2")
-                            (se:make-source-error-note
+                            (source:make-note
                              :type :secondary
                              :span  '(140 . 145)
                              :message "message 3")
-                            (se:make-source-error-note
+                            (source:make-note
                              :type :secondary
                              :span  '(170 . 174)
                              :message "message 4"))
                     :help-notes
                     (list
-                     (se:make-source-error-help
+                     (source:make-help
                       :span  '(289 . 291)
                       :replacement (lambda (existing)
                                      (concatenate 'string "*" existing "*"))

@@ -16,7 +16,6 @@
    #:make-tc-env
    #:infer-expl-binding-type)
   (:local-nicknames
-   (#:se #:source-error)
    (#:settings #:coalton-impl/settings)
    (#:source #:coalton-impl/source)
    (#:util #:coalton-impl/util)

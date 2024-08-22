@@ -9,7 +9,6 @@
    #:check-package
    #:check-duplicates)
   (:local-nicknames
-   (#:se #:source-error)
    (#:util #:coalton-impl/util)
    (#:algo #:coalton-impl/algorithm)
    (#:parser #:coalton-impl/parser)
@@ -66,16 +65,15 @@
    #'parser:toplevel-define-class-source
    (lambda (first second)
      (error 'tc:tc-error
-            :err (source:source-error
-                  :source (parser:toplevel-define-class-head-src first)
-                  :message "Duplicate class definition"
-                  :primary-note "first definition here"
-                  :notes
-                  (list
-                   (se:make-source-error-note
-                    :type :primary
-                    :span (source:source-location-span (parser:toplevel-define-class-head-src second))
-                    :message "second definition here"))))))
+            :source (parser:toplevel-define-class-head-src first)
+            :message "Duplicate class definition"
+            :primary-note "first definition here"
+            :notes
+            (list
+             (se:make-source-error-note
+              :type :primary
+              :span (source:source-location-span (parser:toplevel-define-class-head-src second))
+              :message "second definition here")))))
 
   ;; Check for duplicate method definitions
   (check-duplicates
@@ -84,16 +82,15 @@
    #'parser:method-definition-source
    (lambda (first second)
      (error 'tc:tc-error
-            :err (source:source-error
-                  :source (parser:method-definition-source first)
-                  :message "Duplicate method definition"
-                  :primary-note "first definition here"
-                  :notes
-                  (list
-                   (se:make-source-error-note
-                    :type :primary
-                    :span (source:source-location-span (parser:method-definition-source second))
-                    :message "second definition here"))))))
+            :source (parser:method-definition-source first)
+            :message "Duplicate method definition"
+            :primary-note "first definition here"
+            :notes
+            (list
+             (se:make-source-error-note
+              :type :primary
+              :span (source:source-location-span (parser:method-definition-source second))
+              :message "second definition here")))))
 
   (loop :for class :in classes :do
     ;; Classes cannot have duplicate variables
@@ -103,7 +100,7 @@
      #'parser:keyword-src-source
      (lambda (first second)
        (error 'tc:tc-error
-              :err (source:source-error
+              
                     :source (parser:keyword-src-source first)
                     :message "Duplicate class variable"
                     :primary-note "first usage here"
@@ -112,7 +109,7 @@
                      (se:make-source-error-note
                       :type :primary
                       :span (source:source-location-span (parser:keyword-src-source second))
-                      :message "second usage here")))))))
+                      :message "second usage here"))))))
 
   (let* ((class-table
            (loop :with table := (make-hash-table :test #'eq)
@@ -163,7 +160,7 @@
            ;; Classes cannot have cyclic superclasses
            :when (intersection superclass-names scc-names :test #'eq)
              :do (error 'tc:tc-error
-                        :err (source:source-error
+                        
                               :source (parser:toplevel-define-class-head-src (first scc))
                               :message "Cyclic superclasses"
                               :primary-note "in class defined here"
@@ -171,7 +168,7 @@
                                            :collect (se:make-source-error-note
                                                      :type :primary
                                                      :span (source:source-location-span (parser:toplevel-define-class-head-src class))
-                                                     :message "in class defined here"))))
+                                                     :message "in class defined here")))
 
            :append (multiple-value-bind (classes env_)
                        (infer-class-scc-kinds scc env)
@@ -379,16 +376,15 @@
                 #'parser:keyword-src-source
                 (lambda (first second)
                   (error 'tc:tc-error
-                         :err (source:source-error
-                               :source (parser:keyword-src-source first)
-                               :message "Duplicate variable in function dependency"
-                               :primary-note "first usage here"
-                               :notes
-                               (list
-                                (se:make-source-error-note
-                                 :type :primary
-                                 :span (source:source-location-span (parser:keyword-src-source second))
-                                 :message "second usage here"))))))))
+                         :source (parser:keyword-src-source first)
+                         :message "Duplicate variable in function dependency"
+                         :primary-note "first usage here"
+                         :notes
+                         (list
+                          (se:make-source-error-note
+                           :type :primary
+                           :span (source:source-location-span (parser:keyword-src-source second))
+                           :message "second usage here")))))))
       (loop :for fundep :in (parser:toplevel-define-class-fundeps class)
             :do (check-duplicate-fundep-variables (parser:fundep-left fundep))
             :do (check-duplicate-fundep-variables (parser:fundep-right fundep))))

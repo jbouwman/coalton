@@ -4,7 +4,6 @@
    #:coalton-impl/typechecker/base
    #:coalton-impl/typechecker/parse-type)
   (:local-nicknames
-   (#:se #:source-error)
    (#:parser #:coalton-impl/parser)
    (#:tc #:coalton-impl/typechecker/stage-1))
   (:export
@@ -43,20 +42,20 @@
                               (tc:qualify nil type))))
 
     (unless from-ty
-      (tc-error (parser:node-source (parser:toplevel-specialize-from specialize))
+      (tc-error (parser:node-location (parser:toplevel-specialize-from specialize))
                 "Invalid specialization"
                 "unknown function or variable"))
     (unless to-ty
-      (tc-error (parser:node-source (parser:toplevel-specialize-to specialize))
+      (tc-error (parser:node-location (parser:toplevel-specialize-to specialize))
                 "Invalid specialization"
                 "unknown function or variable"))
 
     (unless (eq :value (tc:name-entry-type from-name-entry))
-      (tc-error (parser:node-source (parser:toplevel-specialize-from specialize))
+      (tc-error (parser:node-location (parser:toplevel-specialize-from specialize))
                 "Invalid specialization"
                 (format nil "must be a function or variable, not a ~A" (tc:name-entry-type from-name-entry))))
     (unless (eq :value (tc:name-entry-type to-name-entry))
-      (tc-error (parser:node-source (parser:toplevel-specialize-to specialize))
+      (tc-error (parser:node-location (parser:toplevel-specialize-to specialize))
                 "Invalid specialization"
                 (format nil "must be a function or variable, not a ~A" (tc:name-entry-type from-name-entry))))
 
@@ -64,24 +63,24 @@
           (to-qual-ty (tc:fresh-inst to-ty)))
 
       (when (null (tc:qualified-ty-predicates from-qual-ty))
-        (tc-error (parser:node-source (parser:toplevel-specialize-from specialize))
+        (tc-error (parser:node-location (parser:toplevel-specialize-from specialize))
                   "Invalid specialization"
                   "must be a function or variable with class constraints"))
 
       (unless (equalp to-ty scheme)
-        (tc-error (parser:toplevel-specialize-source specialize)
+        (tc-error (parser:toplevel-specialize-location specialize)
                   "Invalid specialization"
                   (format nil "function ~S does not match declared type" to-name)))
 
       (when (equalp from-ty to-ty)
-        (tc-error (parser:toplevel-specialize-source specialize)
+        (tc-error (parser:toplevel-specialize-location specialize)
                   "Invalid specialization"
                   "specialize must result in a more specific type"))
 
       (handler-case
           (tc:match (tc:qualified-ty-type from-qual-ty) (tc:qualified-ty-type to-qual-ty))
         (tc:coalton-internal-type-error ()
-          (tc-error (parser:toplevel-specialize-source specialize)
+          (tc-error (parser:toplevel-specialize-location specialize)
                     "Invalid specialization"
                     "cannot specialize to declared type")))
 
@@ -91,7 +90,7 @@
         (handler-case
             (tc:add-specialization env entry)
           (tc:overlapping-specialization-error (c)
-            (tc-error (parser:toplevel-specialize-source specialize)
+            (tc-error (parser:toplevel-specialize-location specialize)
                       "Overlapping specialization"
                        (format nil "overlaps with specialization ~S"
                                (tc:overlapping-specialization-error-existing c)))))))))

@@ -12,7 +12,6 @@
    #:coalton-impl/typechecker/base
    #:coalton-impl/typechecker/partial-type-env)
   (:local-nicknames
-   (#:se #:source-error)
    (#:util #:coalton-impl/util)
    (#:parser #:coalton-impl/parser)
    (#:source #:coalton-impl/source)
@@ -126,15 +125,15 @@
     (unless (subsetp (tc:type-variables preds) unambiguous-vars :test #'equalp)
       (let* ((ambiguous-vars (set-difference (tc:type-variables preds) unambiguous-vars :test #'equalp))
              (single-variable (= 1 (length ambiguous-vars))))
-        (tc-error (parser:qualified-ty-source qual-ty)
-                  "Invalid qualified type"
-                  (format nil "The type ~A ~{~S ~}ambiguous in the type ~S"
-                          (if single-variable
-                              "variable is"
-                              "variables are")
-                          ambiguous-vars
-                          (tc:make-qualified-ty :predicates preds
-                                                :type type)))))))
+        (tc-error "Invalid qualified type"
+                  (make-note (parser:qualified-ty-location qual-ty)
+                             "The type ~A ~{~S ~}ambiguous in the type ~S"
+                             (if single-variable
+                                 "variable is"
+                                 "variables are")
+                             ambiguous-vars
+                             (tc:make-qualified-ty :predicates preds
+                                                   :type type)))))))
 
 (defun check-for-reducible-context (preds qual-ty env)
   (declare (type tc:ty-predicate-list preds)
@@ -143,14 +142,12 @@
   (let ((reduced-preds (tc:reduce-context env preds nil)))
     (unless (null (set-exclusive-or preds reduced-preds :test #'tc:type-predicate=))
       (warn 'se:source-base-warning
-            :err (source:source-error
-                  :type :warn
-                  :source (parser:qualified-ty-source qual-ty)
-                  :message "Declared context can be reduced"
-                  :primary-note (if (null reduced-preds)
-                                    "declared predicates are redundant"
-                                    (format nil "context can be reduced to ~{ ~S~}"
-                                            reduced-preds)))))))
+            :notes (list (make-note (parser:qualified-ty-location qual-ty)
+                                    "Declared context can be reduced"))
+            :primary-note (if (null reduced-preds)
+                              "declared predicates are redundant"
+                              (format nil "context can be reduced to ~{ ~S~}"
+                                      reduced-preds))))))
 
 ;;;
 ;;; Kind Inference
@@ -163,7 +160,7 @@
     (let* ((tvar (partial-type-env-lookup-var
                   env
                   (parser:tyvar-name type)
-                  (parser:ty-source type)))
+                  (parser:ty-location type)))
            (kvar (tc:kind-of tvar)))
 
       (setf kvar (tc:apply-ksubstitution ksubs kvar))
@@ -173,11 +170,11 @@
             (setf ksubs (tc:kunify kvar expected-kind ksubs))
             (values (tc:apply-ksubstitution ksubs tvar) ksubs))
         (tc:coalton-internal-type-error ()
-          (tc-error (parser:ty-source type)
-                    "Kind mismatch"
-                    (format nil "Expected kind '~S' but variable is of kind '~S'"
-                            expected-kind
-                            kvar))))))
+          (tc-error "Kind mismatch"
+                    (make-note (parser:ty-location type)
+                               "Expected kind '~S' but variable is of kind '~S'"
+                               expected-kind
+                               kvar))))))
 
   (:method ((type parser:tycon) expected-kind ksubs env)
     (declare (type tc:kind expected-kind)
@@ -191,11 +188,11 @@
             (setf ksubs (tc:kunify (tc:kind-of type_) expected-kind ksubs))
             (values (tc:apply-ksubstitution ksubs type_) ksubs))
         (tc:coalton-internal-type-error ()
-          (tc-error (parser:ty-source type)
-                    "Kind mismatch"
-                    (format nil "Expected kind '~S' but got kind '~S'"
-                            expected-kind
-                            (tc:kind-of type_)))))))
+          (tc-error "Kind mismatch"
+                    (make-note (parser:ty-location type)
+                               "Expected kind '~S' but got kind '~S'"
+                               expected-kind
+                               (tc:kind-of type_)))))))
 
   (:method ((type parser:tapp) expected-kind ksubs env)
     (declare (type tc:kind expected-kind)
@@ -228,13 +225,13 @@
                  (tc:apply-type-argument fun-ty arg-ty :ksubs ksubs)
                  ksubs))
             (tc:coalton-internal-type-error ()
-              (tc-error (parser:ty-source (parser:tapp-from type))
-                        "Kind mismatch"
-                        (format nil "Expected kind '~S' but got kind '~S'"
-                                (tc:make-kfun
-                                 :from (tc:apply-ksubstitution ksubs arg-kind)
-                                 :to (tc:apply-ksubstitution ksubs expected-kind))
-                                (tc:apply-ksubstitution ksubs fun-kind)))))))))
+              (tc-error "Kind mismatch"
+                        (make-note (parser:ty-location (parser:tapp-from type))
+                                   "Expected kind '~S' but got kind '~S'"
+                                   (tc:make-kfun
+                                    :from (tc:apply-ksubstitution ksubs arg-kind)
+                                    :to (tc:apply-ksubstitution ksubs expected-kind))
+                                   (tc:apply-ksubstitution ksubs fun-kind)))))))))
 
   (:method ((type parser:qualified-ty) expected-kind ksubs env)
     (declare (type tc:kind expected-kind)
@@ -273,11 +270,11 @@
 
     ;; Check that pred has the correct number of arguments
     (unless (= class-arity (length (parser:ty-predicate-types pred)))
-      (tc-error (parser:ty-predicate-source pred)
-                "Predicate arity mismatch"
-                (format nil "Expected ~D arguments but received ~D"
-                        class-arity
-                        (length (parser:ty-predicate-types pred)))))
+      (tc-error "Predicate arity mismatch"
+                (make-note (parser:ty-predicate-location pred)
+                           "Expected ~D arguments but received ~D"
+                           class-arity
+                           (length (parser:ty-predicate-types pred)))))
 
     (let ((types (loop :for ty :in (parser:ty-predicate-types pred)
                        :for class-ty :in (tc:ty-predicate-types class-pred)

@@ -21,7 +21,7 @@
                        (entry:entry-point
                         (parser:read-program stream source ':file))
                        "no errors")
-                   (se:source-base-error (c)
+                   (source:source-error (c)
                      (princ-to-string c)))))))
     (dolist (file (test-files "tests/parser-test-files/bad-files/*.coal"))
       (let ((error-file (make-pathname :type "error"

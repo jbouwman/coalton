@@ -8,11 +8,10 @@
    #:parse-error)
   (:local-nicknames
    (#:cst #:concrete-syntax-tree)
-   (#:se #:source-error)
    (#:util #:coalton-impl/util))
   (:export
    #:ty                                 ; STRUCT
-   #:ty-source                          ; ACCESSOR
+   #:ty-location                        ; ACCESSOR
    #:ty-list                            ; TYPE
    #:tyvar                              ; STRUCT
    #:make-tyvar                         ; CONSTRUCTOR
@@ -33,13 +32,13 @@
    #:make-ty-predicate                  ; CONSTRUCTOR
    #:ty-predicate-class                 ; ACCESSOR
    #:ty-predicate-types                 ; ACCESSOR
-   #:ty-predicate-source                ; ACCESSOR
+   #:ty-predicate-location              ; ACCESSOR
    #:ty-predicate-list                  ; TYPE
    #:qualified-ty                       ; STRUCT
    #:make-qualified-ty                  ; CONSTRUCTOR
    #:qualified-ty-predicates            ; ACCESSOR
    #:qualified-ty-type                  ; ACCESSOR
-   #:qualified-ty-source                ; ACCESSOR
+   #:qualified-ty-location              ; ACCESSOR
    #:qualified-ty-list                  ; TYPE
    #:parse-qualified-type               ; FUNCTION
    #:parse-type                         ; FUNCTION
@@ -71,7 +70,7 @@
 
 (defstruct (ty (:constructor nil)
                (:copier nil))
-  (source (util:required 'source) :type source-location :read-only t))
+  (location (util:required 'location) :type location :read-only t))
 
 (defun ty-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -111,9 +110,9 @@
 
 (defstruct (ty-predicate
             (:copier nil))
-  (class  (util:required 'class)  :type identifier-src  :read-only t)
-  (types  (util:required 'types)  :type ty-list         :read-only t)
-  (source (util:required 'source) :type source-location :read-only t))
+  (class    (util:required 'class)    :type identifier-src :read-only t)
+  (types    (util:required 'types)    :type ty-list        :read-only t)
+  (location (util:required 'location) :type location       :read-only t))
 
 (defun ty-predicate-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -127,17 +126,17 @@
             (:copier nil))
   (predicates (util:required 'predicates) :type ty-predicate-list :read-only t)
   (type       (util:required 'type)       :type ty                :read-only t)
-  (source     (util:required 'source)     :type source-location   :read-only t))
+  (location   (util:required 'location)   :type location          :read-only t))
 
-(defun parse-qualified-type (form file)
+(defun parse-qualified-type (form source)
   (declare (type cst:cst form))
 
   (if (cst:atom form)
 
       (make-qualified-ty
        :predicates nil
-       :type (parse-type form file)
-       :source (source-location form file))
+       :type (parse-type form source)
+       :location (form-location form source))
 
       (multiple-value-bind (left right)
           (util:take-until (lambda (cst)
@@ -149,135 +148,117 @@
           ((null right)
            (make-qualified-ty
             :predicates nil
-            :type (parse-type-list left (source-location form file))
-            :source (source-location form file)))
+            :type (parse-type-list left (form-location form source))
+            :location (form-location form source)))
 
           ;; (=> T -> T)
           ((and (null left) right)
            (error 'parse-error
-                  :err (se:source-error
-                        :span (cst:source (cst:first form))
-                        :file file
-                        :message "Malformed type"
-                        :primary-note "unnecessary `=>`"
-                        :help-notes
-                        (cond
-                          ;; If this is the only thing in the list then don't suggest anything
-                          ((cst:atom (cst:rest form))
-                           nil)
-                          ;; If there is nothing to the right of C then emit without list
-                          ((cst:atom (cst:rest (cst:rest form)))
-                           (list
-                            (se:make-source-error-help
-                             :span (cst:source form)
-                             :replacement
-                             (lambda (existing)
-                               (subseq existing 4 (1- (length existing))))
-                             :message "remove `=>`")))
-                          (t
-                           (list
-                            (se:make-source-error-help
-                             :span (cst:source form)
-                             :replacement
-                             (lambda (existing)
-                               (concatenate 'string
-                                            (subseq existing 0 1)
-                                            (subseq existing 4)))
-                             :message "remove `=>`")))))))
+                  :message "Malformed type"
+                  :notes (list (make-note (form-location (cst:first form) source)
+                                          "unnecessary `=>`"))
+                  :help-notes
+                  (cond
+                    ;; If this is the only thing in the list then don't suggest anything
+                    ((cst:atom (cst:rest form))
+                     nil)
+                    ;; If there is nothing to the right of C then emit without list
+                    ((cst:atom (cst:rest (cst:rest form)))
+                     (list
+                      (make-help
+                       :location (form-location form source)
+                       :replacement
+                       (lambda (existing)
+                         (subseq existing 4 (1- (length existing))))
+                       :message "remove `=>`")))
+                    (t
+                     (list
+                      (make-help
+                       :location (form-location form source)
+                       :replacement
+                       (lambda (existing)
+                         (concatenate 'string
+                                      (subseq existing 0 1)
+                                      (subseq existing 4)))
+                       :message "remove `=>`"))))))
 
           ;; (... =>)
           ((null (rest right))
-           (error 'parse-error
-                  :err (se:source-error
-                        :span (cst:source (cst:second form))
-                        :file file
-                        :message "Malformed type"
-                        :primary-note "missing type after `=>`")))
+           (simple-parse-error source (cst:second form)
+                               "Malformed type"
+                               "missing type after `=>`"))
 
           (t
            (let (predicates)
              (if (cst:atom (first left))
                  (setf predicates (list (parse-predicate
                                          left
-                                         (make-source-location :source file
-                                                               :span (cons (car (cst:source (first left)))
-                                                                           (cdr (cst:source (car (last left)))))))))
+                                         (make-location :source source
+                                                        :span (cons (car (cst:source (first left)))
+                                                                    (cdr (cst:source (car (last left)))))))))
 
                  (loop :for pred :in left
                        :unless (cst:consp pred)
-                         :do (error 'parse-error
-                                    :err (se:source-error
-                                          :span (cst:source (cst:second form))
-                                          :file file
-                                          :message "Malformed type predicate"
-                                          :primary-note "expected predicate"))
+                         :do (simple-parse-error source (cst:second form)
+                                                 "Malformed type predicate"
+                                                 "expected predicate")
                        :do (push (parse-predicate (cst:listify pred)
-                                                  (make-source-location :source file
-                                                                        :span (cst:source form)))
+                                                  (make-location :source source
+                                                                 :span (cst:source form)))
                                  predicates)))
 
              (make-qualified-ty
               :predicates (reverse predicates)
               :type (parse-type-list
                      (cdr right)
-                     (make-source-location :source file
-                                           :span (cons (car (cst:source (second right)))
-                                                       (cdr (cst:source (car (last right)))))))
-              :source (source-location form file))))))))
+                     (make-location :source source
+                                    :span (cons (car (cst:source (second right)))
+                                                (cdr (cst:source (car (last right)))))))
+              :location (form-location form source))))))))
 
-(defun parse-predicate (forms source)
+(defun parse-predicate (forms location)
   (declare (type util:cst-list forms)
-           (type source-location source)
+           (type location location)
            (values ty-predicate))
 
   (assert forms)
-  (let ((file (source-location-source source)))
+  (let ((source (location-source location)))
     (cond
       ;; (T) ... => ....
       ((not (cst:atom (first forms)))
        (error 'parse-error
-              :err (se:source-error
-                    :span (cst:source (first forms))
-                    :file file
-                    :message "Malformed type predicate"
-                    :primary-note "expected class name"
-                    :help-notes
-                    (list
-                     (se:make-source-error-help
-                      :span (cst:source (first forms))
-                      :replacement
-                      (lambda (existing)
-                        (subseq existing 1 (1- (length existing))))
-                      :message "remove parentheses")))))
+              :message "Malformed type predicate"
+              :notes (list (make-note (form-location (first forms)
+                                                     source)
+                                      "expected class name"))
+              :help-notes (list (make-help :location (form-location (first forms) source)
+                                           :replacement
+                                           (lambda (existing)
+                                             (subseq existing 1 (1- (length existing))))
+                                           :message "remove parentheses"))))
 
       ;; "T" ... => ...
       ((not (identifierp (cst:raw (first forms))))
-       (error 'parse-error
-              :err (se:source-error
-                    :span (cst:source (first forms))
-                    :file file
-                    :message "Malformed type predicate"
-                    :primary-note "expected identifier")))
+       (simple-parse-error source (first forms)
+                           "Malformed type predicate"
+                           "expected identifier"))
 
       (t
        (let ((name (cst:raw (first forms))))
          (when (= 1 (length forms))
-           (error 'parse-error
-                  :err (se:source-error
-                        :span (cst:source (first forms))
-                        :file file
-                        :message "Malformed type predicate"
-                        :primary-note "expected predicate")))
+           (simple-parse-error source (first forms)
+                               "Malformed type predicate"
+                               "expected predicate"))
 
          (make-ty-predicate
           :class (make-identifier-src
                   :name name
-                  :source (source-location (first forms) file))
+                  :source (form-location (first forms) source))
           :types (loop :for form :in (cdr forms)
-                       :collect (parse-type form file))
-          :source source))))))
+                       :collect (parse-type form source))
+          :location (form-location (first forms) source)))))))
 
-(defun parse-type (form file)
+(defun parse-type (form source)
   (declare (type cst:cst form)
            (values ty &optional))
 
@@ -287,38 +268,32 @@
           (cst:raw form))
 
      (if (equalp (symbol-package (cst:raw form)) util:+keyword-package+)
-         (make-tyvar :name (cst:raw form) :source (source-location form file))
-         (make-tycon :name (cst:raw form) :source (source-location form file))))
+         (make-tyvar :name (cst:raw form) :location (form-location form source))
+         (make-tycon :name (cst:raw form) :location (form-location form source))))
 
     ((cst:atom form)
-     (error 'parse-error
-            :err (se:source-error
-                  :span (cst:source form)
-                  :file file
-                  :message "Malformed type"
-                  :primary-note "expected identifier")))
+     (simple-parse-error source form
+                         "Malformed type"
+                         "expected identifier"))
 
     ;; (T)
     ((cst:atom (cst:rest form))
-     (error 'parse-error
-            :err (se:source-error
-                  :span (cst:source form)
-                  :file file
-                  :message "Malformed type"
-                  :primary-note "unexpected nullary type")))
+     (simple-parse-error source form
+                         "Malformed type"
+                         "unexpected nullary type"))
 
     (t
-     (parse-type-list (cst:listify form) (source-location form file)))))
+     (parse-type-list (cst:listify form) (form-location form source)))))
 
-(defun parse-type-list (forms source)
+(defun parse-type-list (forms location)
   (declare (type util:cst-list forms)
-           (type source-location source)
+           (type location location)
            (values ty &optional))
 
   (assert forms)
 
   (if (= 1 (length forms))
-      (parse-type (first forms) (source-location-source source))
+      (parse-type (first forms) (location-source location))
       (multiple-value-bind (left right)
           (util:take-until (lambda (cst)
                              (and (cst:atom cst)
@@ -328,29 +303,25 @@
         ;; (T ... ->)
         (cond
           ((and right (null (rest right)))
-           (error 'parse-error
-                  :err (se:source-error
-                        :span (cst:source (car right))
-                        :file (source-location-source source)
-                        :message "Malformed function type"
-                        :primary-note "missing return type")))
+           (simple-parse-error (location-source location)
+                               (car right)
+                               "Malformed function type"
+                               "missing return type"))
 
           ;; (-> ...)
           ((and (null left) right)
-           (error 'parse-error
-                  :err (se:source-error
-                        :span (cst:source (car right))
-                        :file (source-location-source source)
-                        :message "Malformed function type"
-                        :primary-note "invalid function syntax")))
+           (simple-parse-error (location-source location)
+                               (car right)
+                               "Malformed function type"
+                               "invalid function syntax"))
 
           (t
-           (let ((ty (parse-type (car left) (source-location-source source))))
+           (let ((ty (parse-type (car left) (location-source location))))
              (loop :for form_ :in (cdr left)
-                   :for ty_ := (parse-type form_ (source-location-source source))
+                   :for ty_ := (parse-type form_ (location-source location))
                    :do (setf ty (make-tapp :from ty
                                            :to ty_
-                                           :source source)))
+                                           :location location)))
 
              (if (null right)
                  ty
@@ -359,16 +330,16 @@
                   :from (make-tapp
                          :from (make-tycon
                                 :name 'coalton:Arrow
-                                :source (source-location (first right)
-                                                         (source-location-source source)))
+                                :location (form-location (first right)
+                                                         (location-source location)))
                          :to ty
-                         :source (make-source-location :source (source-location-source source)
-                                                       :span (cons (car (source-location-span (ty-source ty)))
-                                                                   (cdr (cst:source (first right))))))
+                         :location (make-location :source (location-source location)
+                                                  :span (cons (car (location-span (ty-location ty)))
+                                                              (cdr (cst:source (first right))))))
                   :to (parse-type-list
                        (cdr right)
-                       (make-source-location :source (source-location-source source)
-                                             :span (cons
-                                                    (car (cst:source (first right)))
-                                                    (cdr (cst:source (car (last right)))))))
-                  :source source))))))))
+                       (make-location :source (location-source location)
+                                      :span (cons
+                                             (car (cst:source (first right)))
+                                             (cdr (cst:source (car (last right)))))))
+                  :location location))))))))

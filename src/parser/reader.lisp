@@ -1,10 +1,12 @@
 (defpackage #:coalton-impl/parser/reader
-  (:use #:cl)
-  (:local-nicknames
-   (#:cst #:concrete-syntax-tree))
+  (:use
+   #:cl
+   #:coalton-impl/parser/base)
   (:shadowing-import-from
    #:coalton-impl/parser/base
    #:parse-error)
+  (:local-nicknames
+   (#:cst #:concrete-syntax-tree))
   (:export
    #:*coalton-eclector-client*
    #:with-reader-context
@@ -48,7 +50,7 @@
     'eof
     nil))
 
-(defun maybe-read-form (stream file &optional (eclector-client eclector.base:*client*))
+(defun maybe-read-form (stream source &optional (eclector-client eclector.base:*client*))
   "Read the next form or return if there is no next form.
 
 Returns (VALUES FORM PRESENTP EOFP)"
@@ -77,17 +79,11 @@ Returns (VALUES FORM PRESENTP EOFP)"
              nil 'eof)))
       (eclector.reader:unterminated-list ()
         (let ((end (file-position stream)))
-          (error 'parse-error
-                 :err (source-error:source-error
-                       :span (cons begin end)
-                       :file file
-                       :message "Unterminated form"
-                       :primary-note (format nil "Missing close parenthesis for form starting at offset ~a" begin)))))
+          (parse-span-error source (cons begin end)
+                            "Unterminated form"
+                            (format nil "Missing close parenthesis for form starting at offset ~a" begin))))
       (error (condition)
         (let ((end (file-position stream)))
-          (error 'parse-error
-                 :err (source-error:source-error
-                       :span (cons begin end)
-                       :file file
-                       :message "Reader error"
-                       :primary-note (format nil "reader error: ~a" condition))))))))
+          (parse-span-error source (cons begin end)
+                            "Reader error"
+                            (format nil "reader error: ~a" condition)))))))

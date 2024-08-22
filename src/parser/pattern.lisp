@@ -8,11 +8,10 @@
    #:parse-error)
   (:local-nicknames
    (#:cst #:concrete-syntax-tree)
-   (#:se #:source-error)
    (#:util #:coalton-impl/util))
   (:export
    #:pattern                            ; STRUCT
-   #:pattern-source                     ; ACCESSOR
+   #:pattern-location                     ; ACCESSOR
    #:pattern-list                       ; TYPE
    #:pattern-var                        ; STRUCT
    #:make-pattern-var                   ; ACCESSOR
@@ -48,7 +47,7 @@
 (defstruct (pattern
             (:constructor nil)
             (:copier nil))
-  (source (util:required 'source) :type source-location :read-only t))
+  (location (util:required 'location) :type location :read-only t))
 
 (defmethod make-load-form ((self pattern) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -88,7 +87,7 @@
   (name     (util:required 'name)     :type identifier   :read-only t)
   (patterns (util:required 'patterns) :type pattern-list :read-only t))
 
-(defun parse-pattern (form file)
+(defun parse-pattern (form source)
   (declare (type cst:cst form))
 
   (cond
@@ -96,59 +95,53 @@
           (typep (cst:raw form) 'util:literal-value))
      (make-pattern-literal
       :value (cst:raw form)
-      :source (source-location form file)))
+      :location (form-location form source)))
 
     ((and (cst:atom form)
           (eq (cst:raw form) 'coalton:_))
      (make-pattern-wildcard
-      :source (source-location form file)))
+      :location (form-location form source)))
 
     ((and (cst:atom form)
           (identifierp (cst:raw form)))
      (when (string= "_" (symbol-name (cst:raw form)))
-       (error 'parse-error
-              :err  (se:source-error
-                     :span (cst:source form)
-                     :file file
-                     :message "Invalid variable"
-                     :primary-note "invalid variable name '_'")))
+       (parse-form-error source form
+                         "Invalid variable"
+                         "invalid variable name '_'"))
      (make-pattern-var
       :name (cst:raw form)
       :orig-name (cst:raw form)
-      :source (source-location form file)))
+      :location (form-location form source)))
 
     ((cst:atom form)
      (error 'parse-error
-            :err (se:source-error
-                  :span (cst:source form)
-                  :file file
-                  :message "Invalid pattern"
-                  :primary-note "unknown pattern literal")))
+            :span (cst:source form)
+            :source source
+            :message "Invalid pattern"
+            :primary-note "unknown pattern literal"))
 
     ((not (cst:proper-list-p form))
      (error 'parse-error
-            :err (se:source-error
-                  :span (cst:source form)
-                  :file file
-                  :message "Invalid match branch"
-                  :primary-note "unexpected dotted list")))
+            :span (cst:source form)
+            :source source
+            :message "Invalid match branch"
+            :primary-note "unexpected dotted list"))
 
     ((not (and (cst:atom (cst:first form))
                (identifierp (cst:raw (cst:first form)))))
      (error 'parse-error
-            :err (se:source-error
-                  :span (cst:source (cst:first form))
-                  :file file
-                  :message "Invalid pattern"
-                  :primary-note "invalid constructor in pattern")))
+            :span (cst:source (cst:first form))
+            :source source
+            :message "Invalid pattern"
+            :primary-note "invalid constructor in pattern"))
 
     (t
      (make-pattern-constructor
       :name (cst:raw (cst:first form))
       :patterns (loop :for patterns := (cst:rest form) :then (cst:rest patterns)
                       :while (cst:consp patterns)
-                      :collect (parse-pattern (cst:first patterns) file))
-      :source (source-location form file)))))
+                      :collect (parse-pattern (cst:first patterns) source))
+      :location (form-location form source)))))
 
 (defun pattern-variables (pattern)
   (declare (type t pattern)

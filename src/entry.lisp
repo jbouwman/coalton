@@ -4,7 +4,6 @@
   (:shadow
    #:compile)
   (:local-nicknames
-   (#:se #:source-error)
    (#:settings #:coalton-impl/settings)
    (#:util #:coalton-impl/util)
    (#:parser #:coalton-impl/parser)
@@ -110,7 +109,7 @@
           (setf subs (tc:compose-substitution-lists subs subs_))
 
           (when accessors
-            (tc:tc-error (tc:accessor-source (first accessors))
+            (tc:tc-error (tc:accessor-location (first accessors))
                          "Amqbiguous accessor"
                          "accessor is ambiguous"))
 
@@ -145,7 +144,7 @@
                                tvars
                                (tc:ty-scheme-type scheme))))
 
-              (tc:tc-error (tc:node-source node)
+              (tc:tc-error (tc:node-location node)
                            "Unable to codegen"
                            (format nil
                                    "expression has type ~A~{ ~S~}.~{ (~S)~} => ~S with unresolved constraint~A ~S"
@@ -160,9 +159,9 @@
                                        "s")
                                    (tc:qualified-ty-predicates qual-type))
                            (list
-                            (se:make-source-error-note
+                            (source:make-source-error-note
                              :type :secondary
-                             :span (source:source-location-span (tc:node-source node))
+                             :span (source:source-location-span (tc:node-location node))
                              :message "Add a type assertion with THE to resolve ambiguity"))))))))))
 
 (defmacro with-environment-updates (updates &body body)
@@ -225,7 +224,7 @@
 (defun compile-to-lisp (source output)
   "Read Coalton source from SOURCE and write Lisp source to OUTPUT. NAME may be the filename related to the input stream."
   (declare (optimize (debug 3)))
-  (with-open-stream (stream (se:source-stream source))
+  (with-open-stream (stream (source:source-stream source))
     (parser:with-reader-context stream
       (with-environment-updates updates
         (let* ((program (parser:read-program stream source ':file))

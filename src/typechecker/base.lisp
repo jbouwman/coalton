@@ -3,7 +3,6 @@
    #:cl)
   (:local-nicknames
    (#:source #:coalton-impl/source)
-   (#:se #:source-error)
    (#:util #:coalton-impl/util))
   (:export
    #:*coalton-pretty-print-tyvars*
@@ -68,12 +67,11 @@ This requires a valid PPRINT-VARIABLE-CONTEXT")
      (with-pprint-variable-context ()
        (se:display-source-error s (se:source-condition-err c))))))
 
-(defun tc-error (source message note &optional notes)
+(defun tc-error (message &rest notes)
+  (declare (type string message))
   (error 'tc-error
-         :err (source:source-error :source source
-                                   :message message
-                                   :primary-note note
-                                   :notes notes)))
+         :message message
+         :notes notes))
 
 (define-condition coalton-internal-type-error (error)
   ()
@@ -124,9 +122,9 @@ source tuples which are compared for ordering."
         :do (check-type id symbol)
 
         :unless (equalp (symbol-package id) *package*)
-          :do (tc-error (funcall source elem)
-                        "Invalid identifier name"
-                        (format nil "The symbol ~S is defined in the package ~A and not the current package ~A"
-                                id
-                                (symbol-package id)
-                                *package*))))
+          :do (tc-error "Invalid identifier name"
+                        (make-note (funcall source elem)
+                                   (format nil "The symbol ~S is defined in the package ~A and not the current package ~A"
+                                           id
+                                           (symbol-package id)
+                                           *package*)))))

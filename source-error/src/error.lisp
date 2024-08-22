@@ -2,41 +2,50 @@
   (:use
    #:cl)
   (:export
-   #:source-base-error                  ; CONDITION
-   #:source-condition-err              ; ACCESSOR
-   #:source-base-warning                ; CONDITION
-   #:source-stream                        ; GENERIC
-   #:source-name                          ; GENERIC
-   #:make-source-error-note             ; FUNCTION
-   #:make-source-error-help             ; FUNCTION
-   #:make-source-error-context          ; FUNCTION
-   #:*source-error-context*             ; VARIABLE
-   #:source-error                       ; MACRO
-   #:source-error-location              ; ACCESSOR
-   #:source-error-source                  ; ACCESSOR
-   #:display-source-error               ; FUNCTION
-   #:define-source-condition            ; MACRO
-   ))
+   #:source-error
+   #:source-warning
+   #:source-stream
+   #:source-name
+   #:make-source-error-note
+   #:make-source-error-help
+   #:make-source-error-context
+   #:*source-error-context*
+   #:display-source-error))
 
 (in-package #:source-error/error)
 
 (define-condition source-condition ()
-  ((err :accessor source-condition-err
-        :initarg :err
-        :type (or null function)))  
+  ((message :initarg :message
+            :reader message)
+   (notes :initarg :notes
+          :initform nil)
+   (help-notes :initarg :help-notes
+               :initform nil)
+   (context :initarg :context
+            :initform nil))
   (:report (lambda (c s)
              (display-source-error s (source-condition-err c)))))
 
-(define-condition source-base-error (source-condition error)
+(defgeneric severity (self))
+
+(defun location (source-condition)
+  (car (source-location-span (primary-note source-condition))))
+
+(define-condition source-error (source-condition error)
   ()
   (:documentation "The base type for user-facing errors."))
 
-(define-condition source-base-warning (source-condition style-warning)
+(defmethod severity ((condition source-error))
+  :error)
+
+(define-condition source-warning (source-condition style-warning)
   ()
   (:documentation "The base type for user-facing warnings."))
 
-(defstruct (source-error-note
-            (:copier nil))
+(defmethod severity ((condition source-warning))
+  :warn)
+
+(defstruct source-error-note
   (type    nil :type (member :primary :secondary) :read-only t)
   (span    nil :type (cons integer integer)       :read-only t)
   (message nil :type string                       :read-only t))
@@ -48,8 +57,7 @@
 (deftype source-error-note-list ()
   '(satisfies source-error-note-list-p))
 
-(defstruct (source-error-help
-            (:copier nil))
+(defstruct source-error-help
   (span        nil :type (cons integer integer)     :read-only t)
   (replacement nil :type (function (string) string) :read-only t)
   (message     nil :type string                     :read-only t))
@@ -61,8 +69,7 @@
 (deftype source-error-help-list ()
   '(satisfies source-error-help-list-p))
 
-(defstruct (source-error-context
-            (:copier nil))
+(defstruct source-error-context
   (message nil :type string :read-only t))
 
 (defun source-error-context-list-p (x)
@@ -85,70 +92,6 @@
 (defgeneric source-name (source)
   (:documentation "The name of an error's source, suitable for reporting in errors. If the source is a file, SOURCE-NAME will be that file's absolute path."))
 
-(defstruct (source-error
-            (:constructor %make-source-error))
-  (type       nil :type (member :error :warn)     :read-only t)
-  (source     nil                                 :read-only t)
-  (location   nil :type integer                   :read-only t)
-  (message    nil :type string                    :read-only t)
-  (notes      nil :type source-error-note-list    :read-only t)
-  (help-notes nil :type source-error-help-list    :read-only t)
-  (context    nil :type source-error-context-list :read-only t))
-
-(defun make-source-error (&key
-                            (type :error)
-                            span
-                            file
-                            (highlight :all)
-                            message
-                            primary-note
-                            notes
-                            help-notes
-                            context)
-  "Construct a `SOURCE-ERROR' with a message and primary note attached to the provided form."
-  (declare (type cons span)
-           (type (member :all :end) highlight)
-           (type string message)
-           (type string primary-note)
-           (type source-error-note-list notes)
-           (type source-error-help-list help-notes)
-           (type source-error-context-list context)
-           (values source-error))
-  (let ((start (car span))
-        (end (cdr span)))
-    (%make-source-error :type type
-                        :source file
-                        :location (ecase highlight
-                                    (:all (car span))
-                                    (:end (cdr span)))
-                        :message message
-                        :notes (list*
-                                (ecase highlight
-                                  (:all
-                                   (make-source-error-note
-                                    :type :primary
-                                    :span (cons start end)
-                                    :message primary-note))
-                                  (:end
-                                   (make-source-error-note
-                                    :type :primary
-                                    :span (cons (1- end) end)
-                                    :message primary-note)))
-                                notes)
-                        :help-notes help-notes
-                        :context context)))
-
-(defmacro source-error (&key (type :error) span file (highlight :all) message primary-note notes help-notes)
-  `(make-source-error :type ,type
-                      :span ,span
-                      :file ,file
-                      :highlight ,highlight
-                      :message ,message
-                      :primary-note ,primary-note
-                      :notes ,notes
-                      :help-notes ,help-notes
-                      :context *source-error-context*))
-
 (defstruct (source-error-resolved-note
             (:copier nil))
   "A `SOURCE-ERROR-NOTE' with its location resolved in the file's context."
@@ -164,19 +107,19 @@
            (type source-error error))
 
   (let ((*print-circle* nil))
-    (with-open-stream (source-stream (source-stream (source-error-source error)))
+    (with-open-stream (source-stream (source-stream (source error)))
 
       ;; Print the error message and location
       (multiple-value-bind (line-number line-start-index)
-          (get-line-from-index source-stream (source-error-location error))
+          (get-line-from-index source-stream (location error))
 
         (format stream
                 "~(~A~): ~A~%  --> ~A:~D:~D~%"
-                (source-error-type error)
-                (source-error-message error)
-                (source-name (source-error-source error))
+                (severity error)
+                (message error)
+                (source-name (source error))
                 line-number
-                (- (source-error-location error) line-start-index)))
+                (- (location error) line-start-index)))
 
       ;; Print the error notes
       (let* (;; We need to keep track of the current depth of multiline

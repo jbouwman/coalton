@@ -2,7 +2,6 @@
   (:use
    #:cl)
   (:local-nicknames
-   (#:se #:source-error)
    (#:cst #:concrete-syntax-tree)
    (#:codegen #:coalton-impl/codegen)
    (#:settings #:coalton-impl/settings)
