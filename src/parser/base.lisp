@@ -23,7 +23,6 @@
    #:identifier-src-source              ; ACCESSOR
    #:identifier-src-list                ; TYPE
    #:parse-error                        ; CONDITION
-   #:parse-error-err                    ; ACCESSOR
    #:parse-list                         ; FUNCTION
    ))
 

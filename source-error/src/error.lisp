@@ -3,11 +3,8 @@
    #:cl)
   (:export
    #:source-base-error                  ; CONDITION
-   #:source-base-error-err              ; ACCESSOR
+   #:source-condition-err              ; ACCESSOR
    #:source-base-warning                ; CONDITION
-   #:source-base-warning-err            ; ACCESSOR
-   #:render-source-error                ; FUNCTION
-   #:render-source-warning              ; FUNCTION
    #:source-stream                        ; GENERIC
    #:source-name                          ; GENERIC
    #:make-source-error-note             ; FUNCTION
@@ -23,21 +20,20 @@
 
 (in-package #:source-error/error)
 
-(define-condition source-base-error (error)
-  ((err :accessor source-base-error-err
+(define-condition source-condition ()
+  ((err :accessor source-condition-err
         :initarg :err
-        :type (or null function)))
-  (:documentation "The base type for user-facing errors. Only ERR needs to be specified, and TEXT will be filled when `RENDER-ERROR' is called.")
+        :type (or null function)))  
   (:report (lambda (c s)
-             (display-source-error s (source-base-error-err c)))))
+             (display-source-error s (source-condition-err c)))))
 
-(define-condition source-base-warning (style-warning)
-  ((err :accessor source-base-warning-err
-        :initarg :err
-        :type (or null function)))
-  (:documentation "The base type for user-facing warnings. Only ERR needs to be specified, and TEXT will be filled when `RENDER-WARNING' is called.")
-  (:report (lambda (c s)
-             (display-source-error s (source-base-warning-err c)))))
+(define-condition source-base-error (source-condition error)
+  ()
+  (:documentation "The base type for user-facing errors."))
+
+(define-condition source-base-warning (source-condition style-warning)
+  ()
+  (:documentation "The base type for user-facing warnings."))
 
 (defstruct (source-error-note
             (:copier nil))

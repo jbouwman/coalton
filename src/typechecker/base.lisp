@@ -66,7 +66,7 @@ This requires a valid PPRINT-VARIABLE-CONTEXT")
   (:report
    (lambda (c s)
      (with-pprint-variable-context ()
-       (se:display-source-error s (se:source-base-error-err c))))))
+       (se:display-source-error s (se:source-condition-err c))))))
 
 (defun tc-error (source message note &optional notes)
   (error 'tc-error
