@@ -17,14 +17,13 @@
                #:float-features
                #:fset
                #:named-readtables
-               #:source-error
                #:trivial-gray-streams)
   :pathname "src/"
   :serial t
   :components ((:file "package")
                (:file "settings")
                (:file "utilities")
-               (:file "stream")
+               (:file "source")
                (:file "global-lexical")
                (:file "constants")
                (:module "algorithm"

@@ -7,23 +7,21 @@
 (defpackage #:coalton-impl/parser/type-definition
   (:use
    #:cl
+   #:coalton-impl/source
    #:coalton-impl/parser/base
    #:coalton-impl/parser/types
    #:coalton-impl/parser/toplevel)
-  (:shadowing-import-from
-   #:coalton-impl/parser/base
-   #:parse-error)
   (:export
    #:type-definition                    ; TYPE
    #:type-definition-list               ; TYPE
    #:type-definition-name               ; FUNCTION
-   #:type-definition-source             ; FUNCTION
+   #:type-definition-location             ; FUNCTION
    #:type-definition-vars               ; FUNCTION
    #:type-definition-repr               ; FUNCTION
    #:type-definition-docstring          ; FUNCTION
    #:type-definition-ctors              ; FUNCTION
    #:type-definition-ctor-name          ; FUNCTION
-   #:type-definition-ctor-source        ; FUNCTION
+   #:type-definition-ctor-location        ; FUNCTION
    #:type-definition-ctor-field-types   ; FUNCTION
    ))
 
@@ -51,14 +49,14 @@
     (declare (values identifier-src))
     (toplevel-define-struct-name def)))
 
-(defgeneric type-definition-source (def)
+(defgeneric type-definition-location (def)
   (:method ((def toplevel-define-type))
-    (declare (values cons))
-    (toplevel-define-type-source def))
+    (declare (values location))
+    (toplevel-define-type-location def))
 
   (:method ((def toplevel-define-struct))
-    (declare (values cons))
-    (toplevel-define-struct-source def)))
+    (declare (values location))
+    (toplevel-define-struct-location def)))
 
 (defgeneric type-definition-vars (def)
   (:method ((def toplevel-define-type))
@@ -105,14 +103,14 @@
     (declare (values identifier-src))
     (toplevel-define-struct-name ctor)))
 
-(defgeneric type-definition-ctor-source (ctor)
+(defgeneric type-definition-ctor-location (ctor)
   (:method ((ctor constructor))
-    (declare (values cons))
-    (constructor-source ctor))
+    (declare (values location))
+    (constructor-location ctor))
 
   (:method ((ctor toplevel-define-struct))
-    (declare (values cons))
-    (toplevel-define-struct-source ctor)))
+    (declare (values location))
+    (toplevel-define-struct-location ctor)))
 
 (defgeneric type-definition-ctor-field-types (ctor)
   (:method ((ctor constructor))

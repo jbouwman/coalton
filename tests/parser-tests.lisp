@@ -8,26 +8,20 @@
                files))
 
            (parse-file (file)
-             (with-open-file (stream file
-                                     :direction :input
-                                     :element-type 'character
-                                     :external-format :utf-8)
-               (let ((stream (stream:make-char-position-stream stream)))
+             (let ((source (source:make-source-file file :name "test")))
+               (with-open-stream (stream (source:source-stream source))
                  (parser:with-reader-context stream
-                   (parser:read-program stream (se:make-file :stream stream :name (namestring file)) ':file)))))
+                   (parser:read-program stream source ':file)))))
 
            (parse-error-text (file)
-             (with-open-file (stream file
-                                     :direction :input
-                                     :element-type 'character
-                                     :external-format :utf-8)
-               (let ((stream (stream:make-char-position-stream stream)))
+             (let ((source (source:make-source-file file :name "test")))
+               (with-open-stream (stream (source:source-stream source))
                  (handler-case
                      (parser:with-reader-context stream
                        (entry:entry-point
-                        (parser:read-program stream (se:make-file :stream stream :name "test") ':file))
+                        (parser:read-program stream source ':file))
                        "no errors")
-                   (se:source-base-error (c)
+                   (source:source-error (c)
                      (princ-to-string c)))))))
     (dolist (file (test-files "tests/parser-test-files/bad-files/*.coal"))
       (let ((error-file (make-pathname :type "error"
@@ -37,7 +31,7 @@
                               (alexandria:read-file-into-string error-file)
                               (parse-error-text file)))
               (t
-               (signals parser:parse-error
+               (signals source:source-error
                  (parse-file file))))))
 
     (dolist (file (test-files "tests/parser-test-files/good-files/*.coal"))

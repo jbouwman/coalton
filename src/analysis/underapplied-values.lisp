@@ -2,19 +2,18 @@
   (:use
    #:cl)
   (:local-nicknames
-   (#:se #:source-error)
+   (#:source #:coalton-impl/source)
    (#:util #:coalton-impl/util)
    (#:tc #:coalton-impl/typechecker))
   (:export
-   #:find-underapplied-values           ; FUNCTION
-   ))
+   #:find-underapplied-values))
 
 (in-package #:coalton-impl/analysis/underapplied-values)
 
-(define-condition underapplied-value-warning (se:source-base-warning)
+(define-condition underapplied-value-warning (source:source-warning)
   ())
 
-(defun find-underapplied-values (binding file)
+(defun find-underapplied-values (binding)
   (tc:traverse
    (tc:binding-value binding)
    (tc:make-traverse-block
@@ -25,11 +24,10 @@
                   :when (and (typep elem 'tc:node)
                              (tc:function-type-p (tc:qualified-ty-type (tc:node-type elem))))
                     :do (warn 'underapplied-value-warning
-                              :err (se:source-error
-                                    :type :warn
-                                    :file file
-                                    :span (tc:node-source elem)
-                                    :message "Value may be underapplied"
-                                    :primary-note "discard explicitly with (let _ = ...) to ignore this warning")))
-
+                              :message "Value may be underapplied"
+                              :notes
+                              (list
+                               (source:make-note
+                                (tc:node-location elem)
+                                "discard explicitly with (let _ = ...) to ignore this warning"))))
             node))))

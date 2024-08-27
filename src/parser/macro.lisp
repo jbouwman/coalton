@@ -4,9 +4,6 @@
    #:coalton-impl/parser/base
    #:coalton-impl/parser/types
    #:coalton-impl/parser/pattern)
-  (:shadowing-import-from
-   #:coalton-impl/parser/base
-   #:parse-error)
   (:local-nicknames
    (#:cst #:concrete-syntax-tree))
   (:export

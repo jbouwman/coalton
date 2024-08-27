@@ -5,10 +5,9 @@
   (:use
    #:cl)
   (:local-nicknames
-   (#:se #:source-error)
    (#:util #:coalton-impl/util)
    (#:parser #:coalton-impl/parser)
-   (#:stream #:coalton-impl/stream)
+   (#:source #:coalton-impl/source)
    (#:tc #:coalton-impl/typechecker)
    (#:analysis #:coalton-impl/analysis)
    (#:entry #:coalton-impl/entry))
@@ -39,5 +38,3 @@
 (in-package #:coalton-native-tests)
 
 (coalton-fiasco-init #:coalton-tests)
-
-

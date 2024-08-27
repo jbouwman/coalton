@@ -2,14 +2,14 @@
   (:use
    #:cl)
   (:local-nicknames
-   (#:se #:source-error)
+   (#:source #:coalton-impl/source)
    (#:util #:coalton-impl/util))
   (:export
    #:*coalton-pretty-print-tyvars*
    #:*pprint-tyvar-dict*
    #:*pprint-variable-symbol-code*
    #:*pprint-variable-symbol-suffix*
-   #:tc-error                           ; CONDITION
+   #:tc-error                           ; CONDITION, FUNCTION
    #:coalton-internal-type-error        ; CONDITION
    #:check-duplicates                   ; FUNCTION
    #:check-package                      ; FUNCTION
@@ -60,14 +60,17 @@ This requires a valid PPRINT-VARIABLE-CONTEXT")
 ;;; Conditions
 ;;;
 
-(define-condition tc-error (se:source-base-error)
+(define-condition tc-error (source:source-error)
   ()
   (:report
-   (lambda (c s)
-     (if (se:source-base-error-text c)
-         (write-string (se:source-base-error-text c) s)
-         (with-pprint-variable-context ()
-           (se:display-source-error s (se:source-base-error-err c)))))))
+   (lambda (condition stream)
+     (with-pprint-variable-context ()
+       (source:report-source-condition condition stream)))))
+
+(defun tc-error (message &rest notes)
+  (error 'tc-error
+         :message message
+         :notes notes))
 
 (define-condition coalton-internal-type-error (error)
   ()
@@ -107,11 +110,10 @@ source tuples which are compared for ordering."
         :else
           :do (setf (gethash (funcall f elem) table) elem)))
 
-(defun check-package (elems f source file)
+(defun check-package (elems f source)
   (declare (type list elems)
            (type function f)
-           (type function source)
-           (type se:file file))
+           (type function source))
 
   (loop :for elem :in elems
         :for id := (funcall f elem)
@@ -119,12 +121,9 @@ source tuples which are compared for ordering."
         :do (check-type id symbol)
 
         :unless (equalp (symbol-package id) *package*)
-          :do (error 'tc-error
-                     :err (se:source-error
-                           :span (funcall source elem)
-                           :file file
-                           :message "Invalid identifier name"
-                           :primary-note (format nil "The symbol ~S is defined in the package ~A and not the current package ~A"
-                                                 id
-                                                 (symbol-package id)
-                                                 *package*)))))
+          :do (tc-error (funcall source elem)
+                        "Invalid identifier name"
+                        (format nil "The symbol ~S is defined in the package ~A and not the current package ~A"
+                                id
+                                (symbol-package id)
+                                *package*))))

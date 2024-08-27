@@ -10,9 +10,6 @@
    #:coalton-impl/parser/types
    #:coalton-impl/parser/expression
    #:coalton-impl/parser/toplevel)
-  (:shadowing-import-from
-   #:coalton-impl/parser/base
-   #:parse-error)
   (:export
    #:collect-referenced-types           ; FUNCTION
    #:collect-type-variables             ; FUNCTION
