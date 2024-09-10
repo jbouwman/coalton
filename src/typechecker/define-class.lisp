@@ -57,13 +57,13 @@
                          classes)
                  (alexandria:compose #'parser:identifier-src-name
                                      #'parser:method-definition-name)
-                 #'parser:method-definition-location)
+                 #'source:location)
 
   ;; Check for duplicate class definitions
   (check-duplicates
    classes
    (alexandria:compose #'parser:identifier-src-name #'parser:toplevel-define-class-name)
-   #'parser:toplevel-define-class-location
+   #'source:location
    (lambda (first second)
      (error 'tc:tc-error
             :err (source:source-error
@@ -81,18 +81,18 @@
   (check-duplicates
    (mapcan (alexandria:compose #'copy-list #'parser:toplevel-define-class-methods) classes)
    (alexandria:compose #'parser:identifier-src-name #'parser:method-definition-name)
-   #'parser:method-definition-location
+   #'source:location
    (lambda (first second)
      (error 'tc:tc-error
             :err (source:source-error
-                  :location (parser:method-definition-location first)
+                  :location (source:location first)
                   :message "Duplicate method definition"
                   :primary-note "first definition here"
                   :notes
                   (list
                    (se:make-source-error-note
                     :type :primary
-                    :span (source:location-span (parser:method-definition-location second))
+                    :span (source:location-span (source:location second))
                     :message "second definition here"))))))
 
   (loop :for class :in classes :do
@@ -100,18 +100,18 @@
     (check-duplicates
      (parser:toplevel-define-class-vars class)
      #'parser:keyword-src-name
-     #'parser:keyword-src-location
+     #'source:location
      (lambda (first second)
        (error 'tc:tc-error
               :err (source:source-error
-                    :location (parser:keyword-src-location first)
+                    :location (source:location first)
                     :message "Duplicate class variable"
                     :primary-note "first usage here"
                     :notes
                     (list
                      (se:make-source-error-note
                       :type :primary
-                      :span (source:location-span (parser:keyword-src-location second))
+                      :span (source:location-span (source:location second))
                       :message "second usage here")))))))
 
   (let* ((class-table
@@ -299,7 +299,7 @@
                   :superclass-dict superclass-dict
                   :superclass-map superclass-map
                   :docstring (source:docstring class)
-                  :location (parser:toplevel-define-class-location class))
+                  :location (source:location class))
 
            :for method-tys := (loop :for (name . qual-ty) :in unqualifed-methods
                                     :for type := (tc:qualified-ty-type qual-ty)
@@ -350,7 +350,7 @@
                                                  :name method-name
                                                  :type :method
                                                  :docstring nil
-                                                 :location (parser:toplevel-define-class-location class))))
+                                                 :location (source:location class))))
 
                      :if (not (zerop method-arity))
                        :do (setf env (tc:set-function env method-name (tc:make-function-env-entry
@@ -376,18 +376,18 @@
                (check-duplicates
                 vars
                 #'parser:keyword-src-name
-                #'parser:keyword-src-location
+                #'source:location
                 (lambda (first second)
                   (error 'tc:tc-error
                          :err (source:source-error
-                               :location (parser:keyword-src-location first)
+                               :location (source:location first)
                                :message "Duplicate variable in function dependency"
                                :primary-note "first usage here"
                                :notes
                                (list
                                 (se:make-source-error-note
                                  :type :primary
-                                 :span (source:location-span (parser:keyword-src-location second))
+                                 :span (source:location-span (source:location second))
                                  :message "second usage here"))))))))
       (loop :for fundep :in (parser:toplevel-define-class-fundeps class)
             :do (check-duplicate-fundep-variables (parser:fundep-left fundep))
@@ -397,7 +397,7 @@
     (labels ((check-fundep-variables (vars)
                (loop :for var :in vars
                      :unless (find (parser:keyword-src-name var) var-names :test #'eq)
-                       :do (tc-error (parser:keyword-src-location var)
+                       :do (tc-error var
                                      "Unkown type variable"
                                      (format nil "unknown type variable ~S"
                                              (parser:keyword-src-name var))))))
@@ -437,7 +437,7 @@
 
                    ;; Ensure that methods are not ambiguous
                    :unless (subsetp var-names (tc:closure tyvars fundeps) :test #'eq)
-                     :do (tc-error (parser:method-definition-location method)
+                     :do (tc-error method
                                    "Ambiguous method"
                                    "the method is ambiguous")
 
@@ -450,7 +450,7 @@
                                              :test #'eq)
 
                              :when (subsetp tyvars var-names)
-                               :do (tc-error (parser:ty-predicate-location pred)
+                               :do (tc-error pred
                                              "Invalid method predicate"
                                              "method predicate contains only class variables"))
 
