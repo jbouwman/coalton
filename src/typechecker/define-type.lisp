@@ -70,6 +70,9 @@
 (defmethod source:location ((self field-definition))
   (field-definition-location self))
 
+(defmethod location ((self field-definition))
+  (field-definition-location self))
+
 (defun type-definition-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'type-definition-p x)))

@@ -276,6 +276,9 @@
 (defmethod make-load-form ((self type-entry) &optional env)
   (make-load-form-saving-slots self :environment env))
 
+(defmethod docstring ((self type-entry))
+  (type-entry-docstring self))
+
 (defmethod kind-of ((entry type-entry))
   (kind-of (type-entry-type entry)))
 
@@ -505,6 +508,9 @@
 (defmethod make-load-form ((self struct-field) &optional env)
   (make-load-form-saving-slots self :environment env))
 
+(defmethod docstring ((self struct-field))
+  (struct-field-docstring self))
+
 (defun struct-field-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'struct-field-p x)))
@@ -522,6 +528,9 @@
 
 (defmethod make-load-form ((self struct-entry) &optional env)
   (make-load-form-saving-slots self :environment env))
+
+(defmethod docstring ((self struct-entry))
+  (struct-entry-docstring self))
 
 (defun struct-entry-list-p (x)
   (and (alexandria:proper-list-p x)

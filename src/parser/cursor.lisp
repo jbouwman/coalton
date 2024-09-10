@@ -22,6 +22,8 @@
    #:cursor-message
    #:cursor-source
    #:cursor-value
+   #:cursor-error
+   #:end-error
    #:do-every
    #:empty-p
    #:make-cursor
@@ -115,15 +117,15 @@ If PRED is non-NIL, only consume a value if it is true.
 If UNWRAP is NIL, return the CST node, otherwise, return the raw value."
   (declare (type cursor cursor))
   (when (not (cons-p cursor))
-    (syntax-error cursor "not a list"))
+    (cursor-error cursor "type error" "not a list"))
   (when (empty-p cursor)
     ;; Finding empty-p = t here this would indicate that the compiler
     ;; writer hasn't checked for emptiness in the calling context in
     ;; order to construct a more specific error message.
-    (syntax-error cursor "attempt to read past end of list"))
+    (cursor-error cursor "read error" "attempt to read past end of list"))
   (let ((value (cst:first (cursor-pointer cursor))))
     (when (or (null pred)
-              (funcall pred (cst:raw value)))
+              (funcall pred (cst:raw value) (cst:source value)))
       (setf (cursor-pointer cursor)
             (cst:rest (cursor-pointer cursor)))
       (if unwrap (cst:raw value) value))))
@@ -135,7 +137,7 @@ If UNWRAP is NIL, return the CST node, otherwise, return the raw value."
                                      (cursor-source cursor)
                                      (cursor-message cursor)))))
 
-(defun next-symbol (cursor &key message missing require)
+(defun next-symbol (cursor &key message note missing require)
   "Return the next value in CURSOR as a symbol. The cursor must be nonempty, and the next value must be a symbol."
   (when (empty-p cursor)
     ;; When empty, indicate the character immediately preceding the
@@ -146,18 +148,22 @@ If UNWRAP is NIL, return the CST node, otherwise, return the raw value."
                                                       (cons end end))
                                 (or missing "symbol is missing")))))
   (next cursor
-        :pred (lambda (value)
+        :pred (lambda (value span)
                 (when (or (null value)
                           (not (symbolp value)))
-                  (syntax-error cursor
-                                (or message "value must be a symbol")))
+                  (source:source-error message
+                                       (source:make-note (source:make-location (cursor-source cursor)
+                                                                               span)
+                                                         (or note "value must be a symbol"))))
                 (when (and require (not (string-equal require value)))
-                  (syntax-error cursor
-                                (or message
-                                    (format nil "expected ~A" require))))
+                  (source:source-error message
+                                       (source:make-note (source:make-location (cursor-source cursor)
+                                                                               span)
+                                                         (or note
+                                                             (format nil "expected ~A" require)))))
                 t)))
 
-(defun collect-symbols (cursor)
+(defun collect-symbols (cursor &key message)
   "Return all remaining values in CURSOR as a list of symbols."
   (loop :until (empty-p cursor)
         :collect (next-symbol cursor)))

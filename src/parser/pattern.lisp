@@ -49,6 +49,9 @@
             (:copier nil))
   (location (util:required 'location) :type source:location :read-only t))
 
+(defmethod location ((self pattern))
+  (pattern-location self))
+
 (defmethod make-load-form ((self pattern) &optional env)
   (make-load-form-saving-slots self :environment env))
 

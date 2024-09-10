@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/typechecker/traverse
   (:use
    #:cl
+   #:coalton-impl/source
    #:coalton-impl/typechecker/expression)
   (:local-nicknames
    (#:source #:coalton-impl/source))

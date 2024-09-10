@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/typechecker/define-instance
   (:use
    #:cl
+   #:coalton-impl/source
    #:coalton-impl/typechecker/base
    #:coalton-impl/typechecker/expression
    #:coalton-impl/typechecker/toplevel)
@@ -16,9 +17,7 @@
    #:make-tc-env
    #:infer-expl-binding-type)
   (:local-nicknames
-   (#:se #:source-error)
    (#:settings #:coalton-impl/settings)
-   (#:source #:coalton-impl/source)
    (#:util #:coalton-impl/util)
    (#:parser #:coalton-impl/parser)
    (#:tc #:coalton-impl/typechecker/stage-1))
@@ -121,7 +120,7 @@
                 :predicate pred
                 :codegen-sym instance-codegen-sym
                 :method-codegen-syms method-codegen-syms
-                :docstring (source:docstring instance))))
+                :docstring (docstring instance))))
 
         (cond (context
                (setf env (tc:set-function env instance-codegen-sym (tc:make-function-env-entry
@@ -211,7 +210,7 @@
     (check-duplicates
      (parser:toplevel-define-instance-methods unparsed-instance)
      (alexandria:compose #'parser:node-variable-name #'parser:instance-method-definition-name)
-     #'source:location
+     #'location
      (lambda (first second)
        (tc-error "Duplicate method definition"
                  (tc-note first "first definition here")
@@ -260,7 +259,7 @@
                           :do (multiple-value-bind (preds method subs)
                                   (infer-expl-binding-type method
                                                            instance-method-scheme
-                                                           (source:location method)
+                                                           (location method)
                                                            nil
                                                            (make-tc-env :env env))
 
@@ -287,7 +286,7 @@
        :context context
        :pred pred
        :methods methods
-       :location (source:location unparsed-instance)
+       :location (location unparsed-instance)
        :head-location (parser:toplevel-define-instance-head-location unparsed-instance)))))
 
 (defun check-instance-valid (instance)

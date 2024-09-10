@@ -164,7 +164,7 @@
 
 (declaim (type util:symbol-list *loop-label-context*))
 (defvar *loop-label-context* nil
-  "A list of known labels encountered during parse. 
+  "A list of known labels encountered during parse.
 
 Parsing (BREAK label) and (CONTINUE label) forms fails unless the label is found in
 this list.
@@ -196,7 +196,7 @@ Rebound to NIL parsing an anonymous FN.")
 ;;;;             | node-literal
 ;;;;             | node-abstraction
 ;;;;             | node-let
-;;;;             | node-lisp 
+;;;;             | node-lisp
 ;;;;             | node-match
 ;;;;             | node-progn
 ;;;;             | node-the
@@ -268,6 +268,9 @@ Rebound to NIL parsing an anonymous FN.")
 (defmethod source:location ((self node))
   (node-location self))
 
+(defmethod location ((self node))
+  (node-location self))
+
 (defun node-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'node-p x)))
@@ -314,6 +317,9 @@ Rebound to NIL parsing an anonymous FN.")
 (defmethod source:location ((self node-bind))
   (node-bind-location self))
 
+(defmethod location ((self node-bind))
+  (node-bind-location self))
+
 (deftype node-body-element ()
   '(or node node-bind))
 
@@ -354,6 +360,9 @@ Rebound to NIL parsing an anonymous FN.")
 (defmethod source:location ((self node-let-binding))
   (node-let-binding-location self))
 
+(defmethod location ((self node-let-binding))
+  (node-let-binding-location self))
+
 (defun node-let-binding-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'node-let-binding-p x)))
@@ -368,6 +377,9 @@ Rebound to NIL parsing an anonymous FN.")
   (location (util:required 'location) :type source:location :read-only t))
 
 (defmethod source:location ((self node-let-declare))
+  (node-let-declare-location self))
+
+(defmethod location ((self node-let-declare))
   (node-let-declare-location self))
 
 (defun node-let-declare-list-p (x)
@@ -399,6 +411,9 @@ Rebound to NIL parsing an anonymous FN.")
   (location (util:required 'location) :type source:location :read-only t))
 
 (defmethod source:location ((self node-match-branch))
+  (node-match-branch-location self))
+
+(defmethod location ((self node-match-branch))
   (node-match-branch-location self))
 
 (defun node-match-branch-list-p (x)
@@ -474,6 +489,9 @@ Rebound to NIL parsing an anonymous FN.")
 (defmethod source:location ((self node-cond-clause))
   (node-cond-clause-location self))
 
+(defmethod location ((self node-cond-clause))
+  (node-cond-clause-location self))
+
 (defun node-cond-clause-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'node-cond-clause-p x)))
@@ -493,6 +511,9 @@ Rebound to NIL parsing an anonymous FN.")
   (location  (util:required 'location) :type source:location :read-only t))
 
 (defmethod source:location ((self node-do-bind))
+  (node-do-bind-location self))
+
+(defmethod location ((self node-do-bind))
   (node-do-bind-location self))
 
 (deftype node-do-body-element ()
@@ -1021,11 +1042,8 @@ Rebound to NIL parsing an anonymous FN.")
          (parse-error "Invalid macro expansion"
                       (source-note source form "macro expansion limit hit")))
 
-       (let ((se:*source-error-context*
-               (adjoin (se:make-source-error-context
-                        :message "Error occurs within macro context. Source locations may be imprecise")
-                       se:*source-error-context*
-                       :test #'equalp)))
+       (with-context (:macro
+                      "Error occurs within macro context. Source locations may be imprecise")
          (parse-expression (expand-macro form source) source))))
 
     ;;
@@ -1118,7 +1136,6 @@ Rebound to NIL parsing an anonymous FN.")
                       :else
                         :do (setf last-node (parse-body-last-node (cst:first nodes) source)))))
 
-    
     (make-node-body
      :nodes nodes
      :last-node last-node)))

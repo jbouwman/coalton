@@ -1,4 +1,34 @@
-;;;; Classes for working with source streams and locations
+;;;; Classes for working with source streams and locations.
+;;;;
+;;;; char-position-stream
+;;;;
+;;;;   An input stream class that reports position as character
+;;;;   offset, rather than octet. This allows consistent reporting of
+;;;;   character ranges reported by concrete-syntax-tree, which uses
+;;;;   FILE-POSITION to construct ranges.
+;;;;
+;;;; source protocol
+;;;;
+;;;;   A 'source' is anything that provides a stream containing
+;;;;   Coalton program text, by implementing the source-stream and
+;;;;   source-name generic functions. Definitions are provided for
+;;;;   files (source-file, make-source-file) and string buffers
+;;;;   (source-string, make-source-string). The two sources define a
+;;;;   readable representation, so that source locations may be
+;;;;   preserved in compiled files.
+;;;;
+;;;; location protocol
+;;;;
+;;;;   A 'location' consists of a source and a character range, and
+;;;;   provides a means for a compiled object to point to the location
+;;;;   of its definition. All parser and typechecker AST nodes
+;;;;   implement coalton-impl/source:location.
+;;;;
+;;;; source conditions
+;;;;
+;;;;   Source and location-aware condition classes, for reporting
+;;;;   syntax and other compiler errors, with complex references to
+;;;;   multiple locations.
 
 (defpackage #:coalton-impl/source
   (:use
@@ -29,9 +59,26 @@
    #:span-start
    #:span-end
    #:docstring
-   #:source-error))
+   #:make-help
+   #:make-end-location
+   #:make-location
+   #:make-note
+   #:make-source-file
+   #:make-source-string
+   #:source-condition
+   #:source-error
+   #:source-name
+   #:source-stream
+   #:source-warning
+   #:->
+   #:=>
+   #:forall
+   #:with-context
+   #:with-note))
 
 (in-package #:coalton-impl/source)
+
+;;; char-position-stream
 
 (defclass char-position-stream (trivial-gray-streams:fundamental-character-input-stream)
   ((stream :initarg :stream
@@ -68,7 +115,16 @@
     (read-char (inner-stream stream)))
   (setf (character-position stream) position-spec))
 
-;; source input
+;;; source protocol
+
+(defgeneric source-stream (source)
+  (:documentation "Open and return a stream from which source text may be read. The caller is responsible for closing the stream, and the stream's initial position may be greater than zero."))
+
+(defgeneric source-name (source)
+  (:documentation "The name of an error's source, suitable for reporting in errors. If the source is a file, SOURCE-NAME will be that file's absolute path."))
+
+(defgeneric source-offset (source)
+  (:documentation "The offset into a file at which source begins."))
 
 (defgeneric source< (a b)
   (:method (a b)
@@ -78,7 +134,7 @@
 (defclass source ()
   ((name :initarg :name
          :initform nil
-         :reader original-name))
+         :reader source-name))
   (:documentation "An abstract base class for sources that provide error context during condition printing.
 
 In the case of source that is copied to a different location during compilation (e.g., by emacs+slime), original file name preserves the original location."))
@@ -91,25 +147,26 @@ In the case of source that is copied to a different location during compilation 
 
 (defclass source-file (source)
   ((file :initarg :file
-         :reader input-name)
+         :reader source-file)
    (offset :initarg :offset
            :initform 0
-           :reader file-offset))
+           :reader source-offset))
   (:documentation "A source that supplies error context from a FILE."))
 
 (defmethod print-object ((self source-file) stream)
   (if *print-readably*
       (format stream "#.(make-instance 'coalton-impl/source::source-file~@[ :name ~s~] :file ~s~:[~; :offset ~s~])"
-              (original-name self)
-              (input-name self)
-              (< 0 (file-offset self))
-              (file-offset self))
+              (source-name self)
+              (source-file self)
+              (< 0 (source-offset self))
+              (source-offset self))
       (call-next-method)))
 
 (defmethod make-load-form ((self source-file) &optional env)
   (make-load-form-saving-slots self :environment env))
 
 (defun ensure-namestring (file-designator)
+  "Coerce FILE-DESIGNATOR to a namestring."
   (when file-designator
     (etypecase file-designator
       (string file-designator)
@@ -121,7 +178,7 @@ In the case of source that is copied to a different location during compilation 
 OFFSET indicates starting character offset within the file."
   (make-instance 'source-file
     :file (ensure-namestring file)
-    :name (ensure-namestring name)
+    :name name
     :offset offset))
 
 (defmethod source-error:source-available-p ((self source-file))
@@ -156,11 +213,11 @@ OFFSET indicates starting character offset within the file."
 (defmethod make-load-form ((self source-string) &optional env)
   (make-load-form-saving-slots self :environment env))
 
-(defun make-source-string (string &key name)
+(defun make-source-string (string &key (name "<string input>"))
   "Make a source that supplies error context from a string."
   (make-instance 'source-string
     :string string
-    :name (ensure-namestring name)))
+    :name name))
 
 (defmethod source-error:source-available-p ((self source-string))
   (not (null (source-string self))))
@@ -168,8 +225,29 @@ OFFSET indicates starting character offset within the file."
 (defmethod source-error:source-stream ((self source-string))
   (make-string-input-stream (source-string self)))
 
-(defmethod source-error:source-name ((self source-string))
-  (or (original-name self) "<string input>"))
+(defmethod source-offset ((self source-string))
+  0)
+
+;;; location protocol
+
+(deftype span ()
+  '(cons fixnum fixnum))
+
+(defun span-start (span)
+  (car span))
+
+(defun span-end (span)
+  (cdr span))
+
+(defun offset-span (span offset)
+  "Return a new span offset by OFFSET."
+  (if (zerop offset)
+      span
+      (cons (+ (car span) offset)
+            (+ (cdr span) offset))))
+
+(defgeneric location (object)
+  (:documentation "The location of a Coalton object's definition."))
 
 (defgeneric location (object)
   (:documentation "The source location of a Coalton object's definition."))

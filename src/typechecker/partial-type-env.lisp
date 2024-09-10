@@ -1,9 +1,9 @@
 (defpackage #:coalton-impl/typechecker/partial-type-env
   (:use
    #:cl
+   #:coalton-impl/source
    #:coalton-impl/typechecker/base)
   (:local-nicknames
-   (#:se #:source-error)
    (#:util #:coalton-impl/util)
    (#:parser #:coalton-impl/parser)
    (#:source #:coalton-impl/source)

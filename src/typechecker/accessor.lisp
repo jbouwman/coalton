@@ -4,7 +4,6 @@
    #:coalton-impl/typechecker/base)
   (:local-nicknames
    (#:source #:coalton-impl/source)
-   (#:se #:source-error)
    (#:tc #:coalton-impl/typechecker/stage-1)
    (#:util #:coalton-impl/util))
   (:export
@@ -22,9 +21,9 @@
 
 (defstruct (accessor
             (:copier nil))
-  (from   (util:required 'from)   :type tc:ty           :read-only t)
-  (to     (util:required 'to)     :type tc:ty           :read-only t)
-  (field  (util:required 'field)  :type string          :read-only t)
+  (from   (util:required 'from)       :type tc:ty    :read-only t)
+  (to     (util:required 'to)         :type tc:ty    :read-only t)
+  (field  (util:required 'field)      :type string   :read-only t)
   (location (util:required 'location) :type source:location :read-only t))
 
 (defmethod source:location ((self accessor))

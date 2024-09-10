@@ -6,6 +6,9 @@
   (:shadowing-import-from
    #:coalton-impl/parser/base
    #:parse-error)
+  (:local-nicknames
+   (#:cst #:concrete-syntax-tree)
+   (#:source #:coalton-impl/source))
   (:export
    #:*coalton-eclector-client*
    #:with-reader-context

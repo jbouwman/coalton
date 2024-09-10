@@ -8,7 +8,8 @@
    #:coalton-impl/parser/base
    #:parse-error)
   (:local-nicknames
-   (#:cst #:concrete-syntax-tree))
+   (#:cst #:concrete-syntax-tree)
+   (#:source #:coalton-impl/source))
   (:export
    #:expand-macro))
 

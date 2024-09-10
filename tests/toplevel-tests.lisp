@@ -3,7 +3,7 @@
 (defun check-package (string fn)
   "Parse the package form present in STRING."
   (let ((source (source:make-source-string string :name "test")))
-    (with-open-stream (stream (source-error:source-stream source))
+    (with-open-stream (stream (source:source-stream source))
       (parser:with-reader-context stream
         (let* ((form (parser:maybe-read-form stream parser::*coalton-eclector-client*))
                (package (coalton-impl/parser/toplevel::parse-package

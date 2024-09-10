@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/analysis/underapplied-values
   (:use
-   #:cl)
+   #:cl
+   #:coalton-impl/source)
   (:local-nicknames
    (#:source #:coalton-impl/source)
    (#:tc #:coalton-impl/typechecker))

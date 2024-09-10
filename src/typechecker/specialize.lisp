@@ -1,15 +1,14 @@
 (defpackage #:coalton-impl/typechecker/specialize
   (:use
    #:cl
+   #:coalton-impl/source
    #:coalton-impl/typechecker/base
    #:coalton-impl/typechecker/parse-type)
   (:local-nicknames
-   (#:se #:source-error)
    (#:parser #:coalton-impl/parser)
    (#:tc #:coalton-impl/typechecker/stage-1))
   (:export
-   #:toplevel-specialize                ; FUNCTION
-   ))
+   #:toplevel-specialize))
 
 (in-package #:coalton-impl/typechecker/specialize)
 

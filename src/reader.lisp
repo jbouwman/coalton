@@ -2,7 +2,6 @@
   (:use
    #:cl)
   (:local-nicknames
-   (#:se #:source-error)
    (#:cst #:concrete-syntax-tree)
    (#:codegen #:coalton-impl/codegen)
    (#:settings #:coalton-impl/settings)
@@ -176,7 +175,6 @@ It ensures the presence of source metadata for STREAM and then calls MAYBE-READ-
 (defmacro coalton:coalton-codegen (&body forms)
   "Generate code for FORMS, excluding Lisp type declarations."
   (compile-forms 'coalton:coalton-codegen forms))
-
 (defmacro coalton:coalton-codegen-types (&body forms)
   "Generate code for FORMS, including Lisp type declarations."
   (compile-forms 'coalton:coalton-codegen-types forms))

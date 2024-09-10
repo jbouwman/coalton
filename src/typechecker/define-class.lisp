@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/typechecker/define-class
   (:use
    #:cl
+   #:coalton-impl/source
    #:coalton-impl/typechecker/base
    #:coalton-impl/typechecker/parse-type
    #:coalton-impl/typechecker/partial-type-env)
@@ -9,7 +10,6 @@
    #:check-package
    #:check-duplicates)
   (:local-nicknames
-   (#:se #:source-error)
    (#:util #:coalton-impl/util)
    (#:algo #:coalton-impl/algorithm)
    (#:parser #:coalton-impl/parser)
@@ -49,21 +49,19 @@
 
   ;; Check that all class names are in the current package
   (check-package classes (alexandria:compose #'parser:identifier-src-name
-                                             #'parser:toplevel-define-class-name)
-                 #'parser:toplevel-define-class-head-location)
+                                             #'parser:toplevel-define-class-name))
 
   ;; Check that all methods are in the current package
   (check-package (mapcan (alexandria:compose #'copy-list #'parser:toplevel-define-class-methods)
                          classes)
                  (alexandria:compose #'parser:identifier-src-name
-                                     #'parser:method-definition-name)
-                 #'source:location)
+                                     #'parser:method-definition-name))
 
   ;; Check for duplicate class definitions
   (check-duplicates
    classes
    (alexandria:compose #'parser:identifier-src-name #'parser:toplevel-define-class-name)
-   #'source:location
+   #'location
    (lambda (first second)
      (tc:tc-error "Duplicate class definition"
                   (tc:tc-location (parser:toplevel-define-class-head-location first)
@@ -75,7 +73,7 @@
   (check-duplicates
    (mapcan (alexandria:compose #'copy-list #'parser:toplevel-define-class-methods) classes)
    (alexandria:compose #'parser:identifier-src-name #'parser:method-definition-name)
-   #'source:location
+   #'location
    (lambda (first second)
      (tc:tc-error "Duplicate method definition"
                   (tc:tc-note first "first definition here")
@@ -86,7 +84,7 @@
     (check-duplicates
      (parser:toplevel-define-class-vars class)
      #'parser:keyword-src-name
-     #'source:location
+     #'location
      (lambda (first second)
        (tc:tc-error "Duplicate class variable"
                     (tc:tc-note first "first usage here")
@@ -269,12 +267,12 @@
 
                                              :collect (tc:make-ty-class-method :name method-name
                                                                                :type (tc:quantify nil method-ty)
-                                                                               :docstring (source:docstring method)))
+                                                                               :docstring (docstring method)))
                   :codegen-sym codegen-sym
                   :superclass-dict superclass-dict
                   :superclass-map superclass-map
-                  :docstring (source:docstring class)
-                  :location (source:location class))
+                  :docstring (docstring class)
+                  :location (location class))
 
            :for method-tys := (loop :for (name . qual-ty) :in unqualifed-methods
                                     :for type := (tc:qualified-ty-type qual-ty)
@@ -325,14 +323,14 @@
                                                  :name method-name
                                                  :type :method
                                                  :docstring nil
-                                                 :location (source:location class))))
-
+                                                 :location (location class))))
+ 
                      :if (not (zerop method-arity))
                        :do (setf env (tc:set-function env method-name (tc:make-function-env-entry
                                                                        :name method-name
                                                                        :arity method-arity)))
                      :else
-                       :do (setf env (tc:unset-function env method-name))) 
+                       :do (setf env (tc:unset-function env method-name)))
 
            :collect class-entry)
      env)))
@@ -351,7 +349,7 @@
                (check-duplicates
                 vars
                 #'parser:keyword-src-name
-                #'source:location
+                #'location
                 (lambda (first second)
                   (tc:tc-error "Duplicate variable in function dependency"
                                (tc:tc-note first "first usage here")

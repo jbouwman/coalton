@@ -1,9 +1,9 @@
 (defpackage #:coalton-impl/typechecker/tc-env
   (:use
    #:cl
+   #:coalton-impl/source
    #:coalton-impl/typechecker/parse-type)
   (:local-nicknames
-   (#:se #:source-error)
    (#:util #:coalton-impl/util)
    (#:parser #:coalton-impl/parser)
    (#:source #:coalton-impl/source)
@@ -80,7 +80,7 @@
               (loop :for pred :in (tc:qualified-ty-predicates qualified-type)
                     :collect (tc:make-ty-predicate :class (tc:ty-predicate-class pred)
                                                    :types (tc:ty-predicate-types pred)
-                                                   :location (source:location var)))))))
+                                                   :location (location var)))))))
 
 (defun tc-env-add-definition (env name scheme)
   "Add a type named NAME to ENV."

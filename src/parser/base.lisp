@@ -1,12 +1,11 @@
 (defpackage #:coalton-impl/parser/base
   (:use
-   #:cl)
+   #:cl
+   #:coalton-impl/source)
   (:shadow
    #:parse-error)
   (:local-nicknames
    (#:cst #:concrete-syntax-tree)
-   (#:se #:source-error)
-   (#:source #:coalton-impl/source)
    (#:util #:coalton-impl/util))
   (:export
    #:identifier                         ; TYPE
@@ -49,9 +48,9 @@
 (defstruct (keyword-src
             (:copier nil))
   (name     (util:required 'name)     :type keyword :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+  (location (util:required 'location) :type location :read-only t))
 
-(defmethod source:location ((self keyword-src))
+(defmethod location ((self keyword-src))
   (keyword-src-location self))
 
 (defun keyword-src-list-p (x)
@@ -64,9 +63,9 @@
 (defstruct (identifier-src
             (:copier nil))
   (name     (util:required 'name)     :type identifier :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+  (location (util:required 'location) :type location :read-only t))
 
-(defmethod source:location ((self identifier-src))
+(defmethod location ((self identifier-src))
   (identifier-src-location self))
 
 (defun identifier-src-list-p (x)

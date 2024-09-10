@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/analysis/analysis
   (:use
    #:cl
+   #:coalton-impl/source
    #:coalton-impl/typechecker/base
    #:coalton-impl/analysis/pattern-exhaustiveness)
   (:import-from

@@ -1,26 +1,24 @@
 (defpackage #:coalton-impl/entry
   (:use
-   #:cl)
+   #:cl
+   #:coalton-impl/source)
   (:shadow
    #:compile)
   (:local-nicknames
-   (#:se #:source-error)
    (#:settings #:coalton-impl/settings)
    (#:util #:coalton-impl/util)
    (#:parser #:coalton-impl/parser)
-   (#:source #:coalton-impl/source)
    (#:tc #:coalton-impl/typechecker)
    (#:analysis #:coalton-impl/analysis)
    (#:codegen #:coalton-impl/codegen))
   (:export
    #:*global-environment*
-   #:entry-point                        ; FUNCTION
-   #:expression-entry-point             ; FUNCTION
-   #:codegen                            ; FUNCTION
-   #:compile                            ; FUNCTION
-   #:compile-coalton-toplevel           ; FUNCTION
-   #:compile-to-lisp                    ; FUNCTION
-   ))
+   #:entry-point
+   #:expression-entry-point
+   #:codegen
+   #:compile
+   #:compile-coalton-toplevel
+   #:compile-to-lisp))
 
 (in-package #:coalton-impl/entry)
 
@@ -138,8 +136,8 @@
                    env))))
 
             (let* ((tvars
-                     (loop :for i :to (1- (length (remove-duplicates (tc:type-variables qual-ty)
-                                                                     :test #'equalp)))
+                     (loop :for i :below (length (remove-duplicates (tc:type-variables qual-ty)
+                                                                    :test #'equalp))
                            :collect (tc:make-variable)))
                    (qual-type (tc:instantiate
                                tvars
@@ -221,7 +219,7 @@
 (defun compile-to-lisp (source output)
   "Read Coalton source from SOURCE and write Lisp source to OUTPUT. NAME may be the filename related to the input stream."
   (declare (optimize (debug 3)))
-  (with-open-stream (stream (se:source-stream source))
+  (with-open-stream (stream (source-stream source))
     (parser:with-reader-context stream
       (with-environment-updates updates
         (let* ((program (parser:read-program stream source ':file))
@@ -245,17 +243,17 @@
     (compile-to-lisp source output)))
 
 (defun compile (source &key (load t) (output-file nil))
-   "Compile Coalton code in SOURCE, returning the pathname of the generated .fasl file. If OUTPUT-FILE is nil, the built-in compiler default output location will be used."
-   (uiop:with-temporary-file (:stream lisp-stream
-                              :pathname lisp-file
-                              :type "lisp"
-                              :direction ':output)
-     (compile-to-lisp source lisp-stream)
-     :close-stream
-     (cond ((null output-file)
-            (setf output-file (compile-file lisp-file)))
-           (t
-            (compile-file lisp-file :output-file output-file)))
-     (when load
-       (load output-file))
-     output-file))
+  "Compile Coalton code in SOURCE, returning the pathname of the generated .fasl file. If OUTPUT-FILE is nil, the built-in compiler default output location will be used."
+  (uiop:with-temporary-file (:stream lisp-stream
+                             :pathname lisp-file
+                             :type "lisp"
+                             :direction ':output)
+    (compile-to-lisp source lisp-stream)
+    :close-stream
+    (cond ((null output-file)
+           (setf output-file (compile-file lisp-file)))
+          (t
+           (compile-file lisp-file :output-file output-file)))
+    (when load
+      (load output-file))
+    output-file))

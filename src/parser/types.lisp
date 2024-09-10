@@ -12,7 +12,6 @@
    (#:util #:coalton-impl/util))
   (:export
    #:ty                                 ; STRUCT
-   #:ty-location                        ; ACCESSOR
    #:ty-list                            ; TYPE
    #:tyvar                              ; STRUCT
    #:make-tyvar                         ; CONSTRUCTOR
@@ -33,13 +32,11 @@
    #:make-ty-predicate                  ; CONSTRUCTOR
    #:ty-predicate-class                 ; ACCESSOR
    #:ty-predicate-types                 ; ACCESSOR
-   #:ty-predicate-location              ; ACCESSOR
    #:ty-predicate-list                  ; TYPE
    #:qualified-ty                       ; STRUCT
    #:make-qualified-ty                  ; CONSTRUCTOR
    #:qualified-ty-predicates            ; ACCESSOR
    #:qualified-ty-type                  ; ACCESSOR
-   #:qualified-ty-location              ; ACCESSOR
    #:qualified-ty-list                  ; TYPE
    #:parse-qualified-type               ; FUNCTION
    #:parse-type                         ; FUNCTION
@@ -74,6 +71,9 @@
   (location (util:required 'location) :type source:location :read-only t))
 
 (defmethod source:location ((self ty))
+  (ty-location self))
+
+(defmethod location ((self ty))
   (ty-location self))
 
 (defun ty-list-p (x)
@@ -121,6 +121,9 @@
 (defmethod source:location ((self ty-predicate))
   (ty-predicate-location self))
 
+(defmethod location ((self ty-predicate))
+  (ty-predicate-location self))
+
 (defun ty-predicate-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'ty-predicate-p x)))
@@ -136,6 +139,9 @@
   (location   (util:required 'location)   :type source:location   :read-only t))
 
 (defmethod source:location ((self qualified-ty))
+  (qualified-ty-location self))
+
+(defmethod location ((self qualified-ty))
   (qualified-ty-location self))
 
 (defun parse-qualified-type (form source)

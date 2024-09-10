@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/analysis/unused-variables
   (:use
-   #:cl)
+   #:cl
+   #:coalton-impl/source)
   (:local-nicknames
    (#:source #:coalton-impl/source)
    (#:util #:coalton-impl/util)
@@ -67,11 +68,11 @@
         (tc:node-variable
          (cons
           (tc:node-variable-name var)
-          (source:location var)))
+          (location var)))
         (tc:pattern-var
          (cons
           (tc:pattern-var-name var)
-          (source:location var))))
+          (location var))))
 
     (unless (char= (aref (symbol-name name) 0) #\_)
         (unless (gethash name used-variables)

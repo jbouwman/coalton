@@ -3,7 +3,6 @@
    #:cl)
   (:local-nicknames
    (#:source #:coalton-impl/source)
-   (#:se #:source-error)
    (#:util #:coalton-impl/util))
   (:export
    #:*coalton-pretty-print-tyvars*
@@ -128,7 +127,7 @@ source locations whose spans are compared for ordering."
         :else
           :do (setf (gethash (funcall f elem) table) elem)))
 
-(defun check-package (elems f source)
+(defun check-package (elems f &optional (source #'identity))
   (declare (type list elems)
            (type function f)
            (type function source))
@@ -139,9 +138,9 @@ source locations whose spans are compared for ordering."
         :do (check-type id symbol)
 
         :unless (equalp (symbol-package id) *package*)
-          :do (tc-error (funcall source elem)
-                        "Invalid identifier name"
-                        (format nil "The symbol ~S is defined in the package ~A and not the current package ~A"
-                                id
-                                (symbol-package id)
-                                *package*))))
+          :do (tc-error "Invalid identifier name"
+                        (source:make-note (funcall source elem)
+                                          (format nil "The symbol ~S is defined in the package ~A and not the current package ~A"
+                                                  id
+                                                  (symbol-package id)
+                                                  *package*)))))

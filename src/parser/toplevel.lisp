@@ -13,7 +13,6 @@
   (:local-nicknames
    (#:cst #:concrete-syntax-tree)
    (#:cursor #:coalton-impl/parser/cursor)
-   (#:source #:coalton-impl/source)
    (#:se #:source-error)
    (#:source #:coalton-impl/source)
    (#:util #:coalton-impl/util))
@@ -206,6 +205,9 @@
 (defmethod source:location ((self attribute))
   (attribute-location self))
 
+(defmethod location ((self attribute))
+  (attribute-location self))
+
 (defstruct (attribute-monomorphize
             (:include attribute)))
 
@@ -225,6 +227,9 @@
   (location (util:required 'location) :type source:location :read-only t))
 
 (defmethod source:location ((self constructor))
+  (constructor-location self))
+
+(defmethod location ((self constructor))
   (constructor-location self))
 
 (defun constructor-list-p (x)
@@ -337,6 +342,9 @@
 (defmethod source:location ((self fundep))
   (fundep-location self))
 
+(defmethod location ((self fundep))
+  (fundep-location self))
+
 (defun fundep-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'fundep-p x)))
@@ -352,6 +360,9 @@
 
 (defmethod make-load-form ((self method-definition) &optional env)
   (make-load-form-saving-slots self :environment env))
+
+(defmethod location ((self method-definition))
+  (method-definition-location self))
 
 (defun method-definition-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -389,6 +400,9 @@
 (defmethod source:location ((self instance-method-definition))
   (instance-method-definition-location self))
 
+(defmethod location ((self instance-method-definition))
+  (instance-method-definition-location self))
+
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defun instance-method-definition-list-p (x)
     (and (alexandria:proper-list-p x)
@@ -423,6 +437,9 @@
 (defmethod source:location ((self toplevel-lisp-form))
   (toplevel-lisp-form-location self))
 
+(defmethod location ((self toplevel-lisp-form))
+  (toplevel-lisp-form-location self))
+
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defun toplevel-lisp-form-list-p (x)
     (and (alexandria:proper-list-p x)
@@ -439,6 +456,9 @@
   (location (util:required 'location) :type source:location :read-only t))
 
 (defmethod source:location ((self toplevel-specialize))
+  (toplevel-specialize-location self))
+
+(defmethod location ((self toplevel-specialize))
   (toplevel-specialize-location self))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
@@ -460,6 +480,12 @@
   (shadow      nil                       :type list)
   (export      nil                       :type list))
 
+(defmethod location ((self toplevel-package))
+  (toplevel-package-location self))
+
+(defmethod docstring ((self toplevel-package))
+  (toplevel-package-docstring self))
+
 (defstruct program
   (package         nil :type (or null toplevel-package)    :read-only t)
   (types           nil :type toplevel-define-type-list     :read-only nil)
@@ -472,7 +498,7 @@
   (specializations nil :type toplevel-specialize-list      :read-only nil))
 
 (defun read-program (stream source &optional mode)
-  "Read a PROGRAM from SOURCE (an instance of source-error:source).
+  "Read a PROGRAM from SOURCE.
 MODE may be one of :file or :macro.
 
 If MODE is :file, a package form is required.
@@ -557,12 +583,15 @@ If MODE is :macro, a package form is forbidden, and an explicit check is made fo
 (defun parse-import-statement (package cursor)
   (typecase (cursor:peek cursor)
     (list (let ((name (cursor:next-symbol cursor
-                                          :message "package name must be a symbol"
+                                          :message "Malformed package declaration"
+                                          :note "package name must be a symbol"
                                           :missing "package name is missing")))
             (cursor:next-symbol cursor :require "AS"
+                                       :message "Malformed package declaration"
                                        :missing "missing AS")
             (let ((nick (cursor:next-symbol cursor
-                                            :message "package nickname msut be a symbol"
+                                            :message "Malformed package declaration"
+                                            :note "package nickname must be a symbol"
                                             :missing "missing package nickname")))
               (when (not (cursor:empty-p cursor))
                 (parse-error "Malformed package declaration"
@@ -593,7 +622,8 @@ If MODE is :macro, a package form is forbidden, and an explicit check is made fo
 (defun parse-shadow (package cursor)
   (setf (toplevel-package-shadow package)
         (append (toplevel-package-shadow package)
-                (cursor:collect-symbols cursor))))
+                (cursor:collect-symbols cursor
+                                        :message "Malformed package declaration"))))
 
 (defvar *package-clauses*
   '(("IMPORT" . parse-import)
@@ -624,15 +654,19 @@ If MODE is :macro, a package form is forbidden, and an explicit check is made fo
   "Parse a coalton package declaration."
   (cursor:next-symbol cursor
                       :require "PACKAGE"
-                      :message "package declarations must start with `package`"
+                      :message "Malformed package declaration"
+                      :note "package declarations must start with `package`"
                       :missing "missing `package`")
   (let* ((package-name
            (cursor:next-symbol cursor
                                :missing "missing package name"
-                               :message "package name must be a symbol"))
+                               :message "Malformed package declaration"
+                               :note "package name must be a symbol"))
          (package-doc
            (unless (cursor:empty-p cursor)
-             (cursor:next cursor :pred #'stringp)))
+             (cursor:next cursor :pred (lambda (value span)
+                                         (declare (ignore span))
+                                         (stringp value)))))
          (package
            (make-toplevel-package :name (symbol-name package-name)
                                   :docstring package-doc
@@ -763,20 +797,13 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
                  (source-note source (cst:first form) "unexpected list")))
 
   (case (cst:raw (cst:first form))
+
     ((coalton:monomorphize)
-     (vector-push-extend
-      (cons
-       (parse-monomorphize form source)
-       form)
-      attributes)
+     (vector-push-extend (cons (parse-monomorphize form source) form) attributes)
      nil)
 
     ((coalton:repr)
-     (vector-push-extend
-      (cons
-       (parse-repr form source)
-       form)
-      attributes)
+     (vector-push-extend (cons (parse-repr form source) form) attributes)
      nil)
 
     ((coalton:define)
@@ -989,11 +1016,8 @@ consume all attributes")))
        ((and (cst:atom (cst:first form))
              (symbolp (cst:raw (cst:first form)))
              (macro-function (cst:raw (cst:first form))))
-        (let ((se:*source-error-context*
-                (adjoin (se:make-source-error-context
-                         :message "Error occurs within macro context. Source locations may be imprecise")
-                        se:*source-error-context*
-                        :test #'equalp)))
+        (with-context (:macro
+                       "Error occurs within macro context. Source locations may be imprecise")
           (parse-toplevel-form (expand-macro form source) program attributes source)))
 
        ((parse-error "Invalid toplevel form"

@@ -9,10 +9,10 @@
 (defpackage #:coalton-impl/typechecker/parse-type
   (:use
    #:cl
+   #:coalton-impl/source
    #:coalton-impl/typechecker/base
    #:coalton-impl/typechecker/partial-type-env)
   (:local-nicknames
-   (#:se #:source-error)
    (#:util #:coalton-impl/util)
    (#:parser #:coalton-impl/parser)
    (#:source #:coalton-impl/source)
@@ -160,7 +160,7 @@
     (let* ((tvar (partial-type-env-lookup-var
                   env
                   (parser:tyvar-name type)
-                  (parser:ty-location type)))
+                  (location type)))
            (kvar (tc:kind-of tvar)))
 
       (setf kvar (tc:apply-ksubstitution ksubs kvar))
