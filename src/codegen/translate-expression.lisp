@@ -6,6 +6,7 @@
 (defpackage #:coalton-impl/codegen/translate-expression
   (:use
    #:cl
+   #:coalton-impl/source
    #:coalton-impl/codegen/pattern
    #:coalton-impl/codegen/ast
    #:coalton-impl/codegen/resolve-instance)
@@ -682,7 +683,7 @@ Returns a `node'.")
              (tc:make-ty-predicate
               :class intoiter-class
               :types (list into-iter-arg-ty pat-arg-ty)
-              :location (source:location expr)))
+              :location (location expr)))
 
            (into-iter-node
              (make-node-application
@@ -807,7 +808,7 @@ Returns a `node'.")
            (pred (tc:make-ty-predicate
                   :class monad-symbol
                   :types (list m-type)
-                  :location (source:location node))))
+                  :location (location node))))
 
       (loop :with out-node := (translate-expression (tc:node-do-last-node node) ctx env)
 

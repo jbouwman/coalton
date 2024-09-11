@@ -16,7 +16,6 @@
    #:check-package
    #:check-duplicates)
   (:local-nicknames
-   (#:se #:source-error)
    (#:util #:coalton-impl/util)
    (#:algo #:coalton-impl/algorithm)
    (#:parser #:coalton-impl/parser)
@@ -86,16 +85,14 @@
   (check-package (append types structs)
                  (alexandria:compose #'parser:identifier-src-name
                                      #'parser:type-definition-name)
-                 (alexandria:compose #'location
-                                     #'parser:type-definition-name))
+                 #'parser:type-definition-name)
 
   ;; Ensure that all constructors are defined in the current package
   (check-package (mapcan (alexandria:compose #'copy-list #'parser:toplevel-define-type-ctors)
                          types)
                  (alexandria:compose #'parser:identifier-src-name
                                      #'parser:constructor-name)
-                 (alexandria:compose #'location
-                                     #'parser:constructor-name))
+                 #'parser:constructor-name)
 
   ;; Ensure that there are no duplicate type definitions
   (check-duplicates
@@ -103,16 +100,9 @@
    (alexandria:compose #'parser:identifier-src-name #'parser:type-definition-name)
    #'location
    (lambda (first second)
-     (error 'tc:tc-error
-            :err (source-error
-                  :location (location first)
-                  :message "Duplicate type definitions"
-                  :primary-note "first definition here"
-                  :notes (list (se:make-source-error-note
-                                :type :primary
-                                :span (location-span
-                                       (location second))
-                                :message "second definition here"))))))
+     (tc:tc-error "Duplicate type definitions"
+                  (make-note first "first definition here")
+                  (make-note second "second definition here"))))
 
   ;; Ensure that there are no duplicate constructors
   ;; NOTE: structs define a constructor with the same name
@@ -122,15 +112,9 @@
    (alexandria:compose #'parser:identifier-src-name #'parser:type-definition-ctor-name)
    #'location
    (lambda (first second)
-     (error 'tc:tc-error
-            :err (source-error
-                  :location (location first)
-                  :message "Duplicate constructor definitions"
-                  :primary-note "first definition here"
-                  :notes (list (se:make-source-error-note
-                                :type :primary
-                                :span (location-span (location second))
-                                :message "second definition here"))))))
+     (tc:tc-error "Duplicate constructor definitions"
+                  (make-note first "first definition here")
+                  (make-note second "second definition here"))))
 
   ;; Ensure that no type has duplicate type variables
   (loop :for type :in (append types structs)
@@ -139,16 +123,9 @@
              #'parser:keyword-src-name
              #'location
              (lambda (first second)
-               (error 'tc:tc-error
-                      :err (source-error
-                            :location (location first)
-                            :message "Duplicate type variable definitions"
-                            :primary-note "first definition here"
-                            :notes
-                            (list (se:make-source-error-note
-                                   :type :primary
-                                   :span (location-span (location second))
-                                   :message "second definition here")))))))
+               (tc:tc-error "Duplicate type variable definitions"
+                            (make-note first "first definition here")
+                            (make-note second "second definition here")))))
 
   (let* ((type-names (mapcar (alexandria:compose #'parser:identifier-src-name
                                                  #'parser:type-definition-name)
@@ -384,23 +361,23 @@
              :when (eq repr-type :enum)
                :do (loop :for ctor :in (parser:toplevel-define-type-ctors type)
                          :unless (endp (parser:constructor-fields ctor))
-                           :do (tc-error (first (parser:constructor-fields ctor))
-                                         "Invalid repr :enum attribute"
-                                         "constructors of repr :enum types cannot have fields"))
+                           :do (tc-error "Invalid repr :enum attribute"
+                                         (make-note (first (parser:constructor-fields ctor))
+                                                    "constructors of repr :enum types cannot have fields")))
 
                    ;; Check that repr :transparent types have a single constructor
              :when (eq repr-type :transparent)
                :do (unless (= 1 (length (parser:type-definition-ctors type)))
-                     (tc-error type
-                               "Invalid repr :transparent attribute"
-                               "repr :transparent types must have a single constructor"))
+                     (tc-error "Invalid repr :transparent attribute"
+                               (make-note type
+                                          "repr :transparent types must have a single constructor")))
 
                    ;; Check that the single constructor of a repr :transparent type has a single field
              :when (eq repr-type :transparent)
                :do (unless (= 1 (length (parser:type-definition-ctor-field-types (first (parser:type-definition-ctors type)))))
-                     (tc-error (first (parser:type-definition-ctors type))
-                               "Invalid repr :transparent attribute"
-                               "constructors of repr :transparent types must have a single field"))
+                     (tc-error "Invalid repr :transparent attribute"
+                               (make-note (first (parser:type-definition-ctors type))
+                                          "constructors of repr :transparent types must have a single field")))
 
              :collect (let* ((ctors
                                (loop :for ctor :in (parser:type-definition-ctors type)

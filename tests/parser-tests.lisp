@@ -9,19 +9,19 @@
 
            (parse-file (file)
              (let ((source (source:make-source-file file :name "test")))
-               (with-open-stream (stream (source-error:source-stream source))
+               (with-open-stream (stream (source:source-stream source))
                  (parser:with-reader-context stream
                    (parser:read-program stream source ':file)))))
 
            (parse-error-text (file)
              (let ((source (source:make-source-file file :name "test")))
-               (with-open-stream (stream (source-error:source-stream source))
+               (with-open-stream (stream (source:source-stream source))
                  (handler-case
                      (parser:with-reader-context stream
                        (entry:entry-point
                         (parser:read-program stream source ':file))
                        "no errors")
-                   (se:source-base-error (c)
+                   (source:source-error (c)
                      (princ-to-string c)))))))
     (dolist (file (test-files "tests/parser-test-files/bad-files/*.coal"))
       (let ((error-file (make-pathname :type "error"
@@ -31,7 +31,7 @@
                               (alexandria:read-file-into-string error-file)
                               (parse-error-text file)))
               (t
-               (signals parser:parse-error
+               (signals source:source-error
                  (parse-file file))))))
 
     (dolist (file (test-files "tests/parser-test-files/good-files/*.coal"))
@@ -43,4 +43,6 @@
   (run-test-file "tests/parser-test-files/lisp-toplevel-forbid.txt")
   (run-test-file "tests/parser-test-files/package.txt")
   (run-test-file "tests/parser-test-files/hashtable.txt")
-  (run-test-file "tests/parser-test-files/define.txt"))
+  (run-test-file "tests/parser-test-files/define.txt")
+  (run-test-file "tests/parser-test-files/type-inference.txt")
+  (run-test-file "tests/parser-test-files/unused-variables.txt"))

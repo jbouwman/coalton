@@ -4,7 +4,6 @@
    #:coalton-impl/typechecker/base)
   (:local-nicknames
    (#:source #:coalton-impl/source)
-   (#:se #:source-error)
    (#:tc #:coalton-impl/typechecker/stage-1)
    (#:util #:coalton-impl/util))
   (:export
@@ -22,9 +21,9 @@
 
 (defstruct (accessor
             (:copier nil))
-  (from   (util:required 'from)   :type tc:ty           :read-only t)
-  (to     (util:required 'to)     :type tc:ty           :read-only t)
-  (field  (util:required 'field)  :type string          :read-only t)
+  (from   (util:required 'from)       :type tc:ty    :read-only t)
+  (to     (util:required 'to)         :type tc:ty    :read-only t)
+  (field  (util:required 'field)      :type string   :read-only t)
   (location (util:required 'location) :type source:location :read-only t))
 
 (defmethod source:location ((self accessor))
@@ -105,19 +104,19 @@
            (struct-entry (tc:lookup-struct env ty-name :no-error t)))
 
       (unless struct-entry
-        (tc-error (accessor-location accessor)
-                  "Invalid accessor"
-                  (format nil "type '~S' is not a struct" ty-name)))
+        (tc-error "Invalid accessor"
+                  (source:make-note accessor
+                                    (format nil "type '~S' is not a struct" ty-name))))
 
       (let ((subs (tc:match struct-ty (accessor-from accessor)))
             (field (tc:get-field struct-entry (accessor-field accessor) :no-error t)))
 
         (unless field
-          (tc-error (accessor-location accessor)
-                    "Invalid accessor"
-                    (format nil "struct '~S' does not have the field '~A'"
-                            ty-name
-                            (accessor-field accessor))))
+          (tc-error "Invalid accessor"
+                    (source:make-note accessor
+                                      (format nil "struct '~S' does not have the field '~A'"
+                                              ty-name
+                                              (accessor-field accessor)))))
 
         ;; the order of unification matters here
         (setf subs (tc:unify subs (accessor-to accessor)

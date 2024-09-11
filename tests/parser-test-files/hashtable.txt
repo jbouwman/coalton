@@ -15,12 +15,12 @@
 error: Error during macro expansion
   --> test:4:2
    |
- 4 |     (coalton-library/hashtable:make ("zero" 0)
-   |  ___^
- 5 | |                                   ("one" 1)
- 6 | |                                   ("two" 2)
- 7 | |                                   ("zero" 3)))
-   | |_____________________________________________^ Duplicate hashtable key: "zero"
+ 4 |    (coalton-library/hashtable:make ("zero" 0)
+   |  __^
+ 5 | |                                  ("one" 1)
+ 6 | |                                  ("two" 2)
+ 7 | |                                  ("zero" 3)))
+   | |____________________________________________^ Duplicate hashtable key: "zero"
 note: Error occurs within macro context. Source locations may be imprecise
 
 ================================================================================
@@ -43,10 +43,10 @@ note: Error occurs within macro context. Source locations may be imprecise
 error: Error during macro expansion
   --> test:7:4
     |
- 7  |       (coalton-library/hashtable:make (zero 0)
-    |  _____^
- 8  | |                                     (one 1)
- 9  | |                                     (two 2)
- 10 | |                                     (zero 3))))
-    | |_____________________________________________^ Duplicate hashtable key: ZERO
+ 7  |      (coalton-library/hashtable:make (zero 0)
+    |  ____^
+ 8  | |                                    (one 1)
+ 9  | |                                    (two 2)
+ 10 | |                                    (zero 3))))
+    | |____________________________________________^ Duplicate hashtable key: ZERO
 note: Error occurs within macro context. Source locations may be imprecise

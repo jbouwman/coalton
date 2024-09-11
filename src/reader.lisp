@@ -2,7 +2,6 @@
   (:use
    #:cl)
   (:local-nicknames
-   (#:se #:source-error)
    (#:cst #:concrete-syntax-tree)
    (#:codegen #:coalton-impl/codegen)
    (#:settings #:coalton-impl/settings)
@@ -152,7 +151,6 @@ This symbol may be bound to a string source in the case of direct evaluation in 
 (defmacro coalton:coalton-codegen (&body forms)
   "Generate code for FORMS, excluding Lisp type declarations."
   (compile-forms 'coalton:coalton-codegen forms))
-
 (defmacro coalton:coalton-codegen-types (&body forms)
   "Generate code for FORMS, including Lisp type declarations."
   (compile-forms 'coalton:coalton-codegen-types forms))

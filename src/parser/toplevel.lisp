@@ -14,7 +14,6 @@
   (:local-nicknames
    (#:cst #:concrete-syntax-tree)
    (#:cursor #:coalton-impl/parser/cursor)
-   (#:se #:source-error)
    (#:util #:coalton-impl/util))
   (:export
    #:attribute                                   ; TYPE
@@ -251,7 +250,13 @@
   (vars      (util:required 'vars)      :type keyword-src-list         :read-only t)
   (ctors     (util:required 'ctors)     :type constructor-list         :read-only t)
   (repr      (util:required 'repr)      :type (or null attribute-repr) :read-only nil)
-  (head-location  (util:required 'head-location)  :type location                     :read-only t))
+  (head-location (util:required 'head-location) :type location         :read-only t))
+
+(defmethod location ((self toplevel-define-type))
+  (toplevel-define-type-location self))
+
+(defmethod docstring ((self toplevel-define-type))
+  (toplevel-define-type-docstring self))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defun toplevel-define-type-list-p (x)
@@ -336,6 +341,9 @@
 (defmethod location ((self fundep))
   (fundep-location self))
 
+(defmethod location ((self fundep))
+  (fundep-location self))
+
 (defun fundep-list-p (x)
   (and (alexandria:proper-list-p x)
        (every #'fundep-p x)))
@@ -351,6 +359,9 @@
 
 (defmethod make-load-form ((self method-definition) &optional env)
   (make-load-form-saving-slots self :environment env))
+
+(defmethod location ((self method-definition))
+  (method-definition-location self))
 
 (defun method-definition-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -384,6 +395,9 @@
   (params   (util:required 'params)   :type pattern-list    :read-only t)
   (body     (util:required 'body)     :type node-body       :read-only t)
   (location (util:required 'location) :type location :read-only t))
+
+(defmethod location ((self instance-method-definition))
+  (instance-method-definition-location self))
 
 (defmethod location ((self instance-method-definition))
   (instance-method-definition-location self))
@@ -440,6 +454,9 @@
 (defmethod location ((self toplevel-specialize))
   (toplevel-specialize-location self))
 
+(defmethod location ((self toplevel-specialize))
+  (toplevel-specialize-location self))
+
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defun toplevel-specialize-list-p (x)
     (and (alexandria:proper-list-p x)
@@ -459,6 +476,12 @@
   (shadow      nil                       :type list)
   (export      nil                       :type list))
 
+(defmethod location ((self toplevel-package))
+  (toplevel-package-location self))
+
+(defmethod docstring ((self toplevel-package))
+  (toplevel-package-docstring self))
+
 (defstruct program
   (package         nil :type (or null toplevel-package)    :read-only t)
   (types           nil :type toplevel-define-type-list     :read-only nil)
@@ -471,7 +494,7 @@
   (specializations nil :type toplevel-specialize-list      :read-only nil))
 
 (defun read-program (stream source &optional mode)
-  "Read a PROGRAM from SOURCE (an instance of source-error:source).
+  "Read a PROGRAM from SOURCE.
 MODE may be one of :file or :macro.
 
 If MODE is :file, a package form is required.
@@ -498,13 +521,10 @@ If MODE is :macro, a package form is forbidden, and an explicit check is made fo
           (maybe-read-form stream source *coalton-eclector-client*)
 
         (when (and eofp (eq mode ':macro))
-          (error 'parse-error
-                 :err (se:source-error
-                       :span (cons (- (file-position stream) 2)
-                                   (- (file-position stream) 1))
-                       :source source     ; TODO :source
-                       :message "Unexpected EOF"
-                       :primary-note "missing close parenthesis")))
+          (parse-error "Unexpected EOF"
+                       (make-note (make-location source (cons (- (file-position stream) 2)
+                                                              (- (file-position stream) 1)))
+                                  "missing close parenthesis")))
 
         (unless presentp
           (return))
@@ -514,12 +534,9 @@ If MODE is :macro, a package form is forbidden, and an explicit check is made fo
           (util:coalton-bug "parse-toplevel-form indicated that a form was parsed but did not consume all attributes"))))
 
     (unless (zerop (length attributes))
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source (cdr (aref attributes 0)))
-                   :source source
-                   :message "Orphan attribute"
-                   :primary-note "attribute must be attached to another form")))
+      (parse-error "Orphan attribute"
+                   (make-note (make-location source (cdr (aref attributes 0)))
+                              "attribute must be attached to another form")))
 
     (setf (program-types program) (nreverse (program-types program)))
     (setf (program-structs program) (nreverse (program-structs program)))
@@ -542,25 +559,19 @@ If MODE is :macro, a package form is forbidden, and an explicit check is made fo
         (maybe-read-form stream source *coalton-eclector-client*)
 
       (unless presentp
-        (error 'parse-error
-               :err (se:source-error
-                     :span (cons (- (file-position stream) 2)
-                                 (- (file-position stream) 1))
-                     :source source
-                     :message "Malformed coalton expression"
-                     :primary-note "missing expression")))
+        (parse-error "Malformed coalton expression"
+                     (make-note (make-location source (cons (- (file-position stream) 2)
+                                                            (- (file-position stream) 1)))
+                                "missing expression")))
 
       ;; Ensure there is only one form
       (multiple-value-bind (form presentp)
           (maybe-read-form stream source *coalton-eclector-client*)
 
         (when presentp
-          (error 'parse-error
-                 :err (se:source-error
-                       :span (cst:source form)
-                       :source source
-                       :message "Malformed coalton expression"
-                       :primary-note "unexpected form"))))
+          (parse-error "Malformed coalton expression"
+                       (make-note (make-location source form)
+                                  "unexpected form"))))
 
       (parse-expression form source))))
 
@@ -569,21 +580,24 @@ If MODE is :macro, a package form is forbidden, and an explicit check is made fo
 (defun parse-import-statement (package cursor)
   (typecase (cursor:peek cursor)
     (list (let ((name (cursor:next-symbol cursor
-                                          :message "package name must be a symbol"
+                                          :message "Malformed package declaration"
+                                          :note "package name must be a symbol"
                                           :missing "package name is missing")))
             (cursor:next-symbol cursor :require "AS"
+                                       :message "Malformed package declaration"
                                        :missing "missing AS")
             (let ((nick (cursor:next-symbol cursor
-                                            :message "package nickname msut be a symbol"
+                                            :message "Malformed package declaration"
+                                            :note "package nickname must be a symbol"
                                             :missing "missing package nickname")))
               (when (not (cursor:empty-p cursor))
-                (cursor:syntax-error cursor "unexpected value"))
+                (cursor:cursor-error cursor "Malformed package declaration" "unexpected value"))
               (pushnew (list (symbol-name nick)
                              (symbol-name name))
                        (toplevel-package-import-as package)))))
     (symbol (pushnew (symbol-name (cst:raw (cursor:cursor-value cursor)))
                      (toplevel-package-import package)))
-    (t (cursor:syntax-error cursor "expected PACKAGE or (PACKAGE as NICK)"))))
+    (t (cursor:cursor-error cursor "Malformed package declaration" "expected PACKAGE or (PACKAGE as NICK)"))))
 
 (defun parse-import-from (package cursor)
   "Parse an IMPORT-FROM clause: a package designator followed by uninterned symbols."
@@ -592,7 +606,9 @@ If MODE is :macro, a package form is forbidden, and an explicit check is made fo
 
 (defun parse-import (package cursor)
   (when (cursor:empty-p cursor)
-    (cursor:syntax-error cursor "empty IMPORT form"))
+    (cursor:end-error cursor
+                      "Malformed package declaration"
+                      "empty IMPORT form"))
   (cursor:do-every cursor (alexandria:curry 'parse-import-statement package)))
 
 (defun parse-export (package cursor)
@@ -603,7 +619,8 @@ If MODE is :macro, a package form is forbidden, and an explicit check is made fo
 (defun parse-shadow (package cursor)
   (setf (toplevel-package-shadow package)
         (append (toplevel-package-shadow package)
-                (cursor:collect-symbols cursor))))
+                (cursor:collect-symbols cursor
+                                        :message "Malformed package declaration"))))
 
 (defvar *package-clauses*
   '(("IMPORT" . parse-import)
@@ -617,36 +634,39 @@ If MODE is :macro, a package form is forbidden, and an explicit check is made fo
 (defun parse-package-clause (package cursor)
   "Parse a package clause form CURSOR and add it to PACKAGE."
   (unless (consp (cursor:peek cursor))
-    (cursor:syntax-error cursor "malformed package clause"))
+    (cursor:cursor-error cursor "Malformed package declaration" "malformed package clause"))
   (let ((parser (package-clause-parser (cursor:next-symbol cursor))))
     (when (null parser)
       (let ((form (cursor:cursor-value cursor)))
-        (error 'cursor:syntax-error
-               :notes (list (cursor:make-note :span (cst:source form)
-                                              :text "Unknown package clause")
-                            (cursor:make-note :span (cst:source (cst:first form))
-                                              :text (format nil "Must be one of ~{~a~^, ~}"
-                                                            (mapcar #'car *package-clauses*))
-                                              :type ':help)))))
+        (parse-error "Malformed package declaration"
+                     (make-note (make-location (cursor:cursor-source cursor) (cst:first form))
+                                "Unknown package clause")
+                     (make-help (make-location (cursor:cursor-source cursor) (cst:first form))
+                                (format nil "Must be one of ~{~a~^, ~}"
+                                        (mapcar #'car *package-clauses*))))))
     (funcall parser package cursor)))
 
-(defun parse-package (cursor source)
+(defun parse-package (cursor)
   "Parse a coalton package declaration."
   (cursor:next-symbol cursor
                       :require "PACKAGE"
-                      :message "package declarations must start with `package`"
+                      :message "Malformed package declaration"
+                      :note "package declarations must start with `package`"
                       :missing "missing `package`")
   (let* ((package-name
            (cursor:next-symbol cursor
                                :missing "missing package name"
-                               :message "package name must be a symbol"))
+                               :message "Malformed package declaration"
+                               :note "package name must be a symbol"))
          (package-doc
            (unless (cursor:empty-p cursor)
-             (cursor:next cursor :pred #'stringp)))
+             (cursor:next cursor :pred (lambda (value span)
+                                         (declare (ignore span))
+                                         (stringp value)))))
          (package
            (make-toplevel-package :name (symbol-name package-name)
                                   :docstring package-doc
-                                  :location (make-location source
+                                  :location (make-location (cursor:cursor-source cursor)
                                                            (cursor:cursor-value cursor)))))
     (cursor:do-every cursor (alexandria:curry 'parse-package-clause package))
     package))
@@ -667,18 +687,14 @@ If MODE is :macro, a package form is forbidden, and an explicit check is made fo
 (defun read-toplevel-package (stream source)
   "Read and parse a Coalton toplevel package form."
   (with-parser-package
-    (handler-bind ((cursor:syntax-error
-                     (lambda (syntax-error)
-                       (cursor:parse-error source
-                                           "Malformed package declaration"
-                                           syntax-error))))
-      (multiple-value-bind (form presentp)
-          (maybe-read-form stream source *coalton-eclector-client*)
-        (unless presentp
-          (cursor:span-error (cons (- (file-position stream) 2)
-                                   (- (file-position stream) 1))
-                      "missing package form"))
-        (parse-package (cursor:make-cursor form) source)))))
+    (multiple-value-bind (form presentp)
+        (maybe-read-form stream source *coalton-eclector-client*)
+      (unless presentp
+        (parse-error "Missing package form"
+                     (make-note (make-location source (cons (- (file-position stream) 2)
+                                                            (- (file-position stream) 1)))
+                                "missing package form")))
+      (parse-package (cursor:make-cursor source form)))))
 
 (defun make-defpackage (package)
   "Generate a Lisp defpackage form from a Caolton toplevel-package structure."
@@ -704,11 +720,9 @@ If MODE is :macro, a package form is forbidden, and an explicit check is made fo
   (handler-case
       (eval (make-defpackage package))
     (package-error ()
-      (error 'parse-error
-             :err (se:source-error :span (location-span (toplevel-package-location package))
-                                   :source (location-source (toplevel-package-location package))
-                                   :message "Malformed package declaration"
-                                   :primary-note "unable to evaluate package definition")))))
+      (parse-error "Malformed package declaration"
+                   (make-note (toplevel-package-location package)
+                              "unable to evaluate package definition")))))
 
 (defun program-lisp-package (program)
   "Return the Lisp package associated with PROGRAM, or current *PACKAGE* if none was specified."
@@ -741,13 +755,13 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
          (options (cst:raw options-node)))
     (unless (null options)
       (cond ((maybe-def-p (car options))
-             (cursor:span-error
-              (cst:source (cst:first (cst:rest form)))
-              "saw 'def' form: in lisp-toplevel, code must be preceded by an empty options list"))
+             (parse-error "Invalid lisp-toplevel form"
+                          (make-note (make-location source (cst:first (cst:rest form)))
+                                     "saw 'def' form: in lisp-toplevel, code must be preceded by an empty options list")))
             (t
-             (cursor:span-error
-              (cst:source (cst:first (cst:rest form)))
-              "lisp-toplevel must be followed by an empty options list")))))
+             (parse-error "Invalid lisp-toplevel form"
+                          (make-note (make-location source (cst:first (cst:rest form)))
+                                     "lisp-toplevel must be followed by an empty options list"))))))
 
   (loop :for form :in (cst:raw (cst:rest (cst:rest form)))
         :when (eval-toplevel-p form)
@@ -764,37 +778,24 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
            (values boolean &optional))
 
   (when (cst:atom form)
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Malformed toplevel form"
-                 :primary-note "Unexpected atom")))
+    (parse-error "Malformed toplevel form"
+                 (make-note (make-location source form)
+                            "Unexpected atom")))
 
   ;; Toplevel forms must begin with an atom
   (when (cst:consp (cst:first form))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source (cst:first form))
-                 :source source
-                 :message "Malformed toplevel form"
-                 :primary-note "unexpected list")))
+    (parse-error "Malformed toplevel form"
+                 (make-note (make-location source (cst:first form))
+                            "unexpected list")))
 
   (case (cst:raw (cst:first form))
+
     ((coalton:monomorphize)
-     (vector-push-extend
-      (cons
-       (parse-monomorphize form source)
-       form)
-      attributes)
+     (vector-push-extend (cons (parse-monomorphize form source) form) attributes)
      nil)
 
     ((coalton:repr)
-     (vector-push-extend
-      (cons
-       (parse-repr form source)
-       form)
-      attributes)
+     (vector-push-extend (cons (parse-repr form source) form) attributes)
      nil)
 
     ((coalton:define)
@@ -804,37 +805,20 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
        (loop :for (attribute . attribute-form) :across attributes
              :do (etypecase attribute
                    (attribute-repr
-                    (error 'parse-error
-                           :err (se:source-error
-                                 :span (cst:source attribute-form)
-                                 :source source
-                                 :message "Invalid target for repr attribute"
-                                 :primary-note "repr must be attached to a define-type"
-                                 :notes
-                                 (list
-                                  (se:make-source-error-note
-                                   :type ':secondary
-                                   :span (location-span (location (toplevel-define-name define)))
-                                   :message "when parsing define")))))
-
+                    (parse-error "Invalid target for repr attribute"
+                                 (make-note (make-location source attribute-form)
+                                            "repr must be attached to a define-type")
+                                 (make-note (toplevel-define-name define)
+                                            "when parsing define")))
                    (attribute-monomorphize
                     (when monomorphize
-                      (error 'parse-error
-                             :err (se:source-error
-                                   :span (cst:source attribute-form)
-                                   :source source
-                                   :message "Duplicate monomorphize attribute"
-                                   :primary-note "monomorphize attribute here"
-                                   :notes
-                                   (list
-                                    (se:make-source-error-note
-                                     :type ':secondary
-                                     :span (cst:source monomorphize-form)
-                                     :message "previous attribute here")
-                                    (se:make-source-error-note
-                                     :type ':secondary
-                                     :span (location-span (location (toplevel-define-name define)))
-                                     :message "when parsing define")))))
+                      (parse-error "Duplicate monomorphize attribute"
+                                   (make-note (make-location source attribute-form)
+                                              "monomorphize attribute here")
+                                   (make-note (make-location source monomorphize-form)
+                                              "previous attribute here")
+                                   (make-note (toplevel-define-name define)
+                                              "when parsing define")))
 
                     (setf monomorphize attribute)
                     (setf monomorphize-form attribute-form))))
@@ -853,37 +837,21 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
        (loop :for (attribute . attribute-form) :across attributes
              :do (etypecase attribute
                    (attribute-repr
-                    (error 'parse-error
-                           :err (se:source-error
-                                 :span (cst:source attribute-form)
-                                 :source source
-                                 :message "Invalid target for repr attribute"
-                                 :primary-note "repr must be attached to a define-type"
-                                 :notes
-                                 (list
-                                  (se:make-source-error-note
-                                   :type ':secondary
-                                   :span (cst:source form)
-                                   :message "when parsing declare")))))
+                    (parse-error "Invalid target for repr attribute"
+                                 (make-note (make-location source attribute-form)
+                                            "repr must be attached to a define-type")
+                                 (make-note (make-location source form)
+                                            "when parsing declare")))
 
                    (attribute-monomorphize
                     (when monomorphize
-                      (error 'parse-error
-                             :err (se:source-error
-                                   :span (cst:source attribute-form)
-                                   :source source
-                                   :message "Duplicate monomorphize attribute"
-                                   :primary-note "monomorphize attribute here"
-                                   :notes
-                                   (list
-                                    (se:make-source-error-note
-                                     :type ':secondary
-                                     :span (cst:source monomorphize-form)
-                                     :message "previous attribute here")
-                                    (se:make-source-error-note
-                                     :type ':secondary
-                                     :span (cst:source form)
-                                     :message "when parsing declare")))))
+                      (parse-error "Duplicate monomorphize attribute"
+                                   (make-note (make-location source attribute-form)
+                                              "monomorphize attribute here")
+                                   (make-note (make-location source monomorphize-form)
+                                              "previous attribute here")
+                                   (make-note (make-location source form)
+                                              "when parsing declare")))
 
                     (setf monomorphize attribute)
                     (setf monomorphize-form attribute-form))))
@@ -903,39 +871,23 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
              :do (etypecase attribute
                    (attribute-repr
                     (when repr
-                      (error 'parse-error
-                             :err (se:source-error
-                                   :span (cst:source attribute-form)
-                                   :source source
-                                   :message "Duplicate repr atttribute"
-                                   :primary-note "repr attribute here"
-                                   :notes
-                                   (list
-                                    (se:make-source-error-note
-                                     :type ':secondary
-                                     :span (cst:source repr-form)
-                                     :message "previous attribute here")
-                                    (se:make-source-error-note
-                                     :type ':secondary
-                                     :span (location-span (toplevel-define-type-head-location type))
-                                     :message "when parsing define-type")))))
+                      (parse-error "Duplicate repr attribute"
+                                   (make-note (make-location source attribute-form)
+                                              "repr attribute here")
+                                   (make-note (make-location source repr-form)
+                                              "previous attribute here")
+                                   (make-note (toplevel-define-type-head-location type)
+                                              "when parsing define-type")))
 
                     (setf repr attribute)
                     (setf repr-form attribute-form))
 
                    (attribute-monomorphize
-                    (error 'parse-error
-                           :err (se:source-error
-                                 :span (cst:source attribute-form)
-                                 :source source
-                                 :message "Invalid target for monomorphize attribute"
-                                 :primary-note "monomorphize must be attached to a define or declare form"
-                                 :notes
-                                 (list
-                                  (se:make-source-error-note
-                                   :type ':secondary
-                                   :span (location-span (toplevel-define-type-head-location type))
-                                   :message "when parsing define-type")))))))
+                    (parse-error "Invalid target for monomorphize attribute"
+                                 (make-note (make-location source attribute-form)
+                                            "monomorphize must be attached to a define or declare form")
+                                 (make-note (toplevel-define-type-head-location type)
+                                            "when parsing define-type")))))
 
        (setf (fill-pointer attributes) 0)
        (setf (toplevel-define-type-repr type) repr)
@@ -952,53 +904,30 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
              :do (etypecase attribute
                    (attribute-repr
                     (when repr
-                      (error 'parse-error
-                             :err (se:source-error
-                                   :span (cst:source attribute-form)
-                                   :source source
-                                   :message "Duplicate repr attribute"
-                                   :primary-note "repr attribute here"
-                                   :notes
-                                   (list
-                                    (se:make-source-error-note
-                                     :type ':secondary
-                                     :span (cst:source repr-form)
-                                     :message "previous attribute here")
-                                    (se:make-source-error-note
-                                     :type ':secondary
-                                     :span (location-span (toplevel-define-struct-head-location struct) )
-                                     :message "when parsing define-struct")))))
+                      (parse-error "Duplicate repr attribute"
+                                   (make-note (make-location source attribute-form)
+                                              "repr attribute here")
+                                   (make-note (make-location source repr-form)
+                                              "previous attribute here")
+                                   (make-note (toplevel-define-struct-head-location struct)
+                                              "when parsing define-struct")))
 
                     (unless (eq :transparent (keyword-src-name (attribute-repr-type attribute)))
-                      (error 'parse-error
-                             :err (se:source-error
-                                   :span (cst:source attribute-form)
-                                   :source source
-                                   :message "Invalid repr attribute"
-                                   :primary-note "structs can only be repr transparent"
-                                   :notes
-                                   (list
-                                    (se:make-source-error-note
-                                     :type ':secondary
-                                     :span (location-span (toplevel-define-struct-head-location struct))
-                                     :message "when parsing define-struct")))))
+                      (parse-error "Invalid repr attribute"
+                                   (make-note (make-location source attribute-form)
+                                              "structs can only be repr transparent")
+                                   (make-note (toplevel-define-struct-head-location struct)
+                                              "when parsing define-struct")))
 
                     (setf repr attribute)
                     (setf repr-form attribute-form))
 
                    (attribute-monomorphize
-                    (error 'parse-error
-                           :err (se:source-error
-                                 :span (cst:source attribute-form)
-                                 :source source
-                                 :message "Invalid target for monomorphize attribute"
-                                 :primary-note "monomorphize must be attached to a define or declare form"
-                                 :notes
-                                 (list
-                                  (se:make-source-error-note
-                                   :type ':secondary
-                                   :span (location-span (location (toplevel-define-struct-name struct)))
-                                   :message "when parsing define-type")))))))
+                    (parse-error "Invalid target for monomorphize attribute"
+                                 (make-note (make-location source attribute-form)
+                                            "monomorphize must be attached to a define or declare form")
+                                 (make-note (identifier-src-location (toplevel-define-struct-name struct))
+                                            "when parsing define-type")))))
 
        (setf (fill-pointer attributes) 0)
        (setf (toplevel-define-struct-repr struct) repr)
@@ -1009,18 +938,11 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
      (let ((class (parse-define-class form source)))
 
        (unless (zerop (length attributes))
-         (error 'parse-error
-                :err (se:source-error
-                      :span (cst:source (cdr (aref attributes 0)))
-                      :source source
-                      :message "Invalid attribute for define-class"
-                      :primary-note "define-class cannot have attributes"
-                      :notes
-                      (list
-                       (se:make-source-error-note
-                        :type ':secondary
-                        :span (location-span (toplevel-define-class-head-location class))
-                        :message "while parsing define-class")))))
+         (parse-error "Invalid attribute for define-class"
+                      (make-note (make-location source (cdr (aref attributes 0)))
+                                 "define-class cannot have attributes")
+                      (make-note (toplevel-define-class-head-location class)
+                                 "while parsing define-class")))
 
        (push class (program-classes program))
        t))
@@ -1029,76 +951,53 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
      (let ((instance (parse-define-instance form source)))
 
        (unless (zerop (length attributes))
-         (error 'parse-error
-                :err (se:source-error
-                      :span (cst:source (cdr (aref attributes 0)))
-                      :source source
-                      :message "Invalid attribute for define-instance"
-                      :primary-note "define-instance cannot have attributes"
-                      :notes
-                      (list
-                       (se:make-source-error-note
-                        :type ':secondary
-                        :span (location-span (toplevel-define-instance-head-location instance))
-                        :message "while parsing define-instance")))))
-
+         (parse-error "Invalid attribute for define-instance"
+                      (make-note (make-location source (cdr (aref attributes 0)))
+                                 "define-instance cannot have attributes")
+                      (make-note (toplevel-define-instance-head-location instance)
+                                 "while parsing define-instance")))
 
        (push instance (program-instances program))
        t))
 
     ((coalton:lisp-toplevel)
-     (handler-bind ((cursor:syntax-error
-                      (lambda (syntax-error)
-                        (cursor:parse-error source
-                                            "Invalid lisp-toplevel form"
-                                            syntax-error
-                                            (list
-                                             (cursor:make-note :span (cst:source form)
-                                                               :text "when parsing lisp-toplevel"
-                                                               :type ':secondary))))))
-       (unless (alexandria:featurep ':coalton-lisp-toplevel)
-         (cursor:span-error (cst:source form)
-                            "lisp-toplevel is only allowed in library source code. To enable elsewhere, (pushnew :coalton-lisp-toplevel *features*)"))
-       (unless (zerop (length attributes))
-         (cursor:span-error (cst:source (cdr (aref attributes 0)))
-                            "lisp-toplevel cannot have attributes"))
+
+     (unless (alexandria:featurep ':coalton-lisp-toplevel)
+       (parse-error "Invalid lisp-toplevel form"
+                    (make-note (make-location source form)
+                               "lisp-toplevel is only allowed in library source code. To enable elsewhere, (pushnew :coalton-lisp-toplevel *features*)")))
+     (unless (zerop (length attributes))
+       (parse-error "Invalid lisp-toplevel form"
+                    (make-note (make-location source (cdr (aref attributes 0)))
+                               "lisp-toplevel cannot have attributes")
+                    (make-note (make-location source form)
+                               "when parsing lisp-toplevel")))
+
+     (with-note (source form "when parsing lisp-toplevel")
        (parse-lisp-toplevel-form form program source))
+
      t)
 
     ((coalton:specialize)
      (let ((spec (parse-specialize form source)))
 
        (unless (zerop (length attributes))
-         (error 'parse-error
-                :err (se:source-error
-                      :span (cst:source (cdr (aref attributes 0)))
-                      :source source
-                      :message "Invalid attribute for specialize"
-                      :primary-note "specialize cannot have attributes"
-                      :notes
-                      (list
-                       (se:make-source-error-note
-                        :type ':secondary
-                        :span (cst:source form)
-                        :message "when parsing specialize")))))
+         (parse-error "Invalid attribute for specialize"
+                      (make-note (make-location source (cdr (aref attributes 0)))
+                                 "specialize cannot have attributes")
+                      (make-note (make-location source form)
+                                 "when parsing specialize")))
 
        (push spec (program-specializations program))
        t))
 
     ((coalton:progn)
      (unless (zerop (length attributes))
-       (error 'parse-error
-              :err (se:source-error
-                    :span (cst:source (cdr (aref attributes 0)))
-                    :source source
-                    :message "Invalid attribute for progn"
-                    :primary-note "progn cannot have attributes"
-                    :notes
-                    (list
-                     (se:make-source-error-note
-                      :type ':secondary
-                      :span (cst:source form)
-                      :message "when parsing progn")))))
+       (parse-error "Invalid attribute for progn"
+                    (make-note (make-location source (cdr (aref attributes 0)))
+                               "progn cannot have attributes")
+                    (make-note (make-location source form)
+                               "when parsing progn")))
 
      (loop :for inner-form := (cst:rest form) :then (cst:rest inner-form)
            :while (not (cst:null inner-form)) :do
@@ -1108,18 +1007,11 @@ If the outermost form matches (eval-when (compile-toplevel) ..), evaluate the en
 consume all attributes")))
 
      (unless (zerop (length attributes))
-       (error 'parse-error
-              :err (se:source-error
-                    :span (cst:source (cdr (aref attributes 0)))
-                    :source source
-                    :message "Trailing attributes in progn"
-                    :primary-note "progn cannot have trailing attributes"
-                    :notes
-                    (list
-                     (se:make-source-error-note
-                      :type ':secondary
-                      :span (cst:source form)
-                      :message "when parsing progn")))))
+       (parse-error "Trailing attributes in progn"
+                    (make-note (make-location source (cdr (aref attributes 0)))
+                               "progn cannot have trailing attributes")
+                    (make-note (make-location source form)
+                               "when parsing progn")))
      t)
 
     (t
@@ -1127,19 +1019,14 @@ consume all attributes")))
        ((and (cst:atom (cst:first form))
              (symbolp (cst:raw (cst:first form)))
              (macro-function (cst:raw (cst:first form))))
-        (let ((se:*source-error-context*
-                (adjoin (se:make-source-error-context
-                         :message "Error occurs within macro context. Source locations may be imprecise")
-                        se:*source-error-context*
-                        :test #'equalp)))
+        (with-context (:macro
+                       "Error occurs within macro context. Source locations may be imprecise")
           (parse-toplevel-form (expand-macro form source) program attributes source)))
 
-       ((error 'parse-error
-               :err (se:source-error
-                     :span (cst:source (cst:first form))
-                     :source source
-                     :message "Invalid toplevel form"
-                     :primary-note "unknown toplevel form")))))))
+       (t
+        (parse-error "Invalid toplevel form"
+                     (make-note (make-location source (cst:first form))
+                                "unknown toplevel form")))))))
 
 
 (defun parse-define (form source)
@@ -1150,21 +1037,15 @@ consume all attributes")))
 
   ;; (define)
   (unless (cst:consp (cst:rest form))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Malformed definition"
-                 :primary-note "expected define body")))
+    (parse-error "Malformed definition"
+                 (make-note (make-location source form)
+                            "expected define body")))
 
   ;; (define x)
   (unless (cst:consp (cst:rest (cst:rest form)))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Malformed definition"
-                 :primary-note "expected value")))
+    (parse-error "Malformed definition"
+                 (make-note (make-location source form)
+                            "expected value")))
 
   (multiple-value-bind (name params)
       (parse-argument-list (cst:second form) source)
@@ -1189,39 +1070,27 @@ consume all attributes")))
 
   ;; (declare)
   (unless (cst:consp (cst:rest form))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Malformed declaration"
-                 :primary-note "expected body")))
+    (parse-error "Malformed declaration"
+                 (make-note (make-location source form)
+                            "expected body")))
 
   ;; (declare x)
   (unless (cst:consp (cst:rest (cst:rest form)))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Malformed declaration"
-                 :primary-note "expected declared type")))
+    (parse-error "Malformed declaration"
+                 (make-note (make-location source form)
+                            "expected declared type")))
 
   ;; (declare x y z)
   (when (cst:consp (cst:rest (cst:rest (cst:rest form))))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source (cst:first (cst:rest (cst:rest (cst:rest form)))))
-                 :source source
-                 :message "Malformed declaration"
-                 :primary-note "unexpected trailing form")))
+    (parse-error "Malformed declaration"
+                 (make-note (make-location source (cst:first (cst:rest (cst:rest (cst:rest form)))))
+                            "unexpected trailing form")))
 
   ;; (declare 0.5 x)
   (unless (identifierp (cst:raw (cst:second form)))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source (cst:second form))
-                 :source source
-                 :message "Malformed declaration"
-                 :primary-note "expected symbol")))
+    (parse-error "Malformed declaration"
+                 (make-note (make-location source (cst:second form))
+                            "expected symbol")))
 
   (make-toplevel-declare
    :name (make-identifier-src
@@ -1245,22 +1114,16 @@ consume all attributes")))
 
     ;; (define-type)
     (unless (cst:consp (cst:rest form))
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source form)
-                   :source source
-                   :message "Malformed type definition"
-                   :primary-note "expected body")))
+      (parse-error "Malformed type definition"
+                   (make-note (make-location source form)
+                              "expected body")))
 
     (cond
       ((cst:atom (cst:second form))
        (unless (identifierp (cst:raw (cst:second form)))
-         (error 'parse-error
-                :err (se:source-error
-                      :span (cst:source (cst:second form))
-                      :source source
-                      :message "Malformed type definition"
-                      :primary-note "expected symbol")))
+         (parse-error "Malformed type definition"
+                      (make-note (make-location source (cst:second form))
+                                 "expected symbol")))
 
        (setf name (make-identifier-src :name (cst:raw (cst:second form))
                                        :location (make-location source form))))
@@ -1268,49 +1131,33 @@ consume all attributes")))
       (t                                ; (define-type (T ...) ...)
        ;; (define-type ((T) ...) ...)
        (unless (cst:atom (cst:first (cst:second form)))
-         (error 'parse-error
-                :err (se:source-error
-                      :span (cst:source (cst:first (cst:second form)))
-                      :source source
-                      :message "Malformed type definition"
-                      :primary-note "expected symbol"
-                      :help-notes
-                      (list
-                       (se:make-source-error-help
-                        :span (cst:source (cst:second form))
-                        :replacement
-                        (lambda (existing)
-                          (subseq existing 1 (1- (length existing))))
-                        :message "remove parentheses")))))
+         (parse-error "Malformed type definition"
+                      (make-note (make-location source (cst:first (cst:second form)))
+                                 "expected symbol")
+                      (make-help (make-location source (cst:second form))
+                                 "remove parentheses"
+                                 (lambda (existing)
+                                   (subseq existing 1 (1- (length existing)))))))
 
        ;; (define-type (1 ...) ...)
        (unless (identifierp (cst:raw (cst:first (cst:second form))))
-         (error 'parse-error
-                :err (se:source-error
-                      :span (cst:source (cst:first (cst:second form)))
-                      :source source
-                      :message "Malformed type definition"
-                      :primary-note "expected symbol")))
+         (parse-error "Malformed type definition"
+                      (make-note (make-location source (cst:first (cst:second form)))
+                                 "expected symbol")))
 
-       (setf name (make-identifier-src :name (cst:raw (cst:first (cst:second form)))
-                                       :location (make-location source (cst:first (cst:second form)))))
+       (setf name
+             (make-identifier-src :name (cst:raw (cst:first (cst:second form)))
+                                  :location (make-location source (cst:first (cst:second form)))))
 
        ;; (define-type (T) ...)
        (when (cst:atom (cst:rest (cst:second form)))
-         (error 'parse-error
-                :err (se:source-error
-                      :span (cst:source (cst:second form))
-                      :source source
-                      :message "Malformed type definition"
-                      :primary-note "nullary types should not have parentheses"
-                      :help-notes
-                      (list
-                       (se:make-source-error-help
-                        :span (cst:source (cst:second form))
-                        :replacement
-                        (lambda (existing)
-                          (subseq existing 1 (1- (length existing))))
-                        :message "remove unnecessary parentheses")))))
+         (parse-error "Malformed type definition"
+                      (make-note (make-location source (cst:second form))
+                                 "nullary types should not have parentheses")
+                      (make-help (make-location source (cst:second form))
+                                 "remove unnecessary parentheses"
+                                 (lambda (existing)
+                                   (subseq existing 1 (1- (length existing)))))))
 
        (loop :for vars := (cst:rest (cst:second form)) :then (cst:rest vars)
              :while (cst:consp vars)
@@ -1343,13 +1190,9 @@ consume all attributes")))
 
     ;; (define-struct)
     (unless (cst:consp (cst:rest form))
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source form)
-                   :source source
-                   :message "Malformed struct definition"
-                   :primary-note "expected body"
-                   :highlight :end)))
+      (parse-error "Malformed struct definition"
+                   (make-note (make-end-location source form)
+                              "expected body")))
 
     (if (cst:atom (cst:second form))
         ;; (define-struct S ...)
@@ -1396,37 +1239,24 @@ consume all attributes")))
 
     ;; (define-class)
     (unless (cst:consp (cst:rest form))
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source form)
-                   :source source
-                   :message "Malformed class definition"
-                   :primary-note "expected body")))
+      (parse-error "Malformed class definition"
+                   (make-note (make-location source form)
+                              "expected body")))
 
     ;; (define-class C)
     (unless (cst:consp (cst:second form))
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source (cst:second form))
-                   :source source
-                   :message "Malformed class definition"
-                   :primary-note "expected class type variable(s)"
-                   :help-notes
-                   (list
-                    (se:make-source-error-help
-                     :span (cst:source (cst:second form))
-                     :replacement
-                     (lambda (existing)
-                       (concatenate 'string "(" existing " :a)"))
-                     :message "add class type variable `:a`")))))
+      (parse-error "Malformed class definition"
+                   (make-note (make-location source (cst:second form))
+                              "expected class type variable(s)")
+                   (make-help (make-location source (cst:second form))
+                              "add class type variable `:a`"
+                              (lambda (existing)
+                                (concatenate 'string "(" existing " :a)")))))
 
     (unless (cst:proper-list-p (cst:second form))
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source (cst:second form))
-                   :source source
-                   :message "Malformed class definition"
-                   :primary-note "unexpected dotted list")))
+      (parse-error "Malformed class definition"
+                   (make-note (make-location source (cst:second form))
+                              "unexpected dotted list")))
 
     (multiple-value-bind (left right)
         (util:take-until (lambda (cst)
@@ -1436,45 +1266,35 @@ consume all attributes")))
 
       ;; (=> C ...)
       (when (and (null left) right)
-        (error 'parse-error
-               :err (se:source-error
-                     :span (cst:source (cst:first (cst:second form)))
-                     :source source
-                     :message "Malformed class definition"
-                     :primary-note "unnecessary `=>`"
-                     :help-notes
-                     (cond
-                       ;; If this is the only thing in the list then don't suggest anything
-                       ((cst:atom (cst:rest (cst:second form)))
-                        nil)
-                       ;; If there is nothing to the right of C then emit without list
-                       ((cst:atom (cst:rest (cst:rest (cst:second form))))
-                        (list
-                         (se:make-source-error-help
-                          :span (cst:source (cst:second form))
-                          :replacement
-                          (lambda (existing)
-                            (subseq existing 4 (1- (length existing))))
-                          :message "remove `=>`")))
-                       (t
-                        (list
-                         (se:make-source-error-help
-                          :span (cst:source (cst:second form))
-                          :replacement
-                          (lambda (existing)
-                            (concatenate 'string
-                                         (subseq existing 0 1)
-                                         (subseq existing 4)))
-                          :message "remove `=>`")))))))
+        (error 'source-error
+               :message "Malformed class definition"
+               :notes (cons (make-note (make-location source (cst:first (cst:second form)))
+                                       "unnecessary `=>`")
+                            (cond
+                              ;; If this is the only thing in the list then don't suggest anything
+                              ((cst:atom (cst:rest (cst:second form)))
+                               nil)
+                              ;; If there is nothing to the right of C then emit without list
+                              ((cst:atom (cst:rest (cst:rest (cst:second form))))
+                               (list
+                                (make-help (make-location source (cst:second form))
+                                           "remove `=>`"
+                                           (lambda (existing)
+                                             (subseq existing 4 (1- (length existing)))))))
+                              (t
+                               (list
+                                (make-help (make-location source (cst:second form))
+                                           "remove `=>`"
+                                           (lambda (existing)
+                                             (concatenate 'string
+                                                          (subseq existing 0 1)
+                                                          (subseq existing 4))))))))))
 
       ;; (... =>)
       (when (and left right (null (cdr right)))
-        (error 'parse-error
-               :err (se:source-error
-                     :span (cst:source (cst:second form))
-                     :source source
-                     :message "Malformed class definition"
-                     :primary-note "missing class name")))
+        (parse-error "Malformed class definition"
+                     (make-note (make-location source (cst:second form))
+                                "missing class name")))
 
       (cond
         ;; No predicates
@@ -1485,12 +1305,9 @@ consume all attributes")))
         ;; (... => (...) ...)
         ((and (cst:consp (second right))
               (consp (cdr (cdr right))))
-         (error 'parse-error
-                :err (se:source-error
-                      :span (cst:source (third right))
-                      :source source
-                      :message "Malformed class definition"
-                      :primary-note "unexpected form")))
+         (parse-error "Malformed class definition"
+                      (make-note (make-location source (third right))
+                                 "unexpected form")))
 
         ;; (... => (...))
         ((cst:consp (second right))
@@ -1505,48 +1322,31 @@ consume all attributes")))
 
       ;; (define-class ((C) ...))
       (unless (cst:atom unparsed-name)
-        (error 'parse-error
-               :err (se:source-error
-                     :span (cst:source unparsed-name)
-                     :source source
-                     :message "Malformed class definition"
-                     :primary-note "unnecessary parentheses"
-                     :help-notes
-                     (list
-                      (se:make-source-error-help
-                       :span (cst:source unparsed-name)
-                       :replacement
-                       (lambda (existing)
-                         (subseq existing 1 (1- (length existing))))
-                       :message "remove unnecessary parentheses")))))
+        (parse-error "Malformed class definition"
+                     (make-note (make-location source unparsed-name)
+                                "unnecessary parentheses")
+                     (make-help (make-location source unparsed-name)
+                                "remove unnecessary parentheses"
+                                (lambda (existing)
+                                  (subseq existing 1 (1- (length existing)))))))
 
       (unless (identifierp (cst:raw unparsed-name))
-        (error 'parse-error
-               :err (se:source-error
-                     :span (cst:source unparsed-name)
-                     :source source
-                     :message "Malformed class definition"
-                     :primary-note "expected symbol")))
+        (parse-error "Malformed class definition"
+                     (make-note (make-location source unparsed-name)
+                                "expected symbol")))
 
       (setf name (cst:raw unparsed-name))
 
       (when (null unparsed-variables)
-        (error 'parse-error
-               :err (se:source-error
-                     :span (cst:source unparsed-name)
-                     :source source
-                     :message "Malformed class definition"
-                     :primary-note "expected class type variable(s)"
-                     :help-notes
-                     (list
-                      (se:make-source-error-help
-                       :span (cst:source unparsed-name)
-                       :replacement
-                       (lambda (existing)
-                         (if (cst:consp (cst:second form))
-                             (concatenate 'string existing " :a")
-                             (concatenate 'string "(" existing " :a)")))
-                       :message "add class type variable `:a`")))))
+        (parse-error "Malformed class definition"
+                     (make-note (make-location source unparsed-name)
+                                "expected class type variable(s)")
+                     (make-help (make-location source unparsed-name)
+                                "add class type variable `:a`"
+                                (lambda (existing)
+                                  (if (cst:consp (cst:second form))
+                                      (concatenate 'string existing " :a")
+                                      (concatenate 'string "(" existing " :a)"))))))
 
 
       (multiple-value-bind (left right)
@@ -1608,30 +1408,20 @@ consume all attributes")))
 
     ;; (define-instance)
     (unless (cst:consp (cst:rest form))
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source form)
-                   :source source
-                   :highlight :end
-                   :message "Malformed instance definition"
-                   :primary-note "expected an instance head")))
+      (parse-error "Malformed instance definition"
+                   (make-note (make-end-location source form)
+                              "expected an instance head")))
 
     ;; (define-instance 5)
     (unless (cst:consp (cst:second form))
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source (cst:second form))
-                   :source source
-                   :message "Malformed instance definition"
-                   :primary-note "expected a list")))
+      (parse-error "Malformed instance definition"
+                   (make-note (make-location source (cst:second form))
+                              "expected a list")))
 
     (unless (cst:proper-list-p (cst:second form))
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source (cst:second form))
-                   :source source
-                   :message "Malformed instance definition"
-                   :primary-note "unexpected dotted list")))
+      (parse-error "Malformed instance definition"
+                   (make-note (make-location source (cst:second form))
+                              "unexpected dotted list")))
 
     (multiple-value-bind (left right)
         (util:take-until
@@ -1649,12 +1439,9 @@ consume all attributes")))
         ((and (second right)
               (cst:consp (second right))
               (consp (cdr (cdr right))))
-         (error 'parse-error
-                :err (se:source-error
-                      :span (cst:source (third right))
-                      :source source
-                      :message "Malformed instance definition"
-                      :primary-note "unexpected form")))
+         (parse-error "Malformed instance definition"
+                      (make-note (make-location source (third right))
+                                 "unexpected form")))
 
         ;; (.... => (...))
         ((and (second right)
@@ -1669,39 +1456,20 @@ consume all attributes")))
 
       ;; (... =>)
       (when (and left right (null (cdr right)))
-        (error 'parse-error
-               :err (se:source-error
-                     :span (cst:source (first right))
-                     :source source
-                     :message "Malformed instance head"
-                     :primary-note "unexpected `=>`"
-                     :help-notes
-                     (list
-                      (se:make-source-error-help
-                       :span (cst:source (first right))
-                       :replacement
-                       (lambda (existing)
-                         (declare (ignore existing))
-                         "")
-                       :message "remove the `=>`")))))
+        (error 'source-error
+               :message "Malformed instance head"
+               :notes (list (make-note (make-location source (first right))
+                                       "unexpected `=>`")
+                            (make-help (make-location source (first right))
+                                       "remove the `=>`"))))
 
       ;; (=> ...)
       (when (and (null left) right)
-        (error 'parse-error
-               :err (se:source-error
-                     :span (cst:source (first right))
-                     :source source
-                     :message "Malformed instance head"
-                     :primary-note "unexpected `=>`"
-                     :help-notes
-                     (list
-                      (se:make-source-error-help
-                       :span (cst:source (first right))
-                       :replacement
-                       (lambda (existing)
-                         (declare (ignore existing))
-                         "")
-                       :message "remove the `=>`")))))
+        (parse-error "Malformed instance head"
+                     (make-note (make-location source (first right))
+                                "unexpected `=>`")
+                     (make-help (make-location source (first right))
+                                "remove the `=>`")))
 
       (when unparsed-context
         (if (cst:atom (first unparsed-context))
@@ -1741,42 +1509,27 @@ consume all attributes")))
 
   ;; (specialize)
   (unless (cst:consp (cst:rest form))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :highlight :end
-                 :message "Malformed specialize declaration"
-                 :primary-note "missing from name")))
+    (parse-error "Malformed specialize declaration"
+                 (make-note (make-end-location source form)
+                            "missing from name")))
 
   ;; (specialize f)
   (unless (cst:consp (cst:rest (cst:rest form)))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :highlight :end
-                 :message "Malformed specialize declaration"
-                 :primary-note "missing to name")))
+    (parse-error "Malformed specialize declaration"
+                 (make-note (make-end-location source form)
+                            "missing to name")))
 
   ;; (specialize f f2)
   (unless (cst:consp (cst:rest (cst:rest (cst:rest form))))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :highlight :end
-                 :message "Malformed specialize declaration"
-                 :primary-note "missing type")))
+    (parse-error "Malformed specialize declaration"
+                 (make-note (make-end-location source form)
+                            "missing type")))
 
   ;; (specialize f f2 t ....)
   (when (cst:consp (cst:rest (cst:rest (cst:rest (cst:rest form)))))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source (cst:first (cst:rest (cst:rest (cst:rest (cst:rest form))))))
-                 :source source
-                 :message "Malformed specialize declaration"
-                 :primary-note "unexpected form")))
+    (parse-error "Malformed specialize declaration"
+                 (make-note (make-location source (cst:first (cst:rest (cst:rest (cst:rest (cst:rest form))))))
+                            "unexpected form")))
 
   (make-toplevel-specialize
    :from (parse-variable (cst:second form) source)
@@ -1791,67 +1544,40 @@ consume all attributes")))
   ;; m or (m)
   (unless (and (cst:consp method-form)
                (cst:consp (cst:rest method-form)))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source method-form)
-                 :source source
-                 :message "Malformed method definition"
-                 :primary-note "missing method type"
-                 :notes
-                 (list
-                  (se:make-source-error-note
-                   :type ':secondary
-                   :span (cst:source (cst:second form))
-                   :message "in this class definition")))))
+    (parse-error "Malformed method definition"
+                 (make-note (make-location source method-form)
+                            "missing method type")
+                 (make-note (make-location source (cst:second form))
+                            "in this class definition")))
 
   ;; (m d t ...)
   (unless (or (cst:null (cst:rest (cst:rest method-form)))
               (cst:null (cst:rest (cst:rest (cst:rest method-form)))))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source (cst:first (cst:rest (cst:rest (cst:rest method-form)))))
-                 :source source
-                 :message "Malformed method definition"
-                 :primary-note "unexpected trailing form"
-                 :notes
-                 (list
-                  (se:make-source-error-note
-                   :type ':secondary
-                   :span (cst:source (cst:second form))
-                   :message "in this class definition")))))
+    (parse-error "Malformed method definition"
+                 (make-note (make-location source
+                                           (cst:first (cst:rest (cst:rest (cst:rest method-form)))))
+                            "unexpected trailing form")
+                 (make-note (make-location source (cst:second form))
+                            "in this class definition")))
 
   ;; (0.5 t ...)
   (unless (and (cst:atom (cst:first method-form))
                (identifierp (cst:raw (cst:first method-form))))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source (cst:first method-form))
-                 :source source
-                 :message "Malformed method definition"
-                 :primary-note "expected symbol"
-                 :notes
-                 (list
-                  (se:make-source-error-note
-                   :type ':secondary
-                   :span (cst:source (cst:second form))
-                   :message "in this class definition")))))
+    (parse-error "Malformed method definition"
+                 (make-note (make-location source (cst:first method-form))
+                            "expected symbol")
+                 (make-note (make-location source (cst:second form))
+                            "in this class definition")))
 
   ;; (m "docstring")
   (when (and (cst:atom (cst:second method-form))
              (stringp (cst:raw (cst:second method-form)))
              (cst:null (cst:rest (cst:rest method-form))))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source (cst:second method-form))
-                 :source source
-                 :message "Malformed method definition"
-                 :primary-note "missing method type"
-                 :notes
-                 (list
-                  (se:make-source-error-note
-                   :type ':secondary
-                   :span (cst:source (cst:second form))
-                   :message "in this class definition")))))
+    (parse-error "Malformed method definition"
+                 (make-note (make-location source (cst:second method-form))
+                            "missing method type")
+                 (make-note (make-location source (cst:second form))
+                            "in this class definition")))
 
   (let (docstring)
     (when (and (cst:atom (cst:second method-form))
@@ -1862,20 +1588,13 @@ consume all attributes")))
     (unless (or (cst:null (cst:rest (cst:rest method-form)))
                 (and (cst:atom (cst:second method-form))
                      (stringp (cst:raw (cst:second method-form)))))
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source (if docstring
-                                         (cst:fourth method-form)
-                                         (cst:third method-form)))
-                   :source source
-                   :message "Malformed method definition"
-                   :primary-note "unexpected trailing form"
-                   :notes
-                   (list
-                    (se:make-source-error-note
-                     :type ':secondary
-                     :span (cst:source (cst:second form))
-                     :message "in this class definition")))))
+      (parse-error "Malformed method definition"
+                   (make-note (make-location source (if docstring
+                                                        (cst:fourth method-form)
+                                                        (cst:third method-form)))
+                              "unexpected trailing form")
+                   (make-note (make-location source (cst:second form))
+                              "in this class definition")))
 
     (make-method-definition
      :name (make-identifier-src
@@ -1893,28 +1612,18 @@ consume all attributes")))
            (values keyword-src &optional))
 
   (when (cst:consp form)
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Invalid type variable"
-                 :primary-note "expected keyword symbol")))
+    (parse-error "Invalid type variable"
+                 (make-note (make-location source form)
+                            "expected keyword symbol")))
 
   (unless (keywordp (cst:raw form))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Invalid type variable"
-                 :primary-note "expected keyword symbol"
-                 :help-notes
-                 (list
-                  (se:make-source-error-help
-                   :span (cst:source form)
-                   :replacement
-                   (lambda (existing)
-                     (concatenate 'string ":" existing))
-                   :message "add `:` to symbol")))))
+    (parse-error "Invalid type variable"
+                 (make-note (make-location source form)
+                            "expected keyword symbol")
+                 (make-help (make-location source form)
+                            "add `:` to symbol"
+                            (lambda (existing)
+                              (concatenate 'string ":" existing)))))
 
   (make-keyword-src
    :name (cst:raw form)
@@ -1934,40 +1643,25 @@ consume all attributes")))
           (setf unparsed-fields (cst:listify (cst:rest form)))))
 
     (unless (cst:atom unparsed-name)
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source unparsed-name)
-                   :source source
-                   :message "Malformed constructor"
-                   :primary-note "expected symbol"
-                   :notes
-                   (list
-                    (se:make-source-error-note
-                     :type ':secondary
-                     :span (cst:source (cst:second enclosing-form))
-                     :message "in this type definition")))))
+      (parse-error "Malformed constructor"
+                   (make-note (make-location source unparsed-name)
+                              "expected symbol")
+                   (make-note (make-location source (cst:second enclosing-form))
+                              "in this type definition")))
 
     (unless (identifierp (cst:raw unparsed-name))
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source unparsed-name)
-                   :source source
-                   :message "Malformed constructor"
-                   :primary-note "expected symbol"
-                   :notes
-                   (list
-                    (se:make-source-error-note
-                     :type ':secondary
-                     :span (cst:source (cst:second enclosing-form))
-                     :message "in this type definition")))))
+      (parse-error "Malformed constructor"
+                   (make-note (make-location source unparsed-name)
+                              "expected symbol")
+                   (make-note (make-location source (cst:second enclosing-form))
+                              "in this type definition")))
 
-    (make-constructor
-     :name (make-identifier-src
-            :name (cst:raw unparsed-name)
-            :location (make-location source unparsed-name))
-     :fields (loop :for field :in unparsed-fields
-                   :collect (parse-type field source))
-     :location (make-location source form))))
+    (make-constructor :name (make-identifier-src
+                             :name (cst:raw unparsed-name)
+                             :location (make-location source unparsed-name))
+                      :fields (loop :for field :in unparsed-fields
+                                    :collect (parse-type field source))
+                      :location (make-location source form))))
 
 (defun parse-argument-list (form source)
   (declare (type cst:cst form)
@@ -1979,12 +1673,9 @@ consume all attributes")))
 
   ;; (define (0.5 x y) ...)
   (unless (identifierp (cst:raw (cst:first form)))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source (cst:first form))
-                 :source source
-                 :message "Malformed function definition"
-                 :primary-note "expected symbol")))
+    (parse-error "Malformed function definition"
+                 (make-note (make-location source (cst:first form))
+                            "expected symbol")))
 
   (values
    (parse-variable (cst:first form) source)
@@ -2001,36 +1692,24 @@ consume all attributes")))
            (values identifier-src))
 
   (unless (cst:atom form)
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Unexpected list"
-                 :primary-note "expected an identifier")))
+    (parse-error "Unexpected list"
+                 (make-note (make-location source form)
+                            "expected an identifier")))
 
   (unless (identifierp (cst:raw form))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Unexpected form"
-                 :primary-note "expected an identifier")))
+    (parse-error "Unexpected form"
+                 (make-note (make-location source form)
+                            "expected an identifier")))
 
   (when (string= "_" (cst:raw form))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Invalid identifier"
-                 :primary-note "invalid identifier '_'")))
+    (parse-error "Invalid identifier"
+                 (make-note (make-location source form)
+                            "invalid identifier '_'")))
 
   (when (char= #\. (aref (symbol-name (cst:raw form)) 0))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Invalid identifier"
-                 :primary-note "identifiers cannot start with '.'")))
+    (parse-error "Invalid identifier"
+                 (make-note (make-location source form)
+                            "identifiers cannot start with '.'")))
 
   (make-identifier-src
    :name (cst:raw form)
@@ -2063,48 +1742,28 @@ consume all attributes")))
            (type cst:cst parent-form)
            (values instance-method-definition))
 
-  (let ((context-note
-          (se:make-source-error-note
-           :type ':secondary
-           :span (cst:source parent-form)
-           :message "when parsing instance")))
+  (with-note (source parent-form "when parsing instance")
 
     (unless (cst:consp form)
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source form)
-                   :source source
-                   :message "Malformed method definition"
-                   :primary-note "expected list"
-                   :notes (list context-note))))
+      (parse-error "Malformed method definition"
+                   (make-note (make-location source form)
+                              "expected list")))
 
     (unless (cst:proper-list-p form)
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source form)
-                   :source source
-                   :message "Malformed method definition"
-                   :primary-note "unexpected dotted list"
-                   :notes (list context-note))))
+      (parse-error "Malformed method definition"
+                   (make-note (make-location source form)
+                              "unexpected dotted list")))
 
     (unless (and (cst:atom (cst:first form))
                  (eq (cst:raw (cst:first form)) 'coalton:define))
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source (cst:first form))
-                   :source source
-                   :message "Malformed method definition"
-                   :primary-note "expected method definition"
-                   :notes (list context-note))))
+      (parse-error "Malformed method definition"
+                   (make-note (make-location source (cst:first form))
+                              "expected method definition")))
 
     (unless (cst:consp (cst:rest form))
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source form)
-                   :source source
-                   :message "Malformed method definition"
-                   :primary-note "expected definition name"
-                   :notes (list context-note))))
+      (parse-error "Malformed method definition"
+                   (make-note (make-location source form)
+                              "expected definition name")))
 
     (multiple-value-bind (name params)
         (parse-argument-list (cst:second form) source)
@@ -2120,20 +1779,14 @@ consume all attributes")))
            (values fundep))
 
   (unless (cst:consp form)
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Malformed functional dependency"
-                 :primary-note "expected a list")))
+    (parse-error "Malformed functional dependency"
+                 (make-note (make-location source form)
+                            "expected a list")))
 
   (unless (cst:proper-list-p form)
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Malformed functional dependency"
-                 :primary-note "unexpected dotted list")))
+    (parse-error "Malformed functional dependency"
+                 (make-note (make-location source form)
+                            "unexpected dotted list")))
 
   (multiple-value-bind (left right)
       (util:take-until
@@ -2143,21 +1796,14 @@ consume all attributes")))
        (cst:listify form))
 
     (unless left
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source form)
-                   :source source
-                   :message "Malformed functional dependency"
-                   :primary-note "expected one or more type variables")))
+      (parse-error "Malformed functional dependency"
+                   (make-note (make-location source form)
+                              "expected one or more type variables")))
 
     (unless (rest right)
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source form)
-                   :source source
-                   :highlight :end
-                   :message "Malformed functional dependency"
-                   :primary-note "expected one or more type variables")))
+      (parse-error "Malformed functional dependency"
+                   (make-note (make-end-location source form)
+                              "expected one or more type variables")))
 
     (make-fundep
      :left (loop :for var :in left
@@ -2174,12 +1820,9 @@ consume all attributes")))
   (assert (cst:consp form))
 
   (when (cst:consp (cst:rest form))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Malformed monomophize attribute"
-                 :primary-note "unexpected form")))
+    (parse-error "Malformed monomorphize attribute"
+                 (make-note (make-location source form)
+                            "unexpected form")))
 
   (make-attribute-monomorphize
    :location (make-location source form)))
@@ -2191,34 +1834,23 @@ consume all attributes")))
   (assert (cst:consp form))
 
   (unless (cst:consp (cst:rest form))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :highlight :end
-                 :message "Malformed repr attribute"
-                 :primary-note "expected keyword symbol")))
+    (parse-error "Malformed repr attribute"
+                 (make-note (make-end-location source form)
+                            "expected keyword symbol")))
 
   (let ((type (parse-type-variable (cst:second form) source)))
     (if (eq (keyword-src-name type) :native)
 
         (progn ;; :native reprs must have an argument
           (unless (cst:consp (cst:rest (cst:rest form)))
-            (error 'parse-error
-                   :err (se:source-error
-                         :span (cst:source form)
-                         :source source
-                         :highlight :end
-                         :message "Malformed repr :native attribute"
-                         :primary-note "expected a lisp type")))
+            (parse-error "Malformed repr :native attribute"
+                         (make-note (make-end-location source form)
+                                    "expected a lisp type")))
 
           (when (cst:consp (cst:rest (cst:rest (cst:rest form))))
-            (error 'parse-error
-                   :err (se:source-error
-                         :span (cst:source (cst:first (cst:rest (cst:rest (cst:rest form)))))
-                         :source source
-                         :message "Malformed repr :native attribute"
-                         :primary-note "unexpected form")))
+            (parse-error "Malformed repr :native attribute"
+                         (make-note (make-location source (cst:first (cst:rest (cst:rest (cst:rest form)))))
+                                    "unexpected form")))
 
           (make-attribute-repr
            :type type
@@ -2227,24 +1859,18 @@ consume all attributes")))
 
         (progn ;; other reprs do not have an argument
           (when (cst:consp (cst:rest (cst:rest form)))
-            (error 'parse-error
-                   :err (se:source-error
-                         :span (cst:source (cst:first (cst:rest (cst:rest form))))
-                         :source source
-                         :message "Malformed repr attribute"
-                         :primary-note "unexpected form")))
+            (parse-error "Malformed repr attribute"
+                         (make-note (make-location source (cst:first (cst:rest (cst:rest form))))
+                                    "unexpected form")))
 
           (case (keyword-src-name type)
             (:lisp nil)
             (:transparent nil)
             (:enum nil)
             (t
-             (error 'parse-error
-                    :err (se:source-error
-                          :span (cst:source (cst:second form))
-                          :source source
-                          :message "Unknown repr attribute"
-                          :primary-note "expected one of :lisp, :transparent, :enum, or :native"))))
+             (parse-error "Unknown repr attribute"
+                          (make-note (make-location source (cst:second form))
+                                     "expected one of :lisp, :transparent, :enum, or :native"))))
 
           (make-attribute-repr
            :type type
@@ -2257,32 +1883,22 @@ consume all attributes")))
 
   ;; 5
   (unless (cst:consp form)
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Malformed struct field"
-                 :primary-note "unexpected form")))
+    (parse-error "Malformed struct field"
+                 (make-note (make-location source form)
+                            "unexpected form")))
 
   ;; (5 ...)
   (unless (and (cst:atom (cst:first form))
                (symbolp (cst:raw (cst:first form))))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Malformed struct field"
-                 :primary-note "invalid field name (must be a symbol)"
-                 :highlight :end)))
+    (parse-error "Malformed struct field"
+                 (make-note (make-end-location source form)
+                            "invalid field name (must be a symbol)")))
 
   ;; (name)
   (unless (cst:consp (cst:rest form))
-    (error 'parse-error
-           :err (se:source-error
-                 :span (cst:source form)
-                 :source source
-                 :message "Malformed struct field"
-                 :primary-note "expected field type")))
+    (parse-error "Malformed struct field"
+                 (make-note (make-location source form)
+                            "expected field type")))
 
   (multiple-value-bind (docstring rest-field)
       (if (stringp (cst:raw (cst:second form)))
@@ -2291,27 +1907,17 @@ consume all attributes")))
 
     ;; (name docstring)
     (when (cst:null rest-field)
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source form)
-                   :source source
-                   :message "Malformed struct field"
-                   :primary-note "expected field type"
-                   :highlight :end)))
+      (parse-error "Malformed struct field"
+                   (make-note (make-end-location source form)
+                              "expected field type")))
 
     ;; (name ty ...) or (name "docstring" ty ...)
     (unless (cst:null (cst:rest rest-field))
-      (error 'parse-error
-             :err (se:source-error
-                   :span (cst:source form)
-                   :source source
-                   :message "Malformed struct field"
-                   :primary-note "unexpected trailing form"
-                   :highlight :end)))
+      (parse-error "Malformed struct field"
+                   (make-note (make-end-location source form)
+                              "unexpected trailing form")))
 
-    (make-struct-field
-     :name (symbol-name (cst:raw (cst:first form)))
-     :type (parse-type (cst:first rest-field)
-                       source)
-     :docstring docstring
-     :location (make-location source form))))
+    (make-struct-field :name (symbol-name (cst:raw (cst:first form)))
+                       :type (parse-type (cst:first rest-field) source)
+                       :docstring docstring
+                       :location (make-location source form))))
