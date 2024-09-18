@@ -816,7 +816,7 @@ Returns (VALUES INFERRED-TYPE PREDICATES NODE SUBSTITUTIONS)")
 
     (let* ((preds nil)
            (accessors nil)
-
+           
            (body-nodes
              (loop :for node_ :in (parser:node-or-nodes node)
                    :collect (multiple-value-bind (node_ty_ preds_ accessors_ node_ subs_)

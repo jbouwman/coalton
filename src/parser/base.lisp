@@ -103,11 +103,11 @@
   "Signal PARSE-ERROR with provided MESSAGE and source NOTES."
   (error 'parse-error :err (source:make-source-error ':error message notes)))
 
-(defun ensure-span (spanning)
-  "Is SPANNING is a span, return it unchanged; if it is a cst node, return the node's span."
-  (etypecase spanning
-    (cst:cst     (cst:source spanning))
-    (source:span spanning)))
+(defun ensure-span (span)
+  "Is SPAN is a span, return it unchanged; if it is a cst node, return source:span."
+  (etypecase span
+    (cst:cst     (cst:source span))
+    (source:span span)))
 
 (defun note (source locatable format-string &rest format-args)
   "Make a source note using SOURCE and CST:SOURCE as location."
