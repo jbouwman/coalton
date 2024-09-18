@@ -71,16 +71,10 @@
                      (tc:lookup-value-type (tc-env-env env) var-name :no-error t))))
     (unless scheme
       ;; Variable is unbound: create an error
-      (error 'tc:tc-error
-             :err (source:source-error
-                   :location (source:location var)
-                   :message "Unknown variable"
-                   :primary-note "unknown variable"
-                   :help-notes (loop :for suggestion :in (tc-env-suggest-value env var-name)
-                                     :collect (se:make-source-error-help
-                                               :span (source:location-span (source:location var))
-                                               :replacement #'identity
-                                               :message suggestion)))))
+      (apply #'tc:tc-error "Unknown variable"
+             (cons (source:note (source:location var) "unknown variable")
+                   (loop :for suggestion :in (tc-env-suggest-value env var-name)
+                         :collect (source:help (source:location var) #'identity suggestion)))))
     (let ((qualified-type (tc:fresh-inst scheme)))
       (values (tc:qualified-ty-type qualified-type)
               (loop :for pred :in (tc:qualified-ty-predicates qualified-type)

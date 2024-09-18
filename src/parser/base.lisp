@@ -22,6 +22,8 @@
    #:identifier-src-list                ; TYPE
    #:parse-error                        ; CONDITION
    #:source-note                        ; FUNCTION
+   #:source-note-end                    ; FUNCTION
+   #:source-help                        ; FUNCTION
    #:parse-list                         ; FUNCTION
    ))
 
@@ -101,10 +103,33 @@
   "Signal a PARSE-ERROR with provided MESSAGE and source NOTES."
   (error 'parse-error :err (source:make-source-error ':error message notes)))
 
-(defun source-note (source cst format-string &rest format-args)
+(defgeneric source-location (source locatable)
+  (:method (source locatable)
+    (source:make-location source (source:location locatable))))
+
+(defmethod source-location (source (locatable cst:cst))
+  (source:make-location source (cst:source locatable)))
+
+(defmethod source-location (source (locatable cons))
+  (source:make-location source locatable))
+
+(defun source-note (source locatable format-string &rest format-args)
   "Helper function to make a source note using SOURCE and CST:SOURCE as location."
+  (declare (type string format-string))
+  (apply #'source:note
+         (source-location source locatable)
+         format-string format-args))
+
+(defun source-note-end (source locatable format-string &rest format-args)
+  "Helper function to make a source note using SOURCE and the location immediately following CST:SOURCE as location."
+  (apply #'source:note
+         (source:end-location (source-location source locatable))
+         format-string format-args))
+
+(defun source-help (source cst replace format-string &rest format-args)
+  "Helper function to make a help note using SOURCE and CST:SOURCE as location."
   (declare (type cst:cst cst)
            (type string format-string))
-  (apply #'source:note
+  (apply #'source:help
          (source:make-location source (cst:source cst))
-         format-string format-args))
+         replace format-string format-args))

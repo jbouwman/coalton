@@ -108,41 +108,25 @@
     ((and (cst:atom form)
           (identifierp (cst:raw form)))
      (when (string= "_" (symbol-name (cst:raw form)))
-       (error 'parse-error
-              :err  (se:source-error
-                     :span (cst:source form)
-                     :source source
-                     :message "Invalid variable"
-                     :primary-note "invalid variable name '_'")))
+       (parse-error "Invalid variable"
+                    (source-note source form "invalid variable name '_'")))
      (make-pattern-var
       :name (cst:raw form)
       :orig-name (cst:raw form)
       :location (source:make-location source form)))
 
     ((cst:atom form)
-     (error 'parse-error
-            :err (se:source-error
-                  :span (cst:source form)
-                  :source source
-                  :message "Invalid pattern"
-                  :primary-note "unknown pattern literal")))
+     (parse-error "Invalid pattern"
+                  (source-note source form "unknown pattern literal")))
 
     ((not (cst:proper-list-p form))
-     (error 'parse-error
-            :err (se:source-error
-                  :span (cst:source form)
-                  :source source
-                  :message "Invalid match branch"
-                  :primary-note "unexpected dotted list")))
+     (parse-error "Invalid pattern"
+                  (source-note source form "unexpected dotted list")))
 
     ((not (and (cst:atom (cst:first form))
                (identifierp (cst:raw (cst:first form)))))
-     (error 'parse-error
-            :err (se:source-error
-                  :span (cst:source (cst:first form))
-                  :source source
-                  :message "Invalid pattern"
-                  :primary-note "invalid constructor in pattern")))
+     (parse-error "Invalid pattern"
+                  (source-note source (cst:first form) "invalid constructor in pattern")))
 
     (t
      (make-pattern-constructor

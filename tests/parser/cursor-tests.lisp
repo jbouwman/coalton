@@ -6,6 +6,8 @@
    (#:source #:coalton-impl/source)
    (#:se #:source-error)
    (#:cursor #:coalton-impl/parser/cursor)
+   (#:source #:coalton-impl/source)
+   (#:se #:source-error)
    (#:cst #:concrete-syntax-tree)))
 
 (in-package #:coalton-impl/parser/cursor-tests)

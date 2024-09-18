@@ -25,7 +25,6 @@
    #:do-every
    #:empty-p
    #:make-cursor
-   #:make-note
    #:next
    #:next-symbol
    #:parse-error
