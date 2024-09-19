@@ -12,9 +12,8 @@
    #:*pprint-variable-symbol-suffix*
    #:tc-error                           ; CONDITION, FUNCTION
    #:tc-location
-   #:tc-primary-location
    #:tc-note
-   #:tc-primary-note
+   #:tc-secondary
    #:coalton-internal-type-error        ; CONDITION
    #:check-duplicates                   ; FUNCTION
    #:check-package                      ; FUNCTION
@@ -70,24 +69,24 @@ This requires a valid PPRINT-VARIABLE-CONTEXT")
                (with-pprint-variable-context ()
                  (apply #'format nil format-string format-args))))
 
-(defun tc-primary-location (location format-string &rest format-args)
-  (source:primary-note location
-                       (with-pprint-variable-context ()
-                         (apply #'format nil format-string format-args))))
+(defun tc-location-secondary (location format-string &rest format-args)
+  (source:secondary location
+                    (with-pprint-variable-context ()
+                      (apply #'format nil format-string format-args))))
 
 (defun tc-note (located format-string &rest format-args)
   (apply #'tc-location (source:location located) format-string format-args))
 
-(defun tc-primary-note (located format-string &rest format-args)
-  (apply #'tc-primary-location (source:location located) format-string format-args))
+(defun tc-secondary (located format-string &rest format-args)
+  (apply #'tc-location-secondary (source:location located) format-string format-args))
 
-(define-condition tc-error (se:source-base-error)
+(define-condition tc-error (se:source-error)
   ())
 
 (defun tc-error (message &rest notes)
   "Signal a typechecker error with MESSAGE, and optional NOTES that label source locations."
   (declare (type string message))
-  (error 'tc-error :err (source:make-source-error ':error message notes)))
+  (error 'tc-error :message message :notes notes))
 
 (define-condition coalton-internal-type-error (error)
   ()

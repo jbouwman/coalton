@@ -1,5 +1,5 @@
 ================================================================================
-Unknown type
+1 Unknown type
 ================================================================================
 
 (package coalton-unit-test/define)
@@ -12,11 +12,11 @@ Unknown type
 error: Unknown type
   --> test:3:12
    |
- 3 |  (declare f (unknown -> ufix))
-   |              ^^^^^^^ unknown type UNKNOWN
+ 3 | (declare f (unknown -> ufix))
+   |             ^^^^^^^ unknown type UNKNOWN
 
 ================================================================================
-Duplicate definition
+2 Duplicate definition
 ================================================================================
 
 (package coalton-unit-test/duplicate)

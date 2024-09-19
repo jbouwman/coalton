@@ -1,5 +1,5 @@
 error: Malformed body expression
   --> test:6:4
    |
- 6 |      (let x = 5)))
-   |      ^^^^^^^^^^^ body forms cannot be terminated by a shorthand let
+ 6 |     (let x = 5)))
+   |     ^^^^^^^^^^^ body forms cannot be terminated by a shorthand let

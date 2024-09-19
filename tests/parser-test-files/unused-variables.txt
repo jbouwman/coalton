@@ -12,8 +12,8 @@
 warn: Unused variable
   --> test:4:11
    |
- 4 |  (define (f x) 5)
-   |             ^ variable defined here
+ 4 | (define (f x) 5)
+   |            ^ variable defined here
 help: prefix the variable with '_' to declare it unused
  4 | (define (f _x) 5)
    |            --
@@ -32,8 +32,8 @@ help: prefix the variable with '_' to declare it unused
 warn: Unused variable
   --> test:4:15
    |
- 4 |  (define f (fn (x) 5))
-   |                 ^ variable defined here
+ 4 | (define f (fn (x) 5))
+   |                ^ variable defined here
 help: prefix the variable with '_' to declare it unused
  4 | (define f (fn (_x) 5))
    |                --
@@ -54,8 +54,8 @@ help: prefix the variable with '_' to declare it unused
 warn: Unused variable
   --> test:5:7
    |
- 5 |    (let x = (+ 1 x))
-   |         ^ variable defined here
+ 5 |   (let x = (+ 1 x))
+   |        ^ variable defined here
 help: prefix the variable with '_' to declare it unused
  5 |   (let _x = (+ 1 x))
    |        --
@@ -76,8 +76,8 @@ help: prefix the variable with '_' to declare it unused
 warn: Unused variable
   --> test:6:12
    |
- 6 |      ((Tuple x y) 5)))
-   |              ^ variable defined here
+ 6 |     ((Tuple x y) 5)))
+   |             ^ variable defined here
 help: prefix the variable with '_' to declare it unused
  6 |     ((Tuple _x y) 5)))
    |             --

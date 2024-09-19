@@ -21,7 +21,7 @@
                        (entry:entry-point
                         (parser:read-program stream source ':file))
                        "no errors")
-                   (se:source-base-error (c)
+                   (se:source-condition (c)
                      (princ-to-string c)))))))
     (dolist (file (test-files "tests/parser-test-files/bad-files/*.coal"))
       (let ((error-file (make-pathname :type "error"
@@ -50,3 +50,6 @@
   (run-test-file "tests/parser-test-files/unused-variables.txt")
   (run-test-file "tests/parser-test-files/define.txt")
   (run-test-file "tests/parser-test-files/define-class.txt"))
+
+
+;; (run-test "tests/parser-test-files/define.txt" 2)

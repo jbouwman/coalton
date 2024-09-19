@@ -35,7 +35,7 @@
 error: Malformed package declaration
   --> test:1:8
    |
- 1 |  (package)
+ 1 | (package)
    |         ^ missing package name
 
 ================================================================================
@@ -50,8 +50,8 @@ error: Malformed package declaration
 error: Malformed package declaration
   --> test:2:2
    |
- 2 |    (xxx yyy zzz))
-   |    ^^^^^^^^^^^^^ Unknown package clause
+ 2 |   (xxx yyy zzz))
+   |   ^^^^^^^^^^^^^ Unknown package clause
 help: Must be one of IMPORT, IMPORT-FROM, EXPORT, SHADOW
  2 |   (xxx yyy zzz))
    |    ---
@@ -68,8 +68,8 @@ help: Must be one of IMPORT, IMPORT-FROM, EXPORT, SHADOW
 error: Malformed package declaration
   --> test:2:10
    |
- 2 |    (import))
-   |           ^ empty IMPORT form
+ 2 |   (import))
+   |          ^ empty IMPORT form
 
 ================================================================================
 6 Illegal type in import clause
@@ -83,8 +83,8 @@ error: Malformed package declaration
 error: Malformed package declaration
   --> test:2:10
    |
- 2 |    (import 1.0))
-   |            ^^^ expected PACKAGE or (PACKAGE as NICK)
+ 2 |   (import 1.0))
+   |           ^^^ expected PACKAGE or (PACKAGE as NICK)
 
 ================================================================================
 7 Illegal import as form
@@ -98,8 +98,8 @@ error: Malformed package declaration
 error: Malformed package declaration
   --> test:2:21
    |
- 2 |    (import (something sa s)))
-   |                       ^^ expected AS
+ 2 |   (import (something sa s)))
+   |                      ^^ expected AS
 
 ================================================================================
 8 Incomplete import as form
@@ -113,7 +113,7 @@ error: Malformed package declaration
 error: Malformed package declaration
   --> test:2:23
    |
- 2 |    (import (something as)))
+ 2 |   (import (something as)))
    |                        ^ missing package nickname
 
 ================================================================================
@@ -154,8 +154,8 @@ error: Malformed package declaration
 error: Malformed package declaration
   --> test:1:9
    |
- 1 |  (package 5)
-   |           ^ package name must be a symbol
+ 1 | (package 5)
+   |          ^ package name must be a symbol
 
 ================================================================================
 12 Malformed clause
@@ -168,8 +168,8 @@ error: Malformed package declaration
 error: Malformed package declaration
   --> test:1:22
    |
- 1 |  (package test-package 1)
-   |                        ^ malformed package clause
+ 1 | (package test-package 1)
+   |                       ^ malformed package clause
 
 ================================================================================
 13 Invalid package declaration
@@ -182,8 +182,8 @@ error: Malformed package declaration
 error: Malformed package declaration
   --> test:1:1
    |
- 1 |  (pancake test)
-   |   ^^^^^^^ package declarations must start with `package`
+ 1 | (pancake test)
+   |  ^^^^^^^ package declarations must start with `package`
 
 ================================================================================
 14 Invalid shadow clause
@@ -197,8 +197,8 @@ error: Malformed package declaration
 error: Malformed package declaration
   --> test:2:10
    |
- 2 |    (shadow ()))
-   |            ^^ value must be a symbol
+ 2 |   (shadow ()))
+   |           ^^ value must be a symbol
 
 ================================================================================
 15 Unterminated package form

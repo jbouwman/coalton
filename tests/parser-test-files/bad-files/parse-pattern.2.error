@@ -1,5 +1,5 @@
 error: Invalid pattern
   --> test:5:7
    |
- 5 |    (let (x y . z) = g)
-   |         ^^^^^^^^^ unexpected dotted list
+ 5 |   (let (x y . z) = g)
+   |        ^^^^^^^^^ unexpected dotted list

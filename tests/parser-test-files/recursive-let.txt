@@ -16,8 +16,8 @@ recursively-construct-via-non-constructor-function
 error: Invalid recursive bindings
   --> test:8:17
    |
- 8 |    (coalton:let ((loop (flipped-cons loop elt))) loop))
-   |                   ^^^^ invalid recursive variable bindings
+ 8 |   (coalton:let ((loop (flipped-cons loop elt))) loop))
+   |                  ^^^^ invalid recursive variable bindings
 
 ================================================================================
 recursively-construct-bad-repr-types
@@ -36,8 +36,8 @@ recursively-construct-bad-repr-types
 error: Invalid recursive bindings
   --> test:7:9
    |
- 7 |    (let ((loop (MyLoop loop))) loop))
-   |           ^^^^ invalid recursive variable bindings
+ 7 |   (let ((loop (MyLoop loop))) loop))
+   |          ^^^^ invalid recursive variable bindings
 
 ================================================================================
 recursively-construct-bad-repr-types
@@ -59,8 +59,8 @@ recursively-construct-bad-repr-types
 error: Invalid recursive bindings
   --> test:9:9
    |
- 9 |    (let ((lp (MyLoop lp)))
-   |           ^^ invalid recursive variable bindings
+ 9 |   (let ((lp (MyLoop lp)))
+   |          ^^ invalid recursive variable bindings
 
 ================================================================================
 recursive-partial-constructor-application
@@ -79,8 +79,8 @@ recursive-partial-constructor-application
 error: Invalid recursive bindings
   --> test:7:9
    |
- 7 |    (let ((lp (PairedLoop lp))) lp))
-   |           ^^ invalid recursive variable bindings
+ 7 |   (let ((lp (PairedLoop lp))) lp))
+   |          ^^ invalid recursive variable bindings
 
 ================================================================================
 recursive-indirect-constructor-application
@@ -100,8 +100,8 @@ recursive-indirect-constructor-application
 error: Invalid recursive bindings
   --> test:7:11
    |
- 7 |      (let ((lp (MyLoop elt lp)))
-   |             ^^ invalid recursive variable bindings
+ 7 |     (let ((lp (MyLoop elt lp)))
+   |            ^^ invalid recursive variable bindings
 
 ================================================================================
 mutually-recursive-data-and-function
@@ -122,7 +122,7 @@ mutually-recursive-data-and-function
 error: Invalid recursive bindings
   --> test:8:17
    |
- 7 |      (let ((lp (LoopFn func))
-   |             -- with definition
- 8 |                  (func (fn () lp)))
-   |                   ^^^^ function can not be defined recursively with variables
+ 7 |     (let ((lp (LoopFn func))
+   |            -- with definition
+ 8 |                 (func (fn () lp)))
+   |                  ^^^^ function can not be defined recursively with variables

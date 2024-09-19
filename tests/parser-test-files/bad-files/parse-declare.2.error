@@ -1,5 +1,5 @@
 error: Malformed declaration
   --> test:4:0
    |
- 4 |  (declare x)
-   |  ^^^^^^^^^^^ expected declared type
+ 4 | (declare x)
+   | ^^^^^^^^^^^ expected declared type

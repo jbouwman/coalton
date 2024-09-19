@@ -11,8 +11,8 @@ Unknown type variable
 error: Unknown type variable
   --> test:3:30
    |
- 3 |  (define-class (C :a :b (:a -> :c)))
-   |                                ^^ unknown type variable :C
+ 3 | (define-class (C :a :b (:a -> :c)))
+   |                               ^^ unknown type variable :C
 
 ================================================================================
 Trivially conflicting instances
@@ -31,8 +31,8 @@ Trivially conflicting instances
 error: Instance fundep conflict
   --> test:7:17
    |
- 7 |  (define-instance (C Integer Unit))
-   |                   ^^^^^^^^^^^^^^^^ instance conflicts previous instance C INTEGER STRING
+ 7 | (define-instance (C Integer Unit))
+   |                  ^^^^^^^^^^^^^^^^ instance conflicts previous instance C INTEGER STRING
 
 ================================================================================
 Instances with unequal generality should conflict in either definition order
@@ -51,8 +51,8 @@ Instances with unequal generality should conflict in either definition order
 error: Instance fundep conflict
   --> test:7:17
    |
- 7 |  (define-instance (C (List Integer) Unit))
-   |                   ^^^^^^^^^^^^^^^^^^^^^^^ instance conflicts previous instance C (LIST :A) STRING
+ 7 | (define-instance (C (List Integer) Unit))
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^ instance conflicts previous instance C (LIST :A) STRING
 
 ================================================================================
 Instances with unequal generality should conflict in either definition order
@@ -71,8 +71,8 @@ Instances with unequal generality should conflict in either definition order
 error: Instance fundep conflict
   --> test:7:17
    |
- 7 |  (define-instance (C (List :a) String))
-   |                   ^^^^^^^^^^^^^^^^^^^^ instance conflicts previous instance C (LIST INTEGER) UNIT
+ 7 | (define-instance (C (List :a) String))
+   |                  ^^^^^^^^^^^^^^^^^^^^ instance conflicts previous instance C (LIST INTEGER) UNIT
 
 ================================================================================
 Fundeps improve type checking
@@ -112,8 +112,8 @@ Ambiguous despite fundep
 error: Ambiguous method
   --> test:4:0
    |
- 4 |  (m :b))
-   |  ^^^^^^ the method is ambiguous
+ 4 | (m :b))
+   | ^^^^^^ the method is ambiguous
 
 ================================================================================
 Ambiguous without fundep
@@ -129,5 +129,5 @@ Ambiguous without fundep
 error: Ambiguous method
   --> test:4:2
    |
- 4 |    (m :a))
-   |    ^^^^^^ the method is ambiguous
+ 4 |   (m :a))
+   |   ^^^^^^ the method is ambiguous

@@ -1021,11 +1021,7 @@ Rebound to NIL parsing an anonymous FN.")
          (parse-error "Invalid macro expansion"
                       (note source form "macro expansion limit hit")))
 
-       (let ((se:*source-error-context*
-               (adjoin (se:make-source-error-context
-                        :message "Error occurs within macro context. Source locations may be imprecise")
-                       se:*source-error-context*
-                       :test #'equalp)))
+       (se:with-context (:macro "Error occurs within macro context. Source locations may be imprecise")
          (parse-expression (expand-macro form source) source))))
 
     ;;
@@ -1350,13 +1346,13 @@ Rebound to NIL parsing an anonymous FN.")
     (parse-error "Malformed do expression"
                  (note source form
                        "do expressions cannot be terminated by a shorthand let")
-                 (note source parent-form "when parsing do expression")))
+                 (secondary source parent-form "when parsing do expression")))
 
   (when (do-bind-p form)
     (parse-error "Malformed do expression"
                  (note source form
                        "do expression cannot be terminated by a bind")
-                 (note source parent-form "when parsing do expression")))
+                 (secondary source parent-form "when parsing do expression")))
 
   (parse-expression form source))
 

@@ -14,14 +14,13 @@
    #:warn
    #:help
    #:note
-   #:primary-note
+   #:secondary
    #:message
-   #:make-source-error
    #:make-source-file
    #:make-source-string
    #:location
-   #:end-location
    #:make-location
+   #:end-location
    #:location-source
    #:location-span
    #:location<
@@ -125,7 +124,9 @@ OFFSET indicates starting character offset within the file."
     :offset offset))
 
 (defmethod source-error:source-available-p ((self source-file))
-  (not (null (input-name self))))
+  (let ((filename (input-name self)))
+    (and (not (null filename))
+         (not (null (probe-file filename))))))
 
 (defmethod source-error:source-name ((self source-file))
   (or (original-name self)
@@ -253,17 +254,39 @@ If locations appear in different sources, compare the sources by name."
             :initform #'identity
             :reader replace-function)
    (type :initarg :type
-         :initform ':secondary
+         :initform ':primary
          :reader note-type))
   (:documentation "A message describing the contents of a source location."))
 
 (defmethod print-object ((self note) stream)
   (if *print-readably*
       (call-next-method)
-      (format stream "~(~a~) note: ~a: ~a"
-              (note-type self)
-              (location self)
-              (message self))))
+      (print-unreadable-object (self stream :type t)
+        (format stream "~(~a~) note: ~a: ~a"
+                (note-type self)
+                (location self)
+                (message self)))))
+
+(defmethod source-error:location ((self note))
+  (location self))
+
+(defmethod source-error:message ((self note))
+  (message self))
+
+(defmethod source-error:replace-function ((self note))
+  (replace-function self))
+
+(defmethod source-error:help-p ((self note))
+  (eq (note-type self) ':help))
+
+(defmethod source-error:primary-p ((self note))
+  (eq (note-type self) ':primary))
+
+(defmethod source-error:source ((self location))
+  (location-source self))
+
+(defmethod source-error:span ((self location))
+  (location-span self))
 
 (defun ensure-location (locatable)
   (typecase locatable
@@ -277,13 +300,13 @@ If locations appear in different sources, compare the sources by name."
     :location (ensure-location location)
     :message (apply #'format nil format-string format-args)))
 
-(defun primary-note (location format-string &rest format-args)
+(defun secondary (location format-string &rest format-args)
   "Return a note that describes a primary source LOCATION."
   (declare (type string format-string))
   (make-instance 'note
     :location (ensure-location location)
     :message (apply #'format nil format-string format-args)
-    :type ':primary))
+    :type ':secondary))
 
 (defun help (location replace format-string &rest format-args)
   "Return a help note related to a source LOCATION.
@@ -297,59 +320,14 @@ REPLACE is a 1-argument function that accepts and returns a string to suggest an
     :replace replace
     :type ':help))
 
-;;; The following functions up to SOURCE-ERROR are for interfacing
-;;; with the SOURCE-ERROR package."
-
-(defun help-note-p (note)
-  "T if NOTE is a help note."
-  (eq ':help (note-type note)))
-
-(defun note->source-note (note)
-  "Convert NOTE to a source error help note."
-  (se:make-source-error-note :span (location-span (location note))
-                             :type (note-type note)
-                             :message (message note)))
-
-(defun note->help-note (note)
-  "Convert NOTE to a source error help note."
-  (se:make-source-error-help :span (location-span (location note))
-                             :replacement (replace-function note)
-                             :message (message note)))
-
-(defun source-error (&key (type :error) location (highlight :all)
-                          message primary-note notes help-notes)
-  "Convenience function to unpack a LOCATION into source and span and create a source-error structure."
-  (declare (type location location))
-  (source-error:source-error :type type
-                             :span (location-span location)
-                             :source (location-source location)
-                             :highlight highlight
-                             :message message
-                             :primary-note primary-note
-                             :notes notes
-                             :help-notes help-notes))
-
-(defun make-source-error (type message notes)
-  "Build a SOURCE-ERROR:SOURCE-ERROR structure by destructuring the first note in NOTES, and translating remaining notes to SOURCE-ERROR versions."
-  (destructuring-bind (primary &rest secondary) notes
-    (let ((primary-span (location-span (location primary))))
-      (se:source-error :type type
-                       :span primary-span
-                       :source (location-source (location primary))
-                       :highlight (if (span-empty-p primary-span) :end :all)
-                       :message message
-                       :primary-note (message primary)
-                       :notes (mapcar #'note->source-note
-                                      (remove-if #'help-note-p secondary))
-                       :help-notes (mapcar #'note->help-note
-                                           (remove-if-not #'help-note-p secondary))))))
-
-(defun error (message note &rest notes)
+(defun error (message &rest notes)
   "Signal an error related to one or more source locations"
-  (cl:error 'se:source-base-error
-            :err (make-source-error ':error message (cons note notes))))
+  (cl:error 'se:source-error
+            :message message
+            :notes notes))
 
-(defun warn (message note &rest notes)
-  "Signal a warning related to one or more source locations."
-  (cl:warn 'se:source-base-warning
-           :err (make-source-error ':warn message (cons note notes))))
+(defun warn (message &rest notes)
+  "Signal an error related to one or more source locations"
+  (cl:warn 'se:source-warning
+           :message message
+           :notes notes))

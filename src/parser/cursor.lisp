@@ -19,6 +19,7 @@
    #:collect-symbols
    #:cursor-location
    #:cursor-message
+   #:cursor-pointer
    #:cursor-source
    #:cursor-value
    #:do-every

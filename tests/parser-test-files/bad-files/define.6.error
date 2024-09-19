@@ -1,5 +1,5 @@
 error: Invalid pattern
   --> test:4:12
    |
- 4 |  (define (f (0.5) x) 1)
-   |              ^^^ invalid constructor in pattern
+ 4 | (define (f (0.5) x) 1)
+   |             ^^^ invalid constructor in pattern
