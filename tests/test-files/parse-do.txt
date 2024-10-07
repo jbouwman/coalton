@@ -64,7 +64,7 @@ Malformed do expression
 --------------------------------------------------------------------------------
 
 error: Malformed do expression
-  --> test:3:14
+  --> test:3:13
    |
  3 |  (define x (do))
    |               ^ expected one or more forms

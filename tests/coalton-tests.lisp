@@ -10,6 +10,8 @@
 (defun %run-tests (name)
   (run-test-file (format nil "tests/test-files/~a" name)))
 
+;; (coalton-tests:run-test "tests/test-files/define-class.txt" 100)
+
 (deftest test-coalton-lang ()
   (%run-tests "define-class.txt")
   (%run-tests "define-instance.txt")

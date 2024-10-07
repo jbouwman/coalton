@@ -89,14 +89,14 @@
 (defun source-available-p (object)
   (let ((source (source object)))
     (and source
-         (not (null (source-error:source-name source))))))
+         (not (null (source:name source))))))
 
 (defun source-location-href (object)
   (when (source-available-p object)
     (format nil "~a/~a"
             *remote*
             (remove-prefix (ensure-suffix #\/ *local*)
-                           (source-error:source-name (source object))))))
+                           (source:name (source object))))))
 
 (defun source-span (object)
   (source:location-span (object-location object)))
