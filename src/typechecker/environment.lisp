@@ -24,10 +24,10 @@
   (:local-nicknames
    (#:util #:coalton-impl/util)
    (#:source #:coalton-impl/source)
-   (#:parser #:coalton-impl/parser))
+   (#:parser #:coalton-impl/parser)
+   (#:map #:coalton-impl/lib.map))
   (:export
    #:*update-hook*                          ; VARIABLE
-   #:value-environment                      ; STRUCT
    #:explicit-repr                          ; TYPE
    #:type-entry                             ; STRUCT
    #:make-type-entry                        ; CONSTRUCTOR
@@ -48,7 +48,6 @@
    #:constructor-entry-classname            ; ACCESSOR
    #:constructor-entry-compressed-repr      ; ACCESSOR
    #:constructor-entry-list                 ; TYPE
-   #:constructor-environment                ; STRUCT
    #:struct-field                           ; STRUCT
    #:make-struct-field                      ; CONSTRUCTOR
    #:struct-field-name                      ; ACCESSOR
@@ -60,7 +59,6 @@
    #:struct-entry-name                      ; ACCESSOR
    #:struct-entry-fields                    ; ACCESSOR
    #:struct-entry-list                      ; TYPE
-   #:struct-environment                     ; STRUCT
    #:get-field                              ; FUNCTION
    #:ty-class-method                        ; STRUCT
    #:make-ty-class-method                   ; CONSTRUCTOR
@@ -79,7 +77,6 @@
    #:ty-class-superclass-dict               ; ACCESSOR
    #:ty-class-superclass-map                ; ACCESSOR
    #:ty-class-list                          ; TYPE
-   #:class-environment                      ; STRUCT
    #:ty-class-instance                      ; STRUCT
    #:make-ty-class-instance                 ; CONSTRUCTOR
    #:ty-class-instance-constraints          ; ACCESSOR
@@ -92,34 +89,27 @@
    #:make-function-env-entry                ; CONSTRUCTOR
    #:function-env-entry-name                ; ACCESSOR
    #:function-env-entry-arity               ; ACCESSOR
-   #:function-environment                   ; STRUCT
    #:name-entry                             ; STRUCT
    #:make-name-entry                        ; CONSTRUCTOR
    #:name-entry-name                        ; ACCESSOR
    #:name-entry-type                        ; ACCESSOR
    #:name-environment                       ; STRUCT
-   #:method-inline-environment              ; STRUCT
-   #:code-environment                       ; STRUCT
    #:specialization-entry                   ; STRUCT
    #:make-specialization-entry              ; CONSTRUCTOR
    #:specialization-entry-from              ; ACCESSOR
    #:specialization-entry-to                ; ACCESSOR
    #:specialization-entry-to-ty             ; ACCESSOR
    #:specialization-entry-list              ; TYPE
-   #:specialization-environment             ; STRUCT
    #:environment                            ; STRUCT
    #:make-default-environment               ; FUNCTION
    #:environment-value-environment          ; ACCESSOR
    #:environment-type-environment           ; ACCESSOR
-   #:environment-constructor-environment    ; ACCESSOR
    #:environment-class-environment          ; ACCESSOR
    #:environment-fundep-environment         ; ACCESSOR
    #:environment-instance-environment       ; ACCESSOR
    #:environment-function-environment       ; ACCESSOR
-   #:environment-name-environment           ; ACCESSOR
-   #:environment-method-inline-environment  ; ACCESSOR
-   #:environment-code-environment           ; ACCESSOR
    #:environment-specialization-environment ; ACCESSOR
+   #:environment-name-environment           ; ACCESSOR
    #:lookup-value-type                      ; FUNCTION
    #:set-value-type                         ; FUNCTION
    #:unset-value-type                       ; FUNCTION
@@ -212,22 +202,15 @@
 ;;; Value type environments
 ;;;
 
-(defstruct (value-environment (:include immutable-map)))
+(defun value-apply-substitution (m subst-list)
+  (map:map m (lambda (k v)
+               (declare (ignore k))
+               (apply-substitution subst-list v))))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type value-environment))
-
-(defmethod apply-substitution (subst-list (env value-environment))
-  (make-value-environment :data (fset:image (lambda (key value)
-                  (values key (apply-substitution subst-list value)))
-                (immutable-map-data env))))
-
-(defmethod type-variables ((env value-environment))
-  (let ((out nil))
-    (fset:do-map (name type (immutable-map-data env))
-      (declare (ignore name))
-      (setf out (append (type-variables type) out)))
-    (remove-duplicates out :test #'equalp)))
+(defun value-type-variables (m)
+  (remove-duplicates (loop :for type :in (map:vals m)
+                           :append (type-variables type))
+                     :test #'equalp))
 
 ;;;
 ;;; Type environments
@@ -281,135 +264,127 @@
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type type-entry))
 
-(defstruct (type-environment (:include immutable-map)))
-
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type type-environment))
-
 (defun make-default-type-environment ()
   "Create a TYPE-ENVIRONMENT containing early types"
-  (make-type-environment
-   :data (fset:map
-          ;; Early Types
-          ('coalton:Boolean
-           (make-type-entry
-            :name 'coalton:Boolean
-            :runtime-type 'cl:boolean
-            :type *boolean-type*
-            :tyvars nil
-            :constructors '(coalton:True coalton:False)
-            :explicit-repr '(:native cl:boolean)
-            :enum-repr t
-            :newtype nil
-            :docstring "Either true or false represented by `t` and `nil` respectively."))
+  (map:make-map 'coalton:Boolean
+                (make-type-entry
+                 :name 'coalton:Boolean
+                 :runtime-type 'cl:boolean
+                 :type *boolean-type*
+                 :tyvars nil
+                 :constructors '(coalton:True coalton:False)
+                 :explicit-repr '(:native cl:boolean)
+                 :enum-repr t
+                 :newtype nil
+                 :docstring "Either true or false represented by `t` and `nil` respectively.")
 
-          ('coalton:Unit
-           (make-type-entry
-            :name 'coalton:Unit
-            :runtime-type '(member coalton::Unit/Unit)
-            :type *unit-type*
-            :tyvars nil
-            :constructors '(coalton:Unit)
-            :explicit-repr :enum
-            :enum-repr t
-            :newtype nil
-            :docstring ""))
+                'coalton:Unit
+                (make-type-entry
+                 :name 'coalton:Unit
+                 :runtime-type '(member coalton::Unit/Unit)
+                 :type *unit-type*
+                 :tyvars nil
+                 :constructors '(coalton:Unit)
+                 :explicit-repr :enum
+                 :enum-repr t
+                 :newtype nil
+                 :docstring "")
 
-          ('coalton:Char
-           (make-type-entry
-            :name 'coalton:Char
-            :runtime-type 'cl:character
-            :type *char-type*
-            :tyvars nil
-            :constructors nil
-            :explicit-repr '(:native cl:character)
-            :enum-repr nil
-            :newtype nil
-            :docstring "A single character represented as a `character` type."))
+                'coalton:Char
+                (make-type-entry
+                 :name 'coalton:Char
+                 :runtime-type 'cl:character
+                 :type *char-type*
+                 :tyvars nil
+                 :constructors nil
+                 :explicit-repr '(:native cl:character)
+                 :enum-repr nil
+                 :newtype nil
+                 :docstring "A single character represented as a `character` type.")
+                
+                'coalton:Integer
+                (make-type-entry
+                 :name 'coalton:Integer
+                 :runtime-type 'cl:integer
+                 :type *integer-type*
+                 :tyvars nil
+                 :constructors nil
+                 :explicit-repr '(:native cl:integer)
+                 :enum-repr nil
+                 :newtype nil
+                 :docstring "Unbound integer. Uses `integer`.")
 
-          ('coalton:Integer
-           (make-type-entry
-            :name 'coalton:Integer
-            :runtime-type 'cl:integer
-            :type *integer-type*
-            :tyvars nil
-            :constructors nil
-            :explicit-repr '(:native cl:integer)
-            :enum-repr nil
-            :newtype nil
-            :docstring "Unbound integer. Uses `integer`."))
+                'coalton:Single-Float
+                (make-type-entry
+                 :name 'coalton:Single-Float
+                 :runtime-type 'cl:single-float
+                 :type *single-float-type*
+                 :tyvars nil
+                 :constructors nil
+                 :explicit-repr '(:native cl:single-float)
+                 :enum-repr nil
+                 :newtype nil
+                 :docstring "Single precision floating point number. Uses `single-float`.")
 
-          ('coalton:Single-Float
-           (make-type-entry
-            :name 'coalton:Single-Float
-            :runtime-type 'cl:single-float
-            :type *single-float-type*
-            :tyvars nil
-            :constructors nil
-            :explicit-repr '(:native cl:single-float)
-            :enum-repr nil
-            :newtype nil
-            :docstring "Single precision floating point number. Uses `single-float`."))
+                'coalton:Double-Float
+                (make-type-entry
+                 :name 'coalton:Double-Float
+                 :runtime-type 'cl:double-float
+                 :type *double-float-type*
+                 :tyvars nil
+                 :constructors nil
+                 :explicit-repr '(:native cl:double-float)
+                 :enum-repr nil
+                 :newtype nil
+                 :docstring "Double precision floating point number. Uses `double-float`.")
 
-          ('coalton:Double-Float
-           (make-type-entry
-            :name 'coalton:Double-Float
-            :runtime-type 'cl:double-float
-            :type *double-float-type*
-            :tyvars nil
-            :constructors nil
-            :explicit-repr '(:native cl:double-float)
-            :enum-repr nil
-            :newtype nil
-            :docstring "Double precision floating point number. Uses `double-float`."))
+                'coalton:String
+                (make-type-entry
+                 :name 'coalton:String
+                 :runtime-type 'cl:string
+                 :type *string-type*
+                 :tyvars nil
+                 :constructors nil
+                 :explicit-repr '(:native cl:string)
+                 :enum-repr nil
+                 :newtype nil
+                 :docstring "String of characters represented by Common Lisp `string`.")
 
-          ('coalton:String
-           (make-type-entry
-            :name 'coalton:String
-            :runtime-type 'cl:string
-            :type *string-type*
-            :tyvars nil
-            :constructors nil
-            :explicit-repr '(:native cl:string)
-            :enum-repr nil
-            :newtype nil
-            :docstring "String of characters represented by Common Lisp `string`."))
+                'coalton:Fraction
+                (make-type-entry
+                 :name 'coalton:Fraction
+                 :runtime-type 'cl:rational
+                 :type *fraction-type*
+                 :tyvars nil
+                 :constructors nil
+                 :explicit-repr '(:native cl:rational)
+                 :enum-repr nil
+                 :newtype nil
+                 :docstring "A ratio of integers always in reduced form.")
 
-          ('coalton:Fraction
-           (make-type-entry
-            :name 'coalton:Fraction
-            :runtime-type 'cl:rational
-            :type *fraction-type*
-            :tyvars nil
-            :constructors nil
-            :explicit-repr '(:native cl:rational)
-            :enum-repr nil
-            :newtype nil
-            :docstring "A ratio of integers always in reduced form."))
+                'coalton:Arrow
+                (make-type-entry
+                 :name 'coalton:Arrow
+                 :runtime-type nil
+                 :type *arrow-type*
+                 :tyvars nil
+                 :constructors nil
+                 :explicit-repr nil
+                 :enum-repr nil
+                 :newtype nil
+                 :docstring "Type constructor for function types.")
 
-          ('coalton:Arrow
-           (make-type-entry
-            :name 'coalton:Arrow
-            :runtime-type nil
-            :type *arrow-type*
-            :tyvars nil
-            :constructors nil
-            :explicit-repr nil
-            :enum-repr nil
-            :newtype nil
-            :docstring "Type constructor for function types."))
-
-          ('coalton:List
-           (make-type-entry
-            :name 'coalton:List
-            :runtime-type 'cl:list
-            :type *list-type*
-            :tyvars (list (make-variable))
-            :constructors '(coalton:Cons coalton:Nil)
-            :explicit-repr '(:native cl:list)
-            :enum-repr nil
-            :newtype nil
-            :docstring "Homogeneous list of objects represented as a Common Lisp `list`.")))))
+                'coalton:List
+                (make-type-entry
+                 :name 'coalton:List
+                 :runtime-type 'cl:list
+                 :type *list-type*
+                 :tyvars (list (make-variable))
+                 :constructors '(coalton:Cons coalton:Nil)
+                 :explicit-repr '(:native cl:list)
+                 :enum-repr nil
+                 :newtype nil
+                 :docstring "Homogeneous list of objects represented as a Common Lisp `list`.")))
 
 ;;;
 ;;; Constructor environment
@@ -442,60 +417,52 @@
 (deftype constructor-entry-list ()
   '(satisfies constructor-entry-list-p))
 
-(defstruct (constructor-environment (:include immutable-map)))
-
 (defun make-default-constructor-environment ()
   "Create a TYPE-ENVIRONMENT containing early constructors"
-  (make-constructor-environment
-   :data (fset:map
-          ;; Early Constructors
-          ('coalton:True
-           (make-constructor-entry
-            :name 'coalton:True
-            :arity 0
-            :constructs 'coalton:Boolean
-            :classname 'coalton::Boolean/True
-            :docstring "Boolean `True`"
-            :compressed-repr 't))
+  (map:make-map 'coalton:True
+                (make-constructor-entry
+                 :name 'coalton:True
+                 :arity 0
+                 :constructs 'coalton:Boolean
+                 :classname 'coalton::Boolean/True
+                 :docstring "Boolean `True`"
+                 :compressed-repr 't)
 
-          ('coalton:False
-           (make-constructor-entry
-            :name 'coalton:False
-            :arity 0
-            :constructs 'coalton:Boolean
-            :classname 'coalton::Boolean/False
-            :docstring "Boolean `False`"
-            :compressed-repr 'nil))
+                'coalton:False
+                (make-constructor-entry
+                 :name 'coalton:False
+                 :arity 0
+                 :constructs 'coalton:Boolean
+                 :classname 'coalton::Boolean/False
+                 :docstring "Boolean `False`"
+                 :compressed-repr 'nil)
 
-          ('coalton:Unit
-           (make-constructor-entry
-            :name 'coalton:Unit
-            :arity 0
-            :constructs 'coalton:Unit
-            :classname 'coalton::Unit/Unit
-            :docstring "`Unit` represents nullary parameters and return types."
-            :compressed-repr 'coalton::Unit/Unit))
+                'coalton:Unit
+                (make-constructor-entry
+                 :name 'coalton:Unit
+                 :arity 0
+                 :constructs 'coalton:Unit
+                 :classname 'coalton::Unit/Unit
+                 :docstring "`Unit` represents nullary parameters and return types."
+                 :compressed-repr 'coalton::Unit/Unit)
 
-          ('coalton:Cons
-           (make-constructor-entry
-            :name 'coalton:Cons
-            :arity 2
-            :constructs 'coalton:List
-            :classname nil
-            :docstring "`Cons` represents a `List` containing a first element (`car`) and a nested `Cons` (`cdr`)."
-            :compressed-repr 'nil))
+                'coalton:Cons
+                (make-constructor-entry
+                 :name 'coalton:Cons
+                 :arity 2
+                 :constructs 'coalton:List
+                 :classname nil
+                 :docstring "`Cons` represents a `List` containing a first element (`car`) and a nested `Cons` (`cdr`)."
+                 :compressed-repr 'nil)
 
-          ('coalton:Nil
-           (make-constructor-entry
-            :name 'coalton:Nil
-            :arity 0
-            :constructs 'coalton:List
-            :classname nil
-            :docstring "`Nil` represents an empty `List`."
-            :compressed-repr 'nil)))))
-
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type constructor-environment))
+                'coalton:Nil
+                (make-constructor-entry
+                 :name 'coalton:Nil
+                 :arity 0
+                 :constructs 'coalton:List
+                 :classname nil
+                 :docstring "`Nil` represents an empty `List`."
+                 :compressed-repr 'nil)))
 
 ;;;
 ;;; Struct environment
@@ -545,8 +512,6 @@
             (struct-entry-fields struct-entry))
       (unless no-error
         (util:coalton-bug "Unknown field ~S" name))))
-
-(defstruct (struct-environment (:include immutable-map)))
 
 ;;;
 ;;; Class environment
@@ -632,20 +597,6 @@
    :docstring (source:docstring class)
    :location (source:location class)))
 
-(defstruct (class-environment (:include immutable-map)))
-
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type class-environment))
-
-;;;
-;;; Fundep Environment
-;;;
-
-(defstruct (fundep-environment (:include immutable-map)))
-
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type fundep-environment))
-
 ;;;
 ;;; Instance environment
 ;;;
@@ -717,11 +668,6 @@
 (deftype function-env-entry-list ()
   `(satisfies function-env-entry-list-p))
 
-(defstruct (function-environment (:include immutable-map)))
-
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type function-environment))
-
 ;;;
 ;;; Name environment
 ;;;
@@ -744,29 +690,6 @@
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type name-entry))
 
-(defstruct (name-environment (:include immutable-map)))
-
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type name-environment))
-
-;;;
-;;; Method Inline environment
-;;;
-
-(defstruct (method-inline-environment (:include immutable-map)))
-
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type method-inline-environment))
-
-;;;
-;;; Code environment
-;;;
-
-(defstruct (code-environment (:include immutable-map)))
-
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type code-environment))
-
 ;;;
 ;;; Specialization Environment
 ;;;
@@ -786,35 +709,27 @@
 (deftype specialization-entry-list ()
   '(satisfies specialization-entry-list-p))
 
-(defstruct (specialization-environment (:include immutable-map)))
-
-;;;
-;;; Source name environment
-;;;
-;; maps the names of user-defined functions to a list of their user-supplied parameter names, for
-;; documentation generation.
-
-(defstruct (source-name-environment (:include immutable-map)))
-
 ;;;
 ;;; Environment
 ;;;
 
 (defstruct environment
-  (value-environment          (util:required 'value-environment)          :type value-environment          :read-only t)
-  (type-environment           (util:required 'type-environment)           :type type-environment           :read-only t)
-  (constructor-environment    (util:required 'constructor-environment)    :type constructor-environment    :read-only t)
-  (struct-environment         (util:required 'struct-environment)         :type struct-environment         :read-only t)
-  (class-environment          (util:required 'class-environment)          :type class-environment          :read-only t)
-  (fundep-environment         (util:required 'fundep-environment)         :type fundep-environment         :read-only t)
+  (value-environment          map:+empty+ :type map:immutable-map :read-only t)
+  (type-environment           (util:required 'type-environment)           :type map:immutable-map          :read-only t)
+  (constructor-environment    (util:required 'constructor-environment)    :type map:immutable-map    :read-only t)
+  (struct-environment         map:+empty+ :type map:immutable-map :read-only t)
+  (class-environment          map:+empty+ :type map:immutable-map :read-only t)
+  (fundep-environment         map:+empty+ :type map:immutable-map :read-only t)
   (instance-environment       (util:required 'instance-environment)       :type instance-environment       :read-only t)
   (instance-sym-environment   (util:required 'instance-sym-environment)   :type instance-sym-environment   :read-only t)
-  (function-environment       (util:required 'function-environment)       :type function-environment       :read-only t)
-  (name-environment           (util:required 'name-environment)           :type name-environment           :read-only t)
-  (method-inline-environment  (util:required 'method-inline-environment)  :type method-inline-environment  :read-only t)
-  (code-environment           (util:required 'code-environment)           :type code-environment           :read-only t)
-  (specialization-environment (util:required 'specialization-environment) :type specialization-environment :read-only t)
-  (source-name-environment    (util:required 'source-name-environment)    :type source-name-environment    :read-only t))
+  (function-environment       map:+empty+ :type map:immutable-map :read-only t)
+  (name-environment           map:+empty+ :type map:immutable-map :read-only t)
+  (method-inline-environment  map:+empty+ :type map:immutable-map :read-only t)
+  (code-environment           map:+empty+ :type map:immutable-map :read-only t)
+  (specialization-environment map:+empty+ :type map:immutable-map :read-only t)
+  ;; maps the names of user-defined functions to a list of their
+  ;; user-supplied parameter names, for documentation generation
+  (source-name-environment    map:+empty+ :type map:immutable-map :read-only t))
 
 (defmethod print-object ((env environment) stream)
   (declare (type stream stream)
@@ -831,20 +746,10 @@
 (defun make-default-environment ()
   (declare (values environment))
   (make-environment
-   :value-environment (make-value-environment)
    :type-environment (make-default-type-environment)
-   :struct-environment (make-struct-environment)
    :constructor-environment (make-default-constructor-environment)
-   :class-environment (make-class-environment)
-   :fundep-environment (make-fundep-environment)
    :instance-environment (make-instance-environment)
-   :instance-sym-environment (make-instance-sym-environment)
-   :function-environment (make-function-environment)
-   :name-environment (make-name-environment)
-   :method-inline-environment (make-method-inline-environment)
-   :code-environment (make-code-environment)
-   :specialization-environment (make-specialization-environment)
-   :source-name-environment (make-source-name-environment)))
+   :instance-sym-environment (make-instance-sym-environment)))
 
 (defun update-environment (env
                            &key
@@ -863,20 +768,20 @@
                              (specialization-environment (environment-specialization-environment env))
                              (source-name-environment (environment-source-name-environment env)))
   (declare (type environment env)
-           (type value-environment value-environment)
-           (type type-environment type-environment)
-           (type constructor-environment constructor-environment)
-           (type struct-environment struct-environment)
-           (type class-environment class-environment)
-           (type fundep-environment fundep-environment)
+           (type map:immutable-map value-environment)
+           (type map:immutable-map type-environment)
+           (type map:immutable-map constructor-environment)
+           (type map:immutable-map struct-environment)
+           (type map:immutable-map class-environment)
+           (type map:immutable-map fundep-environment)
            (type instance-environment instance-environment)
            (type instance-sym-environment instance-sym-environment)
-           (type function-environment function-environment)
-           (type name-environment name-environment)
-           (type method-inline-environment method-inline-environment)
-           (type code-environment code-environment)
-           (type specialization-environment specialization-environment)
-           (type source-name-environment source-name-environment)
+           (type map:immutable-map function-environment)
+           (type map:immutable-map name-environment)
+           (type map:immutable-map method-inline-environment)
+           (type map:immutable-map code-environment)
+           (type map:immutable-map specialization-environment)
+           (type map:immutable-map source-name-environment)
            (values environment))
   (make-environment
    :value-environment value-environment
@@ -904,12 +809,12 @@
            (values environment &optional))
   (update-environment env
                       :value-environment
-                      (apply-substitution
-                       subst-list
-                       (environment-value-environment env))))
+                      (value-apply-substitution
+                       (environment-value-environment env)
+                       subst-list)))
 
 (defmethod type-variables ((env environment))
-  (type-variables (environment-value-environment env)))
+  (value-type-variables (environment-value-environment env)))
 
 ;;;
 ;;; Functions
@@ -918,7 +823,7 @@
 (defun lookup-value-type (env symbol &key no-error)
   (declare (type environment env)
            (type symbol symbol))
-  (or (immutable-map-lookup (environment-value-environment env) symbol)
+  (or (map:get (environment-value-environment env) symbol)
       (unless no-error
         (util:coalton-bug "Unknown binding ~S" symbol))))
 
@@ -931,29 +836,23 @@
   (when (type-variables value)
     (util:coalton-bug "Unable to add type with free variables to environment ~S" value))
 
-  (update-environment
-   env
-   :value-environment (immutable-map-set
-                       (environment-value-environment env)
-                       symbol
-                       value
-                       #'make-value-environment)))
+  (update-environment env
+                      :value-environment (map:assoc (environment-value-environment env)
+                                                    symbol
+                                                    value)))
 
 (define-env-updater unset-value-type (env symbol)
   (declare (type environment env)
            (type symbol symbol))
 
-  (update-environment
-   env
-   :value-environment (immutable-map-remove
-                       (environment-value-environment env)
-                       symbol
-                       #'make-value-environment)))
+  (update-environment env
+                      :value-environment (map:dissoc (environment-value-environment env)
+                                                     symbol)))
 
 (defun lookup-type (env symbol &key no-error)
   (declare (type environment env)
            (type symbol symbol))
-  (or (immutable-map-lookup (environment-type-environment env) symbol)
+  (or (map:get (environment-type-environment env) symbol)
       (unless no-error
         (util:coalton-bug "Unknown type ~S" symbol))))
 
@@ -963,16 +862,15 @@
            (type type-entry value))
   (update-environment
    env
-   :type-environment (immutable-map-set
+   :type-environment (map:assoc
                       (environment-type-environment env)
                       symbol
-                      value
-                      #'make-type-environment)))
+                      value)))
 
 (defun lookup-constructor (env symbol &key no-error)
   (declare (type environment env)
            (type symbol symbol))
-  (or (immutable-map-lookup (environment-constructor-environment env) symbol)
+  (or (map:get (environment-constructor-environment env) symbol)
       (unless no-error
         (util:coalton-bug "Unknown constructor ~S." symbol))))
 
@@ -980,28 +878,23 @@
   (declare (type environment env)
            (type symbol symbol)
            (type constructor-entry value))
-  (update-environment
-   env
-   :constructor-environment (immutable-map-set
-                             (environment-constructor-environment env)
-                             symbol
-                             value
-                             #'make-constructor-environment)))
+  (update-environment env
+                      :constructor-environment (map:assoc (environment-constructor-environment env)
+                                                          symbol
+                                                          value)))
 
 (define-env-updater unset-constructor (env symbol)
   (declare (type environment env)
            (type symbol symbol))
-  (update-environment
-   env
-   :constructor-environment (immutable-map-remove
-                             (environment-constructor-environment env)
-                             symbol
-                             #'make-constructor-environment)))
+  (update-environment env
+                      :constructor-environment
+                      (map:dissoc (environment-constructor-environment env)
+                                  symbol)))
 
 (defun lookup-struct (env symbol &key no-error)
   (declare (type environment env)
            (type symbol symbol))
-  (or (immutable-map-lookup (environment-struct-environment env) symbol)
+  (or (map:get (environment-struct-environment env) symbol)
       (unless no-error
         (util:coalton-bug "Unknown struct ~S" symbol))))
 
@@ -1009,28 +902,22 @@
   (declare (type environment env)
            (type symbol symbol)
            (type struct-entry value))
-  (update-environment
-   env
-   :struct-environment (immutable-map-set
-                        (environment-struct-environment env)
-                        symbol
-                        value
-                        #'make-struct-environment)))
+  (update-environment env
+                      :struct-environment (map:assoc (environment-struct-environment env)
+                                                     symbol
+                                                     value)))
 
 (define-env-updater unset-struct (env symbol)
   (declare (type environment env)
            (type symbol symbol))
   (update-environment
    env
-   :struct-environment (immutable-map-remove
-                        (environment-struct-environment env)
-                        symbol
-                        #'make-struct-environment)))
+   :struct-environment (map:dissoc (environment-struct-environment env) symbol)))
 
 (defun lookup-class (env symbol &key no-error)
   (declare (type environment env)
            (type symbol symbol))
-  (or (immutable-map-lookup (environment-class-environment env) symbol)
+  (or (map:get (environment-class-environment env) symbol)
       (unless no-error
         (util:coalton-bug "Unknown class ~S." symbol))))
 
@@ -1040,16 +927,14 @@
            (type ty-class value))
   (update-environment
    env
-   :class-environment (immutable-map-set
-                       (environment-class-environment env)
-                       symbol
-                       value
-                       #'make-class-environment)))
+   :class-environment (map:assoc (environment-class-environment env)
+                                 symbol
+                                 value)))
 
 (defun lookup-function (env symbol &key no-error)
   (declare (type environment env)
            (type symbol symbol))
-  (or (immutable-map-lookup (environment-function-environment env) symbol)
+  (or (map:get (environment-function-environment env) symbol)
       (unless no-error
         (util:coalton-bug "Unknown function ~S." symbol))))
 
@@ -1059,26 +944,24 @@
            (type function-env-entry value))
   (update-environment
    env
-   :function-environment (immutable-map-set
+   :function-environment (map:assoc
                           (environment-function-environment env)
                           symbol
-                          value
-                          #'make-function-environment)))
+                          value)))
 
 (define-env-updater unset-function (env symbol)
   (declare (type environment env)
            (type symbol symbol))
   (update-environment
    env
-   :function-environment (immutable-map-remove
+   :function-environment (map:dissoc
                           (environment-function-environment env)
-                          symbol
-                          #'make-function-environment)))
+                          symbol)))
 
 (defun lookup-name (env symbol &key no-error)
   (declare (type environment env)
            (type symbol symbol))
-  (or (immutable-map-lookup (environment-name-environment env) symbol)
+  (or (map:get (environment-name-environment env) symbol)
       (unless no-error
         (error "Unknown name ~S." symbol))))
 
@@ -1096,21 +979,19 @@
         env
         (update-environment
          env
-         :name-environment (immutable-map-set
+         :name-environment (map:assoc
                             (environment-name-environment env)
                             symbol
-                            value
-                            #'make-name-environment)))))
+                            value)))))
 
 (define-env-updater unset-name (env symbol)
   (declare (type environment env)
            (type symbol symbol))
   (update-environment
    env
-   :name-environment (immutable-map-remove
+   :name-environment (map:dissoc
                       (environment-name-environment env)
-                      symbol
-                      #'make-name-environment)))
+                      symbol)))
 
 (defun lookup-class-instances (env class)
   (declare (type environment env)
@@ -1141,7 +1022,7 @@
   (declare (type environment env)
            (type symbol function-name)
            (values parser:pattern-list &optional))
-  (values (immutable-map-lookup (environment-source-name-environment env) function-name)))
+  (values (map:get (environment-source-name-environment env) function-name)))
 
 (define-env-updater set-function-source-parameter-names (env function-name source-parameter-names)
   (declare (type environment env)
@@ -1149,20 +1030,16 @@
            (type parser:pattern-list source-parameter-names))
   (update-environment
    env
-   :source-name-environment (immutable-map-set (environment-source-name-environment env)
-                                               function-name
-                                               source-parameter-names
-                                               #'make-source-name-environment)))
+   :source-name-environment (map:assoc (environment-source-name-environment env)
+                                       function-name
+                                       source-parameter-names)))
 
 (define-env-updater unset-function-source-parameter-names (env function-name)
   (declare (type environment env)
            (type symbol function-name))
-  (update-environment
-   env
-   :source-name-environment (immutable-map-remove (environment-source-name-environment env)
-                                                  function-name
-                                                  #'make-source-name-environment)))
-
+  (update-environment env
+                      :source-name-environment (map:dissoc (environment-source-name-environment env)
+                                                           function-name)))
 
 (defun constructor-arguments (name env)
   (declare (type symbol name)
@@ -1229,18 +1106,17 @@
   (update-environment
    env
    :method-inline-environment
-   (immutable-map-set
+   (map:assoc
     (environment-method-inline-environment env)
     (cons method instance)
-    codegen-sym
-    #'make-method-inline-environment)))
+    codegen-sym)))
 
 (defun lookup-method-inline (env method instance &key no-error)
   (declare (type environment env)
            (type symbol method instance)
            (values symbol))
   (or
-   (immutable-map-lookup
+   (map:get
     (environment-method-inline-environment env)
     (cons method instance))
    (unless no-error
@@ -1250,25 +1126,18 @@
   (declare (type environment env)
            (type symbol name)
            (type t code))
-  (update-environment
-   env
-   :code-environment
-   (immutable-map-set
-    (environment-code-environment env)
-    name
-    code
-    #'make-code-environment)))
+  (update-environment env
+                      :code-environment (map:assoc (environment-code-environment env)
+                                                   name
+                                                   code)))
 
 (defun lookup-code (env name &key no-error)
   (declare (type environment env)
            (type symbol name)
            (values t))
-  (or
-   (immutable-map-lookup
-    (environment-code-environment env)
-    name)
-   (unless no-error
-     (error "Unable to find code for function ~A." name))))
+  (or (map:get (environment-code-environment env) name)
+      (unless no-error
+        (error "Unable to find code for function ~A." name))))
 
 (defun replace-at-index (list index element)
   (append (subseq list 0 index)
@@ -1278,51 +1147,47 @@
 (define-env-updater add-specialization (env entry)
   (declare (type environment env)
            (type specialization-entry entry))
-
   (let* ((from (specialization-entry-from entry))
          (to (specialization-entry-to entry))
          (to-ty (specialization-entry-to-ty entry))
-
          (to-scheme (quantify (type-variables to-ty)
                               (qualify nil to-ty)))
-         (specializations (immutable-map-lookup (environment-specialization-environment env) from)))
-    (loop :with elems := specializations
-          :for index :below (length specializations)
-          :with elem := (pop elems)
-          :do (let* ((type (specialization-entry-to-ty elem))
-                     (scheme (quantify (type-variables type)
-                                       (qualify nil type))))
-                (when (equalp to-scheme scheme)
-                  (return-from add-specialization
-                    (update-environment env
-                                        :specialization-environment
-                                        (immutable-map-set
-                                         (environment-specialization-environment env)
-                                         from
-                                         (replace-at-index specializations index entry)
-                                         #'make-specialization-environment))))
-                (handler-case
-                  (progn
-                    (unify nil to-ty (specialization-entry-to-ty elem))
-                    (error 'overlapping-specialization-error
-                           :new to
-                           :existing (specialization-entry-to elem)))
-                (unification-error ()))))
+         (spec-env (environment-specialization-environment env))
+         (specializations (map:get spec-env from))
+         (index (position to-scheme specializations
+                          :key (lambda (elem)
+                                 (let ((type (specialization-entry-to-ty elem)))
+                                   (quantify (type-variables type)
+                                             (qualify nil type)))))))
+    (when index
+      (return-from add-specialization
+        (update-environment env
+                            :specialization-environment
+                            (map:assoc spec-env from
+                                       (replace-at-index specializations index entry)))))
+
+    #++(dolist (elem specializations)   ; FIXME -- think
+      (handler-case
+          (progn
+            (unify nil to-ty (specialization-entry-to-ty elem))
+            (error 'overlapping-specialization-error
+                   :new to
+                   :existing (specialization-entry-to elem)))
+        (unification-error ())))
 
     (update-environment env
                         :specialization-environment
-                        (immutable-map-set
-                         (environment-specialization-environment env)
-                         from
-                         (cons entry specializations)
-                         #'make-specialization-environment))))
+                        (map:assoc spec-env from
+                                   (cons entry specializations)))))
 
 (defun lookup-specialization (env from to &key (no-error nil))
   (declare (type environment env)
            (type symbol from)
            (type symbol to)
            (values (or null specialization-entry) &optional))
-  (dolist (elem (immutable-map-lookup (environment-specialization-environment env) from))
+  (dolist (elem (or (map:get (environment-specialization-environment env) from)
+                    (unless no-error
+                      (error "Unable to find specialization from ~A to ~A" from to))))
     (when (eq to (specialization-entry-to elem))
       (return-from lookup-specialization elem)))
   (unless no-error
@@ -1333,7 +1198,9 @@
            (type symbol from)
            (type ty ty)
            (values (or null specialization-entry) &optional))
-  (dolist (elem (immutable-map-lookup (environment-specialization-environment env) from))
+  (dolist (elem (or (map:get (environment-specialization-environment env) from)
+                    (unless no-error
+                      (error "Unable to find specialization from ~A of type ~A" from ty))))
     (handler-case
         (progn
           (match (specialization-entry-to-ty elem) ty)

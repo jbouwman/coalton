@@ -27,6 +27,8 @@
                (:file "source")
                (:file "global-lexical")
                (:file "constants")
+               (:module "lib"
+                :components ((:file "map")))
                (:module "algorithm"
                 :serial t
                 :components ((:file "tarjan-scc")
