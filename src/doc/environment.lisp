@@ -27,22 +27,13 @@
   "Coerce an FSET map to a list."
   (fset:convert 'list (fset:range (algo:immutable-map-data immutable-map))))
 
-(defun %lm-values (immutable-listmap)
-  "Coerce an FSET 'listmap' to a list."
-  (apply #'append
-         (mapcar (lambda (value)
-                   (fset:convert 'list value))
-                 (fset:convert 'list (fset:range (algo:immutable-listmap-data immutable-listmap))))))
-
 (defun value-type (name-entry)
   (tc:lookup-value-type entry:*global-environment*
                         (tc:name-entry-name name-entry)))
 
 (defun class-instances (ty-class)
-  (fset:convert 'list
-                (tc:lookup-class-instances entry:*global-environment*
-                                           (tc:ty-class-name ty-class)
-                                           :no-error t)))
+  (tc:lookup-class-instances entry:*global-environment*
+                             (tc:ty-class-name ty-class)))
 
 (defun struct-entry-p (type-entry)
   (let ((name (tc:type-entry-name type-entry)))
@@ -107,5 +98,5 @@ If non-nil, restrict to instances defined in PACKAGE."
                     (not (exported-symbol-p (tc:ty-predicate-class
                                              (tc:ty-class-instance-predicate class-instance))
                                             package t))))
-             (%lm-values (tc:instance-environment-instances
-                          (tc:environment-instance-environment environment)))))
+             (apply #'append
+                    (%values (tc:environment-instance-environment environment)))))

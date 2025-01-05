@@ -96,7 +96,7 @@
         (sorted-by-package (make-hash-table)))
     ;; Sort the entires by package
     (fset:do-map (sym entry (algo:immutable-map-data (tc:environment-class-environment env)))
-      (push (cons entry (tc:lookup-class-instances env sym :no-error t))
+      (push (cons entry (tc:lookup-class-instances env sym))
             (gethash (symbol-package sym) sorted-by-package)))
 
     ;; Print out the entries for each package
@@ -115,7 +115,7 @@
                                      (tc:ty-predicate-types class-pred)
                                      (mapcar #'tc:kind-of (tc:ty-predicate-types class-pred)))))
 
-                         (fset:do-seq (instance instances)
+                         (dolist (instance instances)
                            (format t "    ")
                            ;; Generate type variable substitutions from instance constraints
                            (tc:with-pprint-variable-context ()

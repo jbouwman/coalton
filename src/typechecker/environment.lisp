@@ -88,7 +88,6 @@
    #:ty-class-instance-method-codegen-syms  ; ACCESSOR
    #:ty-class-instance-list                 ; TYPE
    #:instance-environment                   ; STRUCT
-   #:instance-environment-instances         ; ACCESSOR
    #:function-env-entry                     ; STRUCT
    #:make-function-env-entry                ; CONSTRUCTOR
    #:function-env-entry-name                ; ACCESSOR
@@ -687,7 +686,7 @@
    :method-codegen-syms (ty-class-instance-method-codegen-syms instance)
    :docstring (ty-class-instance-docstring instance)))
 
-(defstruct (instance-environment (:include immutable-listmap)))
+(defstruct (instance-environment (:include immutable-map)))
 
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type instance-environment))
@@ -1113,17 +1112,16 @@
                       symbol
                       #'make-name-environment)))
 
-(defun lookup-class-instances (env class &key no-error)
+(defun lookup-class-instances (env class)
   (declare (type environment env)
-           (type symbol class)
-           (values fset:seq &optional))
-  (immutable-listmap-lookup (environment-instance-environment env) class :no-error no-error))
+           (type symbol class))
+  (immutable-map-lookup (environment-instance-environment env) class))
 
 (defun lookup-class-instance (env pred &key no-error)
   (declare (type environment env))
   (let* ((pred-class (ty-predicate-class pred))
-         (instances (lookup-class-instances env pred-class :no-error no-error)))
-    (fset:do-seq (instance instances)
+         (instances (lookup-class-instances env pred-class)))
+    (dolist (instance instances)
       (handler-case
           (let ((subs (predicate-match (ty-class-instance-predicate instance) pred)))
             (return-from lookup-class-instance (values instance subs)))
@@ -1181,49 +1179,49 @@
   (unless (lookup-class env class)
     (error "Class ~S does not exist." class))
 
-  (fset:do-seq (inst (lookup-class-instances env class :no-error t) :index index)
-    (when (handler-case (or (predicate-mgu (ty-class-instance-predicate value)
-                                           (ty-class-instance-predicate inst))
-                            t)
-            (predicate-unification-error () nil))
-
-      ;; If we have the same instance then simply overwrite the old one
-      (handler-case
-          (progn
-            (predicate-match (ty-class-instance-predicate value) (ty-class-instance-predicate inst))
-            (predicate-match (ty-class-instance-predicate inst) (ty-class-instance-predicate value))
-
-            (return-from add-instance
-              (update-environment
-               env
-               :instance-environment (immutable-listmap-replace
-                                      (environment-instance-environment env)
-                                      class
-                                      index
-                                      value
-                                      #'make-instance-environment)
-               :instance-sym-environment (immutable-map-set
-                                          (environment-instance-sym-environment env)
-                                          (ty-class-instance-codegen-sym value)
-                                          value
-                                          #'make-instance-sym-environment))))
-        (predicate-unification-error ()
-          (error 'overlapping-instance-error
-                 :inst1 (ty-class-instance-predicate value)
-                 :inst2 (ty-class-instance-predicate inst))))))
-
-  (update-environment
-   env
-   :instance-environment (immutable-listmap-push
-                          (environment-instance-environment env)
-                          class
-                          value
-                          #'make-instance-environment)
-   :instance-sym-environment (immutable-map-set
-                              (environment-instance-sym-environment env)
-                              (ty-class-instance-codegen-sym value)
-                              value
-                              #'make-instance-sym-environment)))
+  (let ((instances (lookup-class-instances env class)))
+    (loop :for inst :in instances
+          :for index :from 0
+          :do (when (handler-case (or (predicate-mgu (ty-class-instance-predicate value)
+                                                     (ty-class-instance-predicate inst))
+                                      t)
+                      (predicate-unification-error () nil))
+                ;; If we have the same instance then simply overwrite the old one
+                (handler-case
+                    (progn
+                      (predicate-match (ty-class-instance-predicate value)
+                                       (ty-class-instance-predicate inst))
+                      (predicate-match (ty-class-instance-predicate inst)
+                                       (ty-class-instance-predicate value))
+                      (return-from add-instance
+                        (update-environment
+                         env
+                         :instance-environment (immutable-map-set
+                                                (environment-instance-environment env)
+                                                class
+                                                (replace-at-index instances index value)
+                                                #'make-instance-environment)
+                         :instance-sym-environment (immutable-map-set
+                                                    (environment-instance-sym-environment env)
+                                                    (ty-class-instance-codegen-sym value)
+                                                    value
+                                                    #'make-instance-sym-environment))))
+                  (predicate-unification-error ()
+                    (error 'overlapping-instance-error
+                           :inst1 (ty-class-instance-predicate value)
+                           :inst2 (ty-class-instance-predicate inst))))))
+    (update-environment
+     env
+     :instance-environment (immutable-map-set
+                            (environment-instance-environment env)
+                            class
+                            (cons value instances)
+                            #'make-instance-environment)
+     :instance-sym-environment (immutable-map-set
+                                (environment-instance-sym-environment env)
+                                (ty-class-instance-codegen-sym value)
+                                value
+                                #'make-instance-sym-environment))))
 
 (define-env-updater set-method-inline (env method instance codegen-sym)
   (declare (type environment env)
@@ -1491,7 +1489,7 @@
 
          (new-pred (make-ty-predicate :class class-name :types vars :location (source:location pred))))
 
-    (fset:do-seq (inst (lookup-class-instances env class-name))
+    (dolist (inst (lookup-class-instances env class-name))
       (handler-case
           (progn
             (predicate-mgu new-pred (ty-class-instance-predicate inst))
