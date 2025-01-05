@@ -787,7 +787,7 @@
 (deftype specialization-entry-list ()
   '(satisfies specialization-entry-list-p))
 
-(defstruct (specialization-environment (:include immutable-listmap)))
+(defstruct (specialization-environment (:include immutable-map)))
 
 ;;;
 ;;; Source name environment
@@ -1272,6 +1272,11 @@
    (unless no-error
      (error "Unable to find code for function ~A." name))))
 
+(defun replace-at-index (list index element)
+  (append (subseq list 0 index)
+          (list element)
+          (subseq list (1+ index))))
+
 (define-env-updater add-specialization (env entry)
   (declare (type environment env)
            (type specialization-entry entry))
@@ -1281,39 +1286,37 @@
          (to-ty (specialization-entry-to-ty entry))
 
          (to-scheme (quantify (type-variables to-ty)
-                              (qualify nil to-ty))))
-
-    (fset:do-seq (elem (immutable-listmap-lookup (environment-specialization-environment env) from :no-error t) :index index)
-      (let* ((type (specialization-entry-to-ty elem))
-             (scheme (quantify (type-variables type)
-                               (qualify nil type))))
-
-        (when (equalp to-scheme scheme)
-          (return-from add-specialization
-            (update-environment env
-                                :specialization-environment
-                                (immutable-listmap-replace
-                                 (environment-specialization-environment env)
-                                 from
-                                 index
-                                 entry
-                                 #'make-specialization-environment)))))
-
-      (handler-case
-          (progn
-            (unify nil to-ty (specialization-entry-to-ty elem))
-
-            (error 'overlapping-specialization-error
-                   :new to
-                   :existing (specialization-entry-to elem)))
-        (unification-error ())))
+                              (qualify nil to-ty)))
+         (specializations (immutable-map-lookup (environment-specialization-environment env) from)))
+    (loop :with elems := specializations
+          :for index :below (length specializations)
+          :with elem := (pop elems)
+          :do (let* ((type (specialization-entry-to-ty elem))
+                     (scheme (quantify (type-variables type)
+                                       (qualify nil type))))
+                (when (equalp to-scheme scheme)
+                  (return-from add-specialization
+                    (update-environment env
+                                        :specialization-environment
+                                        (immutable-map-set
+                                         (environment-specialization-environment env)
+                                         from
+                                         (replace-at-index specializations index entry)
+                                         #'make-specialization-environment))))
+                (handler-case
+                  (progn
+                    (unify nil to-ty (specialization-entry-to-ty elem))
+                    (error 'overlapping-specialization-error
+                           :new to
+                           :existing (specialization-entry-to elem)))
+                (unification-error ()))))
 
     (update-environment env
                         :specialization-environment
-                        (immutable-listmap-push
+                        (immutable-map-set
                          (environment-specialization-environment env)
                          from
-                         entry
+                         (cons entry specializations)
                          #'make-specialization-environment))))
 
 (defun lookup-specialization (env from to &key (no-error nil))
@@ -1321,10 +1324,9 @@
            (type symbol from)
            (type symbol to)
            (values (or null specialization-entry) &optional))
-  (fset:do-seq (elem (immutable-listmap-lookup (environment-specialization-environment env) from :no-error no-error))
+  (dolist (elem (immutable-map-lookup (environment-specialization-environment env) from))
     (when (eq to (specialization-entry-to elem))
       (return-from lookup-specialization elem)))
-
   (unless no-error
     (error "Unable to find specialization from ~A to ~A" from to)))
 
@@ -1333,13 +1335,16 @@
            (type symbol from)
            (type ty ty)
            (values (or null specialization-entry) &optional))
-  (fset:do-seq (elem (immutable-listmap-lookup (environment-specialization-environment env) from :no-error no-error))
+  (dolist (elem (immutable-map-lookup (environment-specialization-environment env) from))
     (handler-case
         (progn
           (match (specialization-entry-to-ty elem) ty)
           (return-from lookup-specialization-by-type elem))
       (coalton-internal-type-error (e)
-        (declare (ignore e))))))
+        (declare (ignore e)))))
+  (unless no-error
+    (error "Unable to find specialization from ~A, of type ~A" from ty)))
+  
 
 (defun lookup-fundep-environment (env class &key (no-error nil))
   (declare (type environment env)

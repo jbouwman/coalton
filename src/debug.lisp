@@ -148,7 +148,7 @@
   "Print all specializations"
   (let ((env entry:*global-environment*)
         (sorted-by-package (make-hash-table)))
-    (fset:do-map (sym entry (algo:immutable-listmap-data (tc:environment-specialization-environment env)))
+    (fset:do-map (sym entry (algo:immutable-map-data (tc:environment-specialization-environment env)))
       (push (cons sym entry) (gethash (symbol-package sym) sorted-by-package)))
 
     (labels ((print-package (package entries)
