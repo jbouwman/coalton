@@ -687,12 +687,15 @@
    :method-codegen-syms (ty-class-instance-method-codegen-syms instance)
    :docstring (ty-class-instance-docstring instance)))
 
-(defstruct instance-environment
-  (instances    (make-immutable-listmap) :type immutable-listmap :read-only t)
-  (codegen-syms (make-immutable-map)     :type immutable-map     :read-only t))
+(defstruct (instance-environment (:include immutable-listmap)))
 
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type instance-environment))
+
+(defstruct (instance-sym-environment (:include immutable-map)))
+
+#+(and sbcl coalton-release)
+(declaim (sb-ext:freeze-type instance-sym-environment))
 
 ;;;
 ;;; Function environment
@@ -806,6 +809,7 @@
   (class-environment          (util:required 'class-environment)          :type class-environment          :read-only t)
   (fundep-environment         (util:required 'fundep-environment)         :type fundep-environment         :read-only t)
   (instance-environment       (util:required 'instance-environment)       :type instance-environment       :read-only t)
+  (instance-sym-environment   (util:required 'instance-sym-environment)   :type instance-sym-environment   :read-only t)
   (function-environment       (util:required 'function-environment)       :type function-environment       :read-only t)
   (name-environment           (util:required 'name-environment)           :type name-environment           :read-only t)
   (method-inline-environment  (util:required 'method-inline-environment)  :type method-inline-environment  :read-only t)
@@ -835,6 +839,7 @@
    :class-environment (make-class-environment)
    :fundep-environment (make-fundep-environment)
    :instance-environment (make-instance-environment)
+   :instance-sym-environment (make-instance-sym-environment)
    :function-environment (make-function-environment)
    :name-environment (make-name-environment)
    :method-inline-environment (make-method-inline-environment)
@@ -851,6 +856,7 @@
                              (class-environment (environment-class-environment env))
                              (fundep-environment (environment-fundep-environment env))
                              (instance-environment (environment-instance-environment env))
+                             (instance-sym-environment (environment-instance-sym-environment env))
                              (function-environment (environment-function-environment env))
                              (name-environment (environment-name-environment env))
                              (method-inline-environment (environment-method-inline-environment env))
@@ -865,6 +871,7 @@
            (type class-environment class-environment)
            (type fundep-environment fundep-environment)
            (type instance-environment instance-environment)
+           (type instance-sym-environment instance-sym-environment)
            (type function-environment function-environment)
            (type name-environment name-environment)
            (type method-inline-environment method-inline-environment)
@@ -880,6 +887,7 @@
    :class-environment class-environment
    :fundep-environment fundep-environment
    :instance-environment instance-environment
+   :instance-sym-environment instance-sym-environment
    :function-environment function-environment
    :name-environment name-environment
    :method-inline-environment method-inline-environment
@@ -1109,7 +1117,7 @@
   (declare (type environment env)
            (type symbol class)
            (values fset:seq &optional))
-  (immutable-listmap-lookup (instance-environment-instances (environment-instance-environment env)) class :no-error no-error))
+  (immutable-listmap-lookup (environment-instance-environment env) class :no-error no-error))
 
 (defun lookup-class-instance (env pred &key no-error)
   (declare (type environment env))
@@ -1127,7 +1135,7 @@
   (declare (type environment env)
            (type symbol codegen-sym))
 
-  (or (immutable-map-lookup (instance-environment-codegen-syms (environment-instance-environment env)) codegen-sym)
+  (or (immutable-map-lookup (environment-instance-sym-environment env) codegen-sym)
    (unless no-error
      (error "Unknown instance with codegen-sym ~A" codegen-sym))))
 
@@ -1188,17 +1196,17 @@
             (return-from add-instance
               (update-environment
                env
-               :instance-environment (make-instance-environment
-                                      :instances (immutable-listmap-replace
-                                                  (instance-environment-instances (environment-instance-environment env))
-                                                  class
-                                                  index
-                                                  value)
-                                      :codegen-syms (immutable-map-set
-                                                     (instance-environment-codegen-syms (environment-instance-environment env))
-                                                     (ty-class-instance-codegen-sym value)
-                                                     value))))
-            )
+               :instance-environment (immutable-listmap-replace
+                                      (environment-instance-environment env)
+                                      class
+                                      index
+                                      value
+                                      #'make-instance-environment)
+               :instance-sym-environment (immutable-map-set
+                                          (environment-instance-sym-environment env)
+                                          (ty-class-instance-codegen-sym value)
+                                          value
+                                          #'make-instance-sym-environment))))
         (predicate-unification-error ()
           (error 'overlapping-instance-error
                  :inst1 (ty-class-instance-predicate value)
@@ -1206,15 +1214,16 @@
 
   (update-environment
    env
-   :instance-environment (make-instance-environment
-                          :instances (immutable-listmap-push
-                                      (instance-environment-instances (environment-instance-environment env))
-                                      class
-                                      value)
-                          :codegen-syms (immutable-map-set
-                                         (instance-environment-codegen-syms (environment-instance-environment env))
-                                         (ty-class-instance-codegen-sym value)
-                                         value))))
+   :instance-environment (immutable-listmap-push
+                          (environment-instance-environment env)
+                          class
+                          value
+                          #'make-instance-environment)
+   :instance-sym-environment (immutable-map-set
+                              (environment-instance-sym-environment env)
+                              (ty-class-instance-codegen-sym value)
+                              value
+                              #'make-instance-sym-environment)))
 
 (define-env-updater set-method-inline (env method instance codegen-sym)
   (declare (type environment env)
