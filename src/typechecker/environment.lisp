@@ -1375,6 +1375,11 @@
 (defun get-fundep-entry (fundep-env fundep)
   (immutable-listmap-lookup fundep-env fundep :no-error t))
 
+(defun get-fundep-entry-list (fundep-env fundep)
+  (let (x)
+    (fset:do-seq (s (get-fundep-entry fundep-env fundep))
+      (push s x))
+    (nreverse x)))
 
 
 (define-env-updater initialize-fundep-environment (env class)
@@ -1400,7 +1405,7 @@
     (loop :for fundep :in (ty-class-fundeps class)
           :for i :from 0
           ;; Lookup the state for the ith fundep
-          :for state := (get-fundep-entry fundep-env i)
+          :for state := (get-fundep-entry-list fundep-env i)
           :for from-tys
             := (mapcar
                 (lambda (var)
@@ -1415,7 +1420,7 @@
                 (fundep-to fundep))
           :do (block update-block
                 ;; Try to find a matching relation for the current fundep
-                (fset:do-seq (s state)
+                (dolist (s state)
                   ;; If the left side matches checking either direction
                   (when (or (handler-case
                                 (progn
