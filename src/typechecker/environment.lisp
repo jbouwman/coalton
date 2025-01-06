@@ -1344,25 +1344,45 @@
     (error "Unable to find specialization from ~A, of type ~A" from ty)))
   
 
+
+
+;; XXX fundeps XXX
+
 (defun lookup-fundep-environment (env class)
   (declare (type environment env)
            (type symbol class))
   (immutable-map-lookup (environment-fundep-environment env) class))
 
+(defun set-fundep-environment (env class fundeps)
+  (update-environment env
+                      :fundep-environment (immutable-map-set
+                                           (environment-fundep-environment env)
+                                           class
+                                           fundeps
+                                           #'make-fundep-environment)))
+
+(defun init-fundep-env (env class)
+  (set-fundep-environment env class (make-immutable-listmap)))
+
+(defun push-fundep-entry (env class fundep entry)
+  (declare (type environment env)
+           (type symbol class)
+           (type fixnum fundep)
+           (type fundep-entry entry))
+  (let ((result (lookup-fundep-environment env class)))
+    (set-fundep-environment env class (immutable-listmap-push result fundep entry))))
+
+(defun get-fundep-entry (fundep-env fundep)
+  (immutable-listmap-lookup fundep-env fundep :no-error t))
+
+
 
 (define-env-updater initialize-fundep-environment (env class)
   (declare (type environment env)
            (type symbol class))
-  (let ((result (lookup-fundep-environment env class)))
-    (when result
-      (return-from initialize-fundep-environment env))
-    (update-environment
-     env
-     :fundep-environment (immutable-map-set
-                          (environment-fundep-environment env)
-                          class
-                          (make-immutable-listmap)
-                          #'make-fundep-environment))))
+  (when (lookup-fundep-environment env class)
+    (return-from initialize-fundep-environment env))
+  (init-fundep-env env class))
 
 (defstruct fundep-entry
   (from      (util:required 'from) :type ty-list :read-only t)
@@ -1371,53 +1391,28 @@
 (defmethod make-load-form ((self fundep-entry) &optional env)
   (make-load-form-saving-slots self :environment env))
 
-(defun insert-fundep-entry% (env class fundep entry)
-  (declare (type environment env)
-           (type symbol class)
-           (type fixnum fundep)
-           (type fundep-entry entry))
-
-  (let ((result (lookup-fundep-environment env class)))
-    (update-environment
-     env
-     :fundep-environment
-     (immutable-map-set
-      (environment-fundep-environment env)
-      class
-      (immutable-listmap-push
-       result
-       fundep
-       entry)
-      #'make-fundep-environment))))
-
-
-;; lookup-fundep-environment returns map of fixnum -> (list fundep)
-
 (define-env-updater update-instance-fundeps (env pred)
   (declare (type environment env)
            (type ty-predicate pred))
-
   (let* ((class (lookup-class env (ty-predicate-class pred)))
          (fundep-env (lookup-fundep-environment env (ty-predicate-class pred)))
          (class-variable-map (ty-class-class-variable-map class)))
-
     (loop :for fundep :in (ty-class-fundeps class)
           :for i :from 0
           ;; Lookup the state for the ith fundep
-          :for state := (immutable-listmap-lookup fundep-env i :no-error t)
-
+          :for state := (get-fundep-entry fundep-env i)
           :for from-tys
             := (mapcar
                 (lambda (var)
-                  (nth (get-value class-variable-map var) (ty-predicate-types pred)))
+                  (nth (get-value class-variable-map var)
+                       (ty-predicate-types pred)))
                 (fundep-from fundep))
-
           :for to-tys
             := (mapcar
                 (lambda (var)
-                  (nth (get-value class-variable-map var) (ty-predicate-types pred)))
+                  (nth (get-value class-variable-map var)
+                       (ty-predicate-types pred)))
                 (fundep-to fundep))
-
           :do (block update-block
                 ;; Try to find a matching relation for the current fundep
                 (fset:do-seq (s state)
@@ -1439,7 +1434,6 @@
                           (match-list (fundep-entry-to s) to-tys)
                           ;; Exit upon finding a match
                           (return-from update-block))
-
                       ;; If the right side does not match
                       ;; signal an error
                       (unification-error ()
@@ -1452,15 +1446,13 @@
                          from-tys
                          (fundep-entry-to s)
                          to-tys)))))
-
                 ;; Insert a new relation if there wasn't a match
                 (setf env
-                      (insert-fundep-entry% env (ty-class-name class) i
-                                            (make-fundep-entry :from from-tys
-                                                               :to to-tys)))
-
-                )))
-
+                      (push-fundep-entry env
+                                         (ty-class-name class)
+                                         i
+                                         (make-fundep-entry :from from-tys
+                                                            :to to-tys))))))
   env)
 
 (defun error-fundep-conflict (env class pred fundep old-from-tys new-from-tys old-to-tys new-to-tys)
@@ -1575,21 +1567,14 @@
            (type ty-predicate pred)
            (type substitution-list subs))
   (let* ((class-name (ty-predicate-class pred))
-
          (class (lookup-class env class-name))
-
          (class-variable-map (ty-class-class-variable-map class))
-
          (fundep-env (lookup-fundep-environment env class-name)))
-
     (loop :for fundep :in (ty-class-fundeps class)
           :for i :from 0
-
-          :for state := (immutable-listmap-lookup fundep-env i :no-error t)
-
+          :for state := (get-fundep-entry fundep-env i)
           :when state
             :do (setf subs (generate-fundep-subs-for-pred% pred state class-variable-map fundep subs)))
-
     subs))
 
 (defun generate-fundep-subs-for-pred% (pred state class-variable-map fundep subs)
