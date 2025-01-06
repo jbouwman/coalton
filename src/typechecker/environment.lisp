@@ -1364,21 +1364,20 @@
 
 
 (defun init-fundep-env (env class)
-  (set-fundep-environment env class (make-immutable-listmap)))
+  (set-fundep-environment env class (make-immutable-map)))
+
+(defun get-fundep-entries (fundep-env fundep)
+  (immutable-map-lookup fundep-env fundep))
 
 (defun push-fundep-entry (env class fundep entry)
   (declare (type environment env)
            (type symbol class)
            (type fixnum fundep)
            (type fundep-entry entry))
-  (let ((result (lookup-fundep-environment env class)))
-    (set-fundep-environment env class (immutable-listmap-push result fundep entry))))
-
-(defun get-fundep-entries (fundep-env fundep)
-  (let (x)
-    (fset:do-seq (s (immutable-listmap-lookup fundep-env fundep :no-error t))
-      (push s x))
-    (nreverse x)))
+  (let* ((fundep-env (lookup-fundep-environment env class))
+         (entries (cons entry (get-fundep-entries fundep-env fundep)))
+         (fundep-env (immutable-map-set fundep-env fundep entries)))
+    (set-fundep-environment env class fundep-env)))
 
 
 
