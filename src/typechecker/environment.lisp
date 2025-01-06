@@ -1361,6 +1361,8 @@
                                            fundeps
                                            #'make-fundep-environment)))
 
+
+
 (defun init-fundep-env (env class)
   (set-fundep-environment env class (make-immutable-listmap)))
 
@@ -1377,6 +1379,8 @@
     (fset:do-seq (s (immutable-listmap-lookup fundep-env fundep :no-error t))
       (push s x))
     (nreverse x)))
+
+
 
 (define-env-updater initialize-fundep-environment (env class)
   (declare (type environment env)
@@ -1464,9 +1468,7 @@
            (type fundep fundep)
            (type ty-list old-from-tys new-from-tys old-to-tys new-to-tys))
   (let* ((class-name (ty-class-name class))
-
          (from-tys_ (copy-list new-from-tys))
-
          (vars
            (loop :for v :in (ty-class-class-variables class)
                  :if (find v (fundep-from fundep))
@@ -1475,9 +1477,7 @@
                               (setf from-tys_ (cdr from-tys_)))
                  :else
                    :collect (make-variable)))
-
          (new-pred (make-ty-predicate :class class-name :types vars :location (source:location pred))))
-
     (dolist (inst (lookup-class-instances env class-name))
       (handler-case
           (progn
@@ -1498,6 +1498,7 @@
     ;; If there was a fundep conflict, one of the instances should have matched
     (util:unreachable)))
 
+
 (defun solve-fundeps (env preds subs)
   (declare (type environment env)
            (type ty-predicate-list preds)
@@ -1510,7 +1511,7 @@
                 :when (ty-class-fundeps class)
                   :collect class)
     (return-from solve-fundeps (values preds subs)))
-
+  
   (loop :with new-subs := nil
         :with preds-generated := nil
         :for i :below +fundep-max-depth+
@@ -1546,11 +1547,9 @@
                                   :class (ty-predicate-class new-pred)
                                   :types (apply-substitution instance-subs (ty-predicate-types new-pred)))
                                  preds))
-
                          (setf preds (remove pred preds :test #'eq))
                          (setf preds-generated t)
                          (return))
-
                  :when (ty-class-fundeps class)
                    :do (setf new-subs (generate-fundep-subs% env (apply-substitution new-subs pred) new-subs)))
            (if (and (not preds-generated)
@@ -1577,25 +1576,23 @@
                 (setf subs (generate-fundep-subs-for-pred% pred state class-variable-map fundep subs))))
     subs))
 
+
 (defun generate-fundep-subs-for-pred% (pred state class-variable-map fundep subs)
   (declare (type ty-predicate pred)
            (type environment-map class-variable-map)
            (type fundep fundep)
            (type substitution-list subs)
            (values substitution-list &optional))
-
   (let* ((from-tys
            (mapcar
             (lambda (var)
               (nth (get-value class-variable-map var) (ty-predicate-types pred)))
             (fundep-from fundep)))
-
          (to-tys
            (mapcar
             (lambda (var)
               (nth (get-value class-variable-map var) (ty-predicate-types pred)))
             (fundep-to fundep))))
-
     (dolist (entry state)
       (handler-case
           (let* ((fresh-entry (fresh-fundep-entry entry))
@@ -1603,8 +1600,8 @@
                  (right-side (apply-substitution left-subs (fundep-entry-to fresh-entry))))
             (return-from generate-fundep-subs-for-pred% (unify-list subs to-tys right-side)))
         (unification-error () nil))))
-
   subs)
+
 
 (defun fresh-fundep-entry (entry)
   (let* ((from-pred (make-ty-predicate
