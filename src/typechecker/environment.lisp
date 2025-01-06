@@ -1372,15 +1372,11 @@
   (let ((result (lookup-fundep-environment env class)))
     (set-fundep-environment env class (immutable-listmap-push result fundep entry))))
 
-(defun get-fundep-entry (fundep-env fundep)
-  (immutable-listmap-lookup fundep-env fundep :no-error t))
-
-(defun get-fundep-entry-list (fundep-env fundep)
+(defun get-fundep-entries (fundep-env fundep)
   (let (x)
-    (fset:do-seq (s (get-fundep-entry fundep-env fundep))
+    (fset:do-seq (s (immutable-listmap-lookup fundep-env fundep :no-error t))
       (push s x))
     (nreverse x)))
-
 
 (define-env-updater initialize-fundep-environment (env class)
   (declare (type environment env)
@@ -1405,7 +1401,7 @@
     (loop :for fundep :in (ty-class-fundeps class)
           :for i :from 0
           ;; Lookup the state for the ith fundep
-          :for state := (get-fundep-entry-list fundep-env i)
+          :for state := (get-fundep-entries fundep-env i)
           :for from-tys
             := (mapcar
                 (lambda (var)
@@ -1577,7 +1573,7 @@
          (fundep-env (lookup-fundep-environment env class-name)))
     (loop :for fundep :in (ty-class-fundeps class)
           :for i :from 0
-          :do (let ((state (get-fundep-entry-list fundep-env i)))
+          :do (let ((state (get-fundep-entries fundep-env i)))
                 (setf subs (generate-fundep-subs-for-pred% pred state class-variable-map fundep subs))))
     subs))
 
