@@ -101,7 +101,7 @@
    #:specialization-entry-to-ty             ; ACCESSOR
    #:specialization-entry-list              ; TYPE
    #:environment                            ; STRUCT
-   #:make-default-environment               ; FUNCTION
+   #:make-environment                       ; FUNCTION
    #:environment-value-environment          ; ACCESSOR
    #:environment-type-environment           ; ACCESSOR
    #:environment-class-environment          ; ACCESSOR
@@ -637,16 +637,6 @@
    :method-codegen-syms (ty-class-instance-method-codegen-syms instance)
    :docstring (ty-class-instance-docstring instance)))
 
-(defstruct (instance-environment (:include immutable-map)))
-
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type instance-environment))
-
-(defstruct (instance-sym-environment (:include immutable-map)))
-
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type instance-sym-environment))
-
 ;;;
 ;;; Function environment
 ;;;
@@ -715,13 +705,15 @@
 
 (defstruct environment
   (value-environment          map:+empty+ :type map:immutable-map :read-only t)
-  (type-environment           (util:required 'type-environment)           :type map:immutable-map          :read-only t)
-  (constructor-environment    (util:required 'constructor-environment)    :type map:immutable-map    :read-only t)
+  (type-environment           (make-default-type-environment)
+   :type map:immutable-map :read-only t)
+  (constructor-environment    (make-default-constructor-environment)
+   :type map:immutable-map :read-only t)
   (struct-environment         map:+empty+ :type map:immutable-map :read-only t)
   (class-environment          map:+empty+ :type map:immutable-map :read-only t)
   (fundep-environment         map:+empty+ :type map:immutable-map :read-only t)
-  (instance-environment       (util:required 'instance-environment)       :type instance-environment       :read-only t)
-  (instance-sym-environment   (util:required 'instance-sym-environment)   :type instance-sym-environment   :read-only t)
+  (instance-environment       map:+empty+ :type map:immutable-map :read-only t)
+  (instance-sym-environment   map:+empty+ :type map:immutable-map :read-only t)
   (function-environment       map:+empty+ :type map:immutable-map :read-only t)
   (name-environment           map:+empty+ :type map:immutable-map :read-only t)
   (method-inline-environment  map:+empty+ :type map:immutable-map :read-only t)
@@ -736,20 +728,11 @@
            (type environment env))
   (print-unreadable-object (env stream :type t :identity t)))
 
-
 (defmethod make-load-form ((self environment) &optional env)
   (make-load-form-saving-slots self :environment env))
 
 #+(and sbcl coalton-release)
 (declaim (sb-ext:freeze-type environment))
-
-(defun make-default-environment ()
-  (declare (values environment))
-  (make-environment
-   :type-environment (make-default-type-environment)
-   :constructor-environment (make-default-constructor-environment)
-   :instance-environment (make-instance-environment)
-   :instance-sym-environment (make-instance-sym-environment)))
 
 (defun update-environment (env
                            &key
@@ -774,8 +757,8 @@
            (type map:immutable-map struct-environment)
            (type map:immutable-map class-environment)
            (type map:immutable-map fundep-environment)
-           (type instance-environment instance-environment)
-           (type instance-sym-environment instance-sym-environment)
+           (type map:immutable-map instance-environment)
+           (type map:immutable-map instance-sym-environment)
            (type map:immutable-map function-environment)
            (type map:immutable-map name-environment)
            (type map:immutable-map method-inline-environment)
@@ -987,16 +970,14 @@
 (define-env-updater unset-name (env symbol)
   (declare (type environment env)
            (type symbol symbol))
-  (update-environment
-   env
-   :name-environment (map:dissoc
-                      (environment-name-environment env)
-                      symbol)))
+  (update-environment env
+                      :name-environment
+                      (map:dissoc (environment-name-environment env) symbol)))
 
 (defun lookup-class-instances (env class)
   (declare (type environment env)
            (type symbol class))
-  (immutable-map-lookup (environment-instance-environment env) class))
+  (map:get (environment-instance-environment env) class))
 
 (defun lookup-class-instance (env pred &key no-error)
   (declare (type environment env))
@@ -1014,7 +995,7 @@
   (declare (type environment env)
            (type symbol codegen-sym))
 
-  (or (immutable-map-lookup (environment-instance-sym-environment env) codegen-sym)
+  (or (map:get (environment-instance-sym-environment env) codegen-sym)
    (unless no-error
      (error "Unknown instance with codegen-sym ~A" codegen-sym))))
 
@@ -1073,32 +1054,28 @@
                       (return-from add-instance
                         (update-environment
                          env
-                         :instance-environment (immutable-map-set
+                         :instance-environment (map:assoc
                                                 (environment-instance-environment env)
                                                 class
-                                                (replace-at-index instances index value)
-                                                #'make-instance-environment)
-                         :instance-sym-environment (immutable-map-set
+                                                (replace-at-index instances index value))
+                         :instance-sym-environment (map:assoc
                                                     (environment-instance-sym-environment env)
                                                     (ty-class-instance-codegen-sym value)
-                                                    value
-                                                    #'make-instance-sym-environment))))
+                                                    value))))
                   (predicate-unification-error ()
                     (error 'overlapping-instance-error
                            :inst1 (ty-class-instance-predicate value)
                            :inst2 (ty-class-instance-predicate inst))))))
     (update-environment
      env
-     :instance-environment (immutable-map-set
+     :instance-environment (map:assoc
                             (environment-instance-environment env)
                             class
-                            (cons value instances)
-                            #'make-instance-environment)
-     :instance-sym-environment (immutable-map-set
+                            (cons value instances))
+     :instance-sym-environment (map:assoc
                                 (environment-instance-sym-environment env)
                                 (ty-class-instance-codegen-sym value)
-                                value
-                                #'make-instance-sym-environment))))
+                                value))))
 
 (define-env-updater set-method-inline (env method instance codegen-sym)
   (declare (type environment env)
@@ -1166,7 +1143,7 @@
                             (map:assoc spec-env from
                                        (replace-at-index specializations index entry)))))
 
-    #++(dolist (elem specializations)   ; FIXME -- think
+    #++ (dolist (elem specializations)   ; FIXME -- think
       (handler-case
           (progn
             (unify nil to-ty (specialization-entry-to-ty elem))
@@ -1211,30 +1188,23 @@
     (error "Unable to find specialization from ~A, of type ~A" from ty)))
   
 
-
-
-;; XXX fundeps XXX
-
 (defun lookup-fundep-environment (env class)
   (declare (type environment env)
            (type symbol class))
-  (immutable-map-lookup (environment-fundep-environment env) class))
+  (map:get (environment-fundep-environment env) class))
 
 (defun set-fundep-environment (env class fundeps)
   (update-environment env
-                      :fundep-environment (immutable-map-set
+                      :fundep-environment (map:assoc
                                            (environment-fundep-environment env)
                                            class
-                                           fundeps
-                                           #'make-fundep-environment)))
-
-
+                                           fundeps)))
 
 (defun init-fundep-env (env class)
-  (set-fundep-environment env class (make-immutable-map)))
+  (set-fundep-environment env class map:+empty+))
 
 (defun get-fundep-entries (fundep-env fundep)
-  (immutable-map-lookup fundep-env fundep))
+  (map:get fundep-env fundep))
 
 (defun push-fundep-entry (env class fundep entry)
   (declare (type environment env)
@@ -1243,10 +1213,8 @@
            (type fundep-entry entry))
   (let* ((fundep-env (lookup-fundep-environment env class))
          (entries (cons entry (get-fundep-entries fundep-env fundep)))
-         (fundep-env (immutable-map-set fundep-env fundep entries)))
+         (fundep-env (map:assoc fundep-env fundep entries)))
     (set-fundep-environment env class fundep-env)))
-
-
 
 (define-env-updater initialize-fundep-environment (env class)
   (declare (type environment env)

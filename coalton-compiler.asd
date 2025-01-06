@@ -15,7 +15,6 @@
                #:eclector
                #:eclector-concrete-syntax-tree
                #:float-features
-               #:fset
                #:named-readtables
                #:source-error
                #:trivial-gray-streams)
@@ -32,7 +31,6 @@
                (:module "algorithm"
                 :serial t
                 :components ((:file "tarjan-scc")
-                             (:file "immutable-map")
                              (:file "package")))
                (:module "parser"
                 :serial t

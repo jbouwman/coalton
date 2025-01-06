@@ -24,10 +24,6 @@
 
 (in-package #:coalton/doc/environment)
 
-(defun %values (immutable-map)
-  "Coerce an FSET map to a list."
-  (fset:convert 'list (fset:range (algo:immutable-map-data immutable-map))))
-
 (defun value-type (name-entry)
   (tc:lookup-value-type entry:*global-environment*
                         (tc:name-entry-name name-entry)))

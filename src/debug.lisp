@@ -86,7 +86,7 @@
                                          (tc:ty-predicate-class class-pred)
                                          (tc:ty-predicate-types class-pred)
                                          (mapcar #'tc:kind-of (tc:ty-predicate-types class-pred)))))
-                             (fset:do-seq (instance instances)
+                             (dolist (instance instances)
                                (format t "    ")
                                ;; Generate type variable substitutions from instance constraints
                                (tc:with-pprint-variable-context ()
@@ -117,7 +117,7 @@
                    (loop :for (name . specs) :in entries
                          :do (progn
                                (format t "  ~A :: ~A~%" name (tc:lookup-value-type env name))
-                               (fset:do-seq (spec specs)
+                               (dolist (spec specs)
                                  (format t "    ~A :: ~A~%"
                                          (tc:specialization-entry-to spec)
                                          (tc:specialization-entry-to-ty spec)))
