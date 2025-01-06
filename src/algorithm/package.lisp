@@ -3,5 +3,4 @@
   (:use)
   (:mix-reexport
    #:coalton-impl/algorithm/tarjan-scc
-   #:coalton-impl/algorithm/immutable-map
-   #:coalton-impl/algorithm/immutable-listmap))
+   #:coalton-impl/algorithm/immutable-map))

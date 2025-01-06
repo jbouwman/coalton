@@ -31,7 +31,6 @@
                 :serial t
                 :components ((:file "tarjan-scc")
                              (:file "immutable-map")
-                             (:file "immutable-listmap")
                              (:file "package")))
                (:module "parser"
                 :serial t
