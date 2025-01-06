@@ -1344,20 +1344,16 @@
     (error "Unable to find specialization from ~A, of type ~A" from ty)))
   
 
-(defun lookup-fundep-environment (env class &key (no-error nil))
+(defun lookup-fundep-environment (env class)
   (declare (type environment env)
-           (type symbol class)
-           (values (or null immutable-listmap) &optional))
-  (let ((result (immutable-map-lookup (environment-fundep-environment env) class)))
-    (when (and (not result) (not no-error))
-      (util:coalton-bug "Unable to find fundep environment for class ~A" class))
+           (type symbol class))
+  (immutable-map-lookup (environment-fundep-environment env) class))
 
-    result))
 
 (define-env-updater initialize-fundep-environment (env class)
   (declare (type environment env)
            (type symbol class))
-  (let ((result (lookup-fundep-environment env class :no-error t)))
+  (let ((result (lookup-fundep-environment env class)))
     (when result
       (return-from initialize-fundep-environment env))
     (update-environment
@@ -1394,6 +1390,8 @@
        entry)
       #'make-fundep-environment))))
 
+
+;; lookup-fundep-environment returns map of fixnum -> (list fundep)
 
 (define-env-updater update-instance-fundeps (env pred)
   (declare (type environment env)
@@ -1457,13 +1455,11 @@
 
                 ;; Insert a new relation if there wasn't a match
                 (setf env
-                      (insert-fundep-entry%
-                       env
-                       (ty-class-name class)
-                       i
-                       (make-fundep-entry
-                        :from from-tys
-                        :to to-tys))))))
+                      (insert-fundep-entry% env (ty-class-name class) i
+                                            (make-fundep-entry :from from-tys
+                                                               :to to-tys)))
+
+                )))
 
   env)
 
