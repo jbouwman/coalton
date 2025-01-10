@@ -2391,9 +2391,9 @@ Returns (VALUES INFERRED-TYPE NODE SUBSTITUTIONS)")
 
                      (new-vars (set-difference closure-vars fundep-vars :test #'eq))
 
-                     (new-tys (util:project-map
+                     (new-tys (util:project-elements
                                new-vars
-                               (tc:class-variable-map class)
+                               (tc:ty-class-class-variables class)
                                (tc:ty-predicate-types pred))))
 
                 (loop :for var :in (set-difference
