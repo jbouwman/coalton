@@ -71,7 +71,6 @@
    #:ty-class-predicate                     ; ACCESSOR
    #:ty-class-superclasses                  ; ACCESSOR
    #:ty-class-class-variables               ; ACCESSOR
-   #:class-variable-map                     ; FUNCTION
    #:ty-class-fundeps                       ; ACCESSOR
    #:ty-class-unqualified-methods           ; ACCESSOR
    #:ty-class-codegen-sym                   ; ACCESSOR
@@ -1373,20 +1372,13 @@
        entry)
       #'make-fundep-environment))))
 
-(defun class-variable-map (class)
-  (loop :with table := (make-hash-table)
-        :for var :in (ty-class-class-variables class)
-        :for i :from 0
-        :do (setf (gethash var table) i)
-        :finally (return table)))
-
 (define-env-updater update-instance-fundeps (env pred)
   (declare (type environment env)
            (type ty-predicate pred))
 
   (let* ((class (lookup-class env (ty-predicate-class pred)))
          (fundep-env (lookup-fundep-environment env (ty-predicate-class pred)))
-         (class-variable-map (class-variable-map class)))
+         (class-variables (ty-class-class-variables class)))
 
     (loop :for fundep :in (ty-class-fundeps class)
           :for i :from 0
@@ -1396,13 +1388,13 @@
           :for from-tys
             := (mapcar
                 (lambda (var)
-                  (nth (gethash var class-variable-map) (ty-predicate-types pred)))
+                  (nth (position var class-variables) (ty-predicate-types pred)))
                 (fundep-from fundep))
 
           :for to-tys
             := (mapcar
                 (lambda (var)
-                  (nth (gethash var class-variable-map) (ty-predicate-types pred)))
+                  (nth (position var class-variables) (ty-predicate-types pred)))
                 (fundep-to fundep))
 
           :do (block update-block
@@ -1567,7 +1559,7 @@
 
          (class (lookup-class env class-name))
 
-         (class-variable-map (class-variable-map class))
+         (class-variables (ty-class-class-variables class))
 
          (fundep-env (lookup-fundep-environment env class-name)))
 
@@ -1577,14 +1569,14 @@
           :for state := (immutable-listmap-lookup fundep-env i :no-error t)
 
           :when state
-            :do (setf subs (generate-fundep-subs-for-pred% pred state class-variable-map fundep subs)))
+            :do (setf subs (generate-fundep-subs-for-pred% pred state class-variables fundep subs)))
 
     subs))
 
-(defun generate-fundep-subs-for-pred% (pred state class-variable-map fundep subs)
+(defun generate-fundep-subs-for-pred% (pred state class-variables fundep subs)
   (declare (type ty-predicate pred)
            (type fset:seq state)
-           (type hash-table class-variable-map)
+           (type util:symbol-list class-variables)
            (type fundep fundep)
            (type substitution-list subs)
            (values substitution-list &optional))
@@ -1592,13 +1584,13 @@
   (let* ((from-tys
            (mapcar
             (lambda (var)
-              (nth (gethash var class-variable-map) (ty-predicate-types pred)))
+              (nth (position var class-variables) (ty-predicate-types pred)))
             (fundep-from fundep)))
 
          (to-tys
            (mapcar
             (lambda (var)
-              (nth (gethash var class-variable-map) (ty-predicate-types pred)))
+              (nth (position var class-variables) (ty-predicate-types pred)))
             (fundep-to fundep))))
 
     (fset:do-seq (entry state)
