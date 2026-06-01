@@ -375,10 +375,27 @@ loaded stdlib environment against `ty-scheme=` (alpha-equivalence). Result:
   change, only this pair moves.
 
 This de-risks the boundary: the hard-looking core is a few dozen lines and
-round-trips the whole stdlib. What remains is the per-entry plists (small
-records wrapping this type encoding), the `pattern` encoder (3b), the
-residual `code` body encoder, and wiring `encode-edit` / `replay-environment-edits`
-into `make-environment-updater` in place of `runtime-quote`.
+round-trips the whole stdlib.
+
+The entry layer was then built on top of the type encoders -- `name-entry`,
+`function-env-entry`, `type-entry`, `constructor-entry`, `type-alias-entry`,
+`struct-entry`, `ty-class` (with its methods and superclass dict), and
+`specialization-entry`, plus a `source:location` encoder (a source reference
+plus span, not a reconstructed `source-file`). Round-tripping every such
+entry in the loaded environment: **4435 of 4435 ok** (name 1295, function
+2566, type 85, constructor 123, type-alias 3, struct 9, ty-class 57,
+specialization 297), 0 failures. The probe confirmed the two `t`-typed
+opaque slots (`type-entry-runtime-type`, `constructor-entry-compressed-repr`)
+hold plain data (CL type designators), so there is no opaque residual at the
+entry layer -- every entry is fully plain-data-serializable.
+
+So the entire data layer of the edit IR -- types and all environment
+entries -- is prototyped and round-trips over the whole stdlib. What remains
+is only the two AST payloads (`pattern` for 3b, and the residual `code` body
+for the inline/monomorphize/dictionary subset) and wiring `encode-edit` /
+`replay-environment-edits` into `make-environment-updater` in place of
+`runtime-quote`. The prototype is `benchmark/serde/type-serde.lisp`
+(`roundtrip-report`, `roundtrip-entries-report`, `size-report`).
 
 ## Sequencing
 
