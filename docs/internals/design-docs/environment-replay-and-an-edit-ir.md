@@ -354,6 +354,32 @@ decode equals the original, and a decoded replay reproduces the same
 environment) is the natural correctness oracle, alongside the existing
 `make bench-diff` and the test suite.
 
+### Prototype result (type layer)
+
+`benchmark/serde/type-serde.lisp` prototypes the encode/decode for the core
+of the IR -- kinds, types, predicates, and schemes -- exactly as sketched
+above, and validates it by round-tripping every value-type scheme in the
+loaded stdlib environment against `ty-scheme=` (alpha-equivalence). Result:
+
+- **Correctness:** 1295 of 1295 stdlib schemes round-trip
+  (`encode` then `decode` is `ty-scheme=` to the original); 0 mismatch, 0
+  errors. The type layer -- the most-used payload, nested inside nearly
+  every entry -- is faithful over all real data.
+- **Size:** the IR encoding is 2.95x smaller than the current readable-struct
+  replay for those schemes (392 KB vs 1.16 MB), printed the same way the
+  replay is. This is the type payload only; dropping common-case `set-code`
+  and the per-location source-file reconstruction are further, larger wins.
+- **Decoupling, demonstrated:** the encode/decode is the only code that
+  touches the internal structs (via `::`); the emitted form is plain data
+  (`(scheme nil (*) nil (fn ((gen 0) ...) () (...)))`). When the type structs
+  change, only this pair moves.
+
+This de-risks the boundary: the hard-looking core is a few dozen lines and
+round-trips the whole stdlib. What remains is the per-entry plists (small
+records wrapping this type encoding), the `pattern` encoder (3b), the
+residual `code` body encoder, and wiring `encode-edit` / `replay-environment-edits`
+into `make-environment-updater` in place of `runtime-quote`.
+
 ## Sequencing
 
 This is GOAL-025's "settle the separate-compilation replay story" step, and
