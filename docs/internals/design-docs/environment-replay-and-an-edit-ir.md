@@ -248,6 +248,112 @@ That makes the edit IR tractable: the type/entry encodings are
 straightforward, and the one hard payload reduces to encoding bodies for the
 small inline/monomorphize/dictionary subset.
 
+## Sketch of the edit IR
+
+The IR is plain, readable data -- symbols, keywords, fixnums, strings, and
+lists -- with no `#S(...)`, no `make-load-form`, and no `#.` read-eval. It
+round-trips through ordinary `read`/`print`. The replay form changes from a
+`(setf env (updater env '#S(...)))` chain into a single call to a decoder
+over a versioned edit list:
+
+```lisp
+(coalton-impl/.../replay-environment-edits
+ 1                                  ; format version
+ '((value fact #s1) (name fact #n1) ...))   ; edits, payloads encoded as data
+```
+
+`replay-environment-edits` checks the version (reject or migrate on
+mismatch -- the separate-compilation robustness the current `make-load-form`
+path lacks), then for each edit decodes the payload and applies it through
+the *existing* updater functions (`set-value-type`, `add-instance`, ...).
+The environment-update logic is unchanged; only serialization moves.
+
+### Core encodings (grounded in the current structs)
+
+Kinds (`kstar`/`kfun`):
+
+```
+kind ::= *  |  (-> kind kind)
+```
+
+Types (`tycon`/`tgen`/`tapp`/`function-ty`/`result-ty`/`tyvar`):
+
+```
+type ::= (con SYMBOL kind)                  ; tycon (name + kind)
+       | (gen FIXNUM [:result] [:name SYM]) ; tgen  (quantified binder)
+       | (app type type)                    ; tapp
+       | (fn (type*) kw (type*))            ; function-ty: inputs kw outputs
+       | (result (type*))                   ; result-ty
+       | (var FIXNUM kind [:result])        ; tyvar (free; rare in stored schemes)
+kw   ::= ()  |  (:keys ((KEYWORD type)*) :open BOOLEAN)
+```
+
+Predicates and schemes (`ty-predicate`/`qualified-ty`/`ty-scheme`):
+
+```
+pred   ::= (pred SYMBOL (type*) [location])           ; class, types
+scheme ::= (scheme BOOLEAN (kind*) (pred*) type)      ; explicit-p, binder kinds,
+                                                      ;   context, head type
+```
+
+Source locations encode a stable source reference plus span -- not a
+reconstructed `source-file` object, removing the path-leak and the read-eval:
+
+```
+location ::= (loc SOURCE-REF (START . END))   ; SOURCE-REF resolved by the loader
+```
+
+### Operations
+
+One operation per environment edit; the vocabulary mirrors the existing
+updaters, but payloads are encoded data. Entries (`name-entry`, `type-entry`,
+`constructor-entry`, `ty-class`, `ty-class-instance`, `specialization-entry`,
+...) encode as tagged plists whose type-bearing fields use `scheme`/`type`/
+`pred` and whose locations use `location`; their non-type fields are already
+plain data. Examples:
+
+```
+edit ::= (value SYMBOL scheme)             ; set-value-type
+       | (function SYMBOL ARITY INLINE?)   ; set-function -- already plain data
+       | (name SYMBOL (:type KW :location location :docstring STRING?))
+       | (instance CLASS (:class-name SYM :predicate pred :context (pred*) ...))
+       | (specialization (:from SYM :to SYM :type scheme ...))
+       | (source-params SYMBOL (pattern*)) ; set-function-source-parameter-names
+       | (code SYMBOL body)                ; only for inline/mono/dictionary
+       | (unset-value SYMBOL) | (unset-function SYMBOL) | ...
+```
+
+`source-params` (the parser `pattern` payload, stage 3b) and `code` (the
+codegen body, the residual subset from the scoping above) are the two
+operations whose payload is an AST. They get their own encoders -- a pattern
+is a small tagged form (`(pvar NAME)`, `(plit VALUE)`, `(pwild)`,
+`(pctor NAME (pattern*))`, `(pbind pattern pattern)` + a location); `code` is
+the one hard encoder, deferred to the inline/mono/dictionary subset and
+designed with stage 4.
+
+### The boundary
+
+All representation knowledge lives in one serde module: `encode-type` /
+`decode-type`, `encode-scheme` / `decode-scheme`, an `encode`/`decode` per
+entry, and `encode-edit` / `decode-edit` dispatching on the operation.
+`make-environment-updater` calls `encode-edit` over the recorded log
+(replacing `runtime-quote`); the emitted `replay-environment-edits` call
+inverts it at load. Nothing else in the compiler references the serialized
+form.
+
+The decoupling property this buys: when the `ty`/`scheme` structs, the
+parser `pattern` family, or the codegen node family become CLOS (or change
+in any way), only the matching `encode-*`/`decode-*` pair changes -- the IR
+grammar, the emit site, the replay site, and every updater are untouched.
+That is the one seam the whole redesign is for, and it is why the IR is
+worth settling before the CLOS conversions of the embedded families.
+
+This is a sketch: the entry plists and the `code` body encoding are to be
+finalized against the structs, and a round-trip property test (encode then
+decode equals the original, and a decoded replay reproduces the same
+environment) is the natural correctness oracle, alongside the existing
+`make bench-diff` and the test suite.
+
 ## Sequencing
 
 This is GOAL-025's "settle the separate-compilation replay story" step, and
