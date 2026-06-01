@@ -27,9 +27,42 @@
    #:secondary-note
    #:note-end
    #:help
-   #:form-location))
+   #:form-location
+   #:define-node))
 
 (in-package #:coalton-impl/parser/base)
+
+(defmacro define-node (name (&rest supers) &body slots)
+  "Define an AST node as a redefinable CLOS class with the
+defstruct-compatible surface the parser and typechecker call: a NAME-P
+predicate, NAME-<slot> readers, and a keyword constructor make-NAME.
+
+SLOTS use defstruct slot syntax -- (slot-name default-form &key type
+read-only ...) -- and the default-form is reused verbatim as the slot
+:initform, so a default of (util:required 'X) keeps the slot required while
+any other default makes it optional. make-NAME forwards its initargs to
+make-instance, so inherited slots (e.g. the base node's location) are
+accepted without the macro needing to know the superclass slots. A leading
+string is taken as the class documentation. Use a plain defclass for an
+abstract base (one with no constructor)."
+  (let ((doc (when (stringp (first slots)) (pop slots))))
+    (flet ((isym (fmt &rest args)
+             (apply #'alexandria:format-symbol (symbol-package name) fmt args)))
+      `(progn
+         (defclass ,name ,supers
+           (,@(loop :for slot :in slots
+                    :for sname := (if (consp slot) (first slot) slot)
+                    :for default := (if (consp slot) (second slot) nil)
+                    :for opts := (if (consp slot) (cddr slot) nil)
+                    :collect `(,sname
+                               :initarg ,(intern (string sname) '#:keyword)
+                               :reader ,(isym "~A-~A" name sname)
+                               ,@(let ((ty (getf opts :type))) (when ty `(:type ,ty)))
+                               :initform ,default)))
+           ,@(when doc `((:documentation ,doc))))
+         (defun ,(isym "~A-P" name) (x) (and (typep x ',name) t))
+         (defun ,(isym "MAKE-~A" name) (&rest initargs)
+           (apply #'make-instance ',name initargs))))))
 
 ;;;
 ;;; Shared definitions for source parser

@@ -122,19 +122,11 @@
 (deftype ty-list ()
   '(satisfies ty-list-p))
 
-(defclass tyvar (ty)
-  ((name :initarg :name :reader tyvar-name :type keyword
-         :initform (util:required 'name))
-   ;; The original source spelling survives parser renaming and is reused for
-   ;; later printing of programmer-written type variables.
-   (source-name :initarg :source-name :reader tyvar-source-name
-                :type (or null keyword) :initform nil)))
-
-(defun tyvar-p (x) (and (typep x 'tyvar) t))
-
-(defun make-tyvar (&key (name (util:required 'name)) (source-name nil)
-                        (location (util:required 'location)))
-  (make-instance 'tyvar :name name :source-name source-name :location location))
+(define-node tyvar (ty)
+  (name        (util:required 'name)      :type keyword           :read-only t)
+  ;; The original source spelling survives parser renaming and is reused for
+  ;; later printing of programmer-written type variables.
+  (source-name nil                        :type (or null keyword) :read-only t))
 
 (defun tyvar-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -143,15 +135,8 @@
 (deftype tyvar-list ()
   '(satisfies tyvar-list-p))
 
-(defclass tycon (ty)
-  ((name :initarg :name :reader tycon-name :type identifier
-         :initform (util:required 'name))))
-
-(defun tycon-p (x) (and (typep x 'tycon) t))
-
-(defun make-tycon (&key (name (util:required 'name))
-                        (location (util:required 'location)))
-  (make-instance 'tycon :name name :location location))
+(define-node tycon (ty)
+  (name (util:required 'name) :type identifier :read-only t))
 
 (defun tycon-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -160,17 +145,11 @@
 (deftype tycon-list ()
   '(satisfies tycon-list-p))
 
-(defclass tapp (ty)
-  (;; The type being applied to
-   (from :initarg :from :reader tapp-from :type ty :initform (util:required 'from))
-   ;; The type argument
-   (to   :initarg :to   :reader tapp-to   :type ty :initform (util:required 'to))))
-
-(defun tapp-p (x) (and (typep x 'tapp) t))
-
-(defun make-tapp (&key (from (util:required 'from)) (to (util:required 'to))
-                       (location (util:required 'location)))
-  (make-instance 'tapp :from from :to to :location location))
+(define-node tapp (ty)
+  ;; The type being applied to
+  (from (util:required 'from) :type ty :read-only t)
+  ;; The type argument
+  (to   (util:required 'to)   :type ty :read-only t))
 
 (defstruct (keyword-ty-entry
             (:copier nil))
@@ -188,36 +167,13 @@
 (deftype keyword-ty-entry-list ()
   '(satisfies keyword-ty-entry-list-p))
 
-(defclass function-ty (ty)
-  ((positional-input-types :initarg :positional-input-types
-                           :reader function-ty-positional-input-types :type ty-list
-                           :initform (util:required 'positional-input-types))
-   (keyword-input-types :initarg :keyword-input-types
-                        :reader function-ty-keyword-input-types :type keyword-ty-entry-list
-                        :initform (util:required 'keyword-input-types))
-   (output-types :initarg :output-types
-                 :reader function-ty-output-types :type (or null ty-list)
-                 :initform (util:required 'output-types))))
+(define-node function-ty (ty)
+  (positional-input-types (util:required 'positional-input-types) :type ty-list               :read-only t)
+  (keyword-input-types    (util:required 'keyword-input-types)    :type keyword-ty-entry-list :read-only t)
+  (output-types           (util:required 'output-types)           :type (or null ty-list)     :read-only t))
 
-(defun function-ty-p (x) (and (typep x 'function-ty) t))
-
-(defun make-function-ty (&key (positional-input-types (util:required 'positional-input-types))
-                              (keyword-input-types (util:required 'keyword-input-types))
-                              (output-types (util:required 'output-types))
-                              (location (util:required 'location)))
-  (make-instance 'function-ty :positional-input-types positional-input-types
-                              :keyword-input-types keyword-input-types
-                              :output-types output-types :location location))
-
-(defclass result-ty (ty)
-  ((output-types :initarg :output-types :reader result-ty-output-types
-                 :type (or null ty-list) :initform (util:required 'output-types))))
-
-(defun result-ty-p (x) (and (typep x 'result-ty) t))
-
-(defun make-result-ty (&key (output-types (util:required 'output-types))
-                            (location (util:required 'location)))
-  (make-instance 'result-ty :output-types output-types :location location))
+(define-node result-ty (ty)
+  (output-types (util:required 'output-types) :type (or null ty-list) :read-only t))
 
 (defstruct (ty-predicate
             (:copier nil))

@@ -413,10 +413,18 @@ Rebound to NIL parsing an anonymous FN.")
 ;;;;
 ;;;; node-continue := "(" "continue" label? ")"
 
-(defstruct (node
-            (:constructor nil)
-            (:copier nil))
-  (location (util:required 'location) :type source:location :read-only t))
+;;; The parsed expression AST is a CLOS hierarchy (GOAL-025 stage 3). The
+;;; subtypes use the define-node macro (base.lisp); the abstract bases (node
+;;; here, builder-clause below) are plain defclasses with no constructor.
+;;; The defstruct-compatible surface (make-X / X-p / X-slot, inherited
+;;; location via node-location) is preserved.
+
+(defclass node ()
+  ((location :initarg :location :reader node-location :type source:location
+             :initform (util:required 'location)))
+  (:documentation "Abstract base of the parsed expression AST."))
+
+(defun node-p (x) (and (typep x 'node) t))
 
 (defmethod source:location ((self node))
   (node-location self))
@@ -428,9 +436,7 @@ Rebound to NIL parsing an anonymous FN.")
 (deftype node-list ()
   '(satisfies node-list-p))
 
-(defstruct (node-variable
-            (:include node)
-            (:copier nil))
+(define-node node-variable (node)
   (name (util:required 'name) :type identifier :read-only t))
 
 (defun node-variable-list-p (x)
@@ -440,19 +446,13 @@ Rebound to NIL parsing an anonymous FN.")
 (deftype node-variable-list ()
   '(satisfies node-variable-list-p))
 
-(defstruct (node-accessor
-            (:include node)
-            (:copier nil))
+(define-node node-accessor (node)
   (name (util:required 'name) :type string :read-only t))
 
-(defstruct (node-literal
-            (:include node)
-            (:copier nil))
+(define-node node-literal (node)
   (value (util:required 'value) :type (and util:literal-value (not integer)) :read-only t))
 
-(defstruct (node-integer-literal
-            (:include node)
-            (:copier nil))
+(define-node node-integer-literal (node)
   (value (util:required 'value) :type integer :read-only t))
 
 ;;
@@ -501,9 +501,7 @@ Rebound to NIL parsing an anonymous FN.")
   (nodes     (util:required 'nodes)     :type node-body-element-list :read-only t)
   (last-node (util:required 'last-node) :type node                   :read-only t))
 
-(defstruct (node-abstraction
-            (:include node)
-            (:copier nil))
+(define-node node-abstraction (node)
   (params                    (util:required 'params) :type pattern-list       :read-only t)
   (keyword-params            nil                     :type keyword-param-list :read-only t)
   (body                      (util:required 'body)   :type node-body          :read-only t)
@@ -598,18 +596,14 @@ Rebound to NIL parsing an anonymous FN.")
 (deftype node-let-declare-list ()
   '(satisfies node-let-declare-list-p))
 
-(defstruct (node-let
-            (:include node)
-            (:copier nil))
+(define-node node-let (node)
   (bindings     (util:required 'bindings) :type node-let-binding-list :read-only t)
   (declares     (util:required 'declares) :type node-let-declare-list :read-only t)
   (body         (util:required 'body)     :type node-body             :read-only t)
   ;; T when parsed from LET*, so later bindings can see earlier ones.
   (sequential-p nil                       :type boolean               :read-only t))
 
-(defstruct (node-rec
-            (:include node)
-            (:copier nil))
+(define-node node-rec (node)
   ;; Name of the recursive function introduced by `rec`.
   (name      (util:required 'name)      :type node-variable         :read-only t)
   ;; Non-self init bindings that seed the immediate recursive call.
@@ -623,15 +617,11 @@ Rebound to NIL parsing an anonymous FN.")
   ;; Body of the recursive function itself.
   (body      (util:required 'body)      :type node-body             :read-only t))
 
-(defstruct (node-dynamic-let
-            (:include node)
-            (:copier nil))
+(define-node node-dynamic-let (node)
   (bindings (util:required 'bindings) :type node-dynamic-binding-list :read-only t)
   (subexpr  (util:required 'subexpr)  :type node                      :read-only t))
 
-(defstruct (node-lisp
-            (:include node)
-            (:copier nil))
+(define-node node-lisp (node)
   (output-types (util:required 'output-types) :type (or null ty-list)  :read-only t)
   (vars      (util:required 'vars)      :type node-variable-list :read-only t)
   (var-names (util:required 'var-names) :type util:symbol-list   :read-only t)
@@ -653,35 +643,23 @@ Rebound to NIL parsing an anonymous FN.")
 (deftype node-match-branch-list ()
   '(satisfies node-match-branch-list-p))
 
-(defstruct (node-match
-            (:include node)
-            (:copier nil))
+(define-node node-match (node)
   (expr     (util:required 'expr)     :type node                   :read-only t)
   (branches (util:required 'branches) :type node-match-branch-list :read-only t))
 
-(defstruct (node-progn
-            (:include node)
-            (:copier nil))
+(define-node node-progn (node)
   (body (util:required 'body) :type node-body :read-only t))
 
-(defstruct (node-type-of
-            (:include node)
-            (:copier nil))
+(define-node node-type-of (node)
   (expr (util:required 'expr) :type node :read-only t))
-(defstruct (node-unsafe
-            (:include node)
-            (:copier nil))
+(define-node node-unsafe (node)
   (body (util:required 'body) :type node-body :read-only t))
 
-(defstruct (node-the
-            (:include node)
-            (:copier nil))
+(define-node node-the (node)
   (type (util:required 'type) :type qualified-ty :read-only t)
   (expr (util:required 'expr) :type node         :read-only t))
 
-(defstruct (node-collection-builder
-            (:include node)
-            (:copier nil))
+(define-node node-collection-builder (node)
   "AST node for collection builder syntax such as `[a b c]`."
   (elements (util:required 'elements) :type node-list :read-only t))
 
@@ -701,45 +679,36 @@ Rebound to NIL parsing an anonymous FN.")
 (deftype association-entry-list ()
   '(satisfies association-entry-list-p))
 
-(defstruct (node-association-builder
-            (:include node)
-            (:copier nil))
+(define-node node-association-builder (node)
   "AST node for association builder syntax such as `[a => b c => d]`."
   (entries (util:required 'entries) :type association-entry-list :read-only t))
 
-(defstruct (builder-clause
-            (:constructor nil)
-            (:copier nil))
-  "Base AST type for builder comprehension clauses."
-  (location (util:required 'location) :type source:location :read-only t))
+(defclass builder-clause ()
+  ((location :initarg :location :reader builder-clause-location :type source:location
+             :initform (util:required 'location)))
+  (:documentation "Base AST type for builder comprehension clauses."))
+
+(defun builder-clause-p (x) (and (typep x 'builder-clause) t))
 
 (defmethod source:location ((self builder-clause))
   (builder-clause-location self))
 
-(defstruct (builder-with-clause
-            (:include builder-clause)
-            (:copier nil))
+(define-node builder-with-clause (builder-clause)
   "AST node for a `:with` clause inside builder comprehension syntax."
   (binder (util:required 'binder) :type node-variable :read-only t)
   (expr   (util:required 'expr)   :type node          :read-only t))
 
-(defstruct (builder-for-clause
-            (:include builder-clause)
-            (:copier nil))
+(define-node builder-for-clause (builder-clause)
   "AST node for a `:for ... :in ...` clause inside builder comprehension syntax."
   (binder (util:required 'binder) :type node-variable :read-only t)
   (expr   (util:required 'expr)   :type node          :read-only t))
 
-(defstruct (builder-below-clause
-            (:include builder-clause)
-            (:copier nil))
+(define-node builder-below-clause (builder-clause)
   "AST node for a `:for ... :below ...` clause inside builder comprehension syntax."
   (binder (util:required 'binder) :type node-variable :read-only t)
   (expr   (util:required 'expr)   :type node          :read-only t))
 
-(defstruct (builder-when-clause
-            (:include builder-clause)
-            (:copier nil))
+(define-node builder-when-clause (builder-clause)
   "AST node for a `:when` filter clause inside builder comprehension syntax."
   (expr (util:required 'expr) :type node :read-only t))
 
@@ -750,52 +719,38 @@ Rebound to NIL parsing an anonymous FN.")
 (deftype builder-clause-list ()
   '(satisfies builder-clause-list-p))
 
-(defstruct (node-collection-comprehension
-            (:include node)
-            (:copier nil))
+(define-node node-collection-comprehension (node)
   "AST node for collection builder comprehension syntax."
   (head    (util:required 'head)    :type node                :read-only t)
   (clauses (util:required 'clauses) :type builder-clause-list :read-only t))
 
-(defstruct (node-association-comprehension
-            (:include node)
-            (:copier nil))
+(define-node node-association-comprehension (node)
   "AST node for association builder comprehension syntax."
   (key     (util:required 'key)     :type node                :read-only t)
   (value   (util:required 'value)   :type node                :read-only t)
   (clauses (util:required 'clauses) :type builder-clause-list :read-only t))
 
-(defstruct (node-block
-            (:include node)
-            (:copier nil))
+(define-node node-block (node)
   "Internal control-flow node introducing a named return target."
   (name (util:required 'name) :type symbol    :read-only t)
   (body (util:required 'body) :type node-body :read-only t))
 
-(defstruct (node-return
-            (:include node)
-            (:copier nil))
+(define-node node-return (node)
   "A Coalton `return` as written by the user.
 
 This node is rewritten to NODE-RETURN-FROM by TC:RESOLVE-CONTROL-FLOW
 after variable renaming and before type inference."
   (expr (util:required 'expr) :type (or null node) :read-only t))
 
-(defstruct (node-return-from
-            (:include node)
-            (:copier nil))
+(define-node node-return-from (node)
   "Internal control-flow node returning from a named enclosing block."
   (name (util:required 'name) :type symbol :read-only t)
   (expr (util:required 'expr) :type node   :read-only t))
 
-(defstruct (node-values
-            (:include node)
-            (:copier nil))
+(define-node node-values (node)
   (nodes (util:required 'nodes) :type node-list :read-only t))
 
-(defstruct (node-application
-            (:include node)
-            (:copier nil))
+(define-node node-application (node)
   (rator         (util:required 'rator) :type node                           :read-only t)
   (rands         (util:required 'rands) :type node-list                      :read-only t)
   (keyword-rands nil                    :type node-application-keyword-arg-list :read-only t))
@@ -817,32 +772,22 @@ after variable renaming and before type inference."
 (deftype node-application-keyword-arg-list ()
   '(satisfies node-application-keyword-arg-list-p))
 
-(defstruct (node-or
-            (:include node)
-            (:copier nil))
+(define-node node-or (node)
   (nodes (util:required 'nodes) :type node-list :read-only t))
 
-(defstruct (node-and
-            (:include node)
-            (:copier nil))
+(define-node node-and (node)
   (nodes (util:required 'nodes) :type node-list :read-only t))
 
-(defstruct (node-if
-            (:include node)
-            (:copier nil))
+(define-node node-if (node)
   (expr (util:required 'expr) :type node :read-only t)
   (then (util:required 'expr) :type node :read-only t)
   (else (util:required 'else) :type node :read-only t))
 
-(defstruct (node-when
-            (:include node)
-            (:copier nil))
+(define-node node-when (node)
   (expr (util:required 'expr) :type node      :read-only t)
   (body (util:required 'body) :type node-body :read-only t))
 
-(defstruct (node-unless
-            (:include node)
-            (:copier nil))
+(define-node node-unless (node)
   (expr (util:required 'expr) :type node      :read-only t)
   (body (util:required 'body) :type node-body :read-only t))
 
@@ -862,9 +807,7 @@ after variable renaming and before type inference."
 (deftype node-cond-clause-list ()
   '(satisfies node-cond-clause-list-p))
 
-(defstruct (node-cond
-            (:include node)
-            (:copier nil))
+(define-node node-cond (node)
   (clauses (util:required 'clauses) :type node-cond-clause-list :read-only t))
 
 (defstruct (node-do-bind
@@ -889,25 +832,17 @@ after variable renaming and before type inference."
 (deftype node-do-body-element-list ()
   '(satisfies node-do-body-element-list-p))
 
-(defstruct (node-do
-            (:include node)
-            (:copier nil))
+(define-node node-do (node)
   (nodes     (util:required 'nodes)     :type node-do-body-element-list :read-only t)
   (last-node (util:required 'last-node) :type node                      :read-only t))
 
-(defstruct (node-break
-            (:include node)
-            (:copier nil))
+(define-node node-break (node)
   (label (util:required 'label) :type keyword :read-only t))
 
-(defstruct (node-continue
-            (:include node)
-            (:copier nil))
+(define-node node-continue (node)
   (label (util:required 'label) :type keyword :read-only t))
 
-(defstruct (node-for
-            (:include node)
-            (:copier nil))
+(define-node node-for (node)
   (label            (util:required 'label)            :type keyword                    :read-only t)
   (bindings         (util:required 'bindings)         :type node-for-binding-list     :read-only t)
   (declares         (util:required 'declares)         :type node-let-declare-list      :read-only t)
@@ -939,14 +874,10 @@ after variable renaming and before type inference."
                              "second binding here")))
         (setf (gethash name seen) name-node)))))
 
-(defstruct (node-throw
-            (:include node)
-            (:copier nil))
+(define-node node-throw (node)
   (expr (util:required 'expr) :type node :read-only t))
 
-(defstruct (node-resume-to
-            (:include node)
-            (:copier nil))
+(define-node node-resume-to (node)
   (expr (util:required 'expr) :type node :read-only t))
 
 (defstruct (node-resumable-branch
@@ -965,9 +896,7 @@ after variable renaming and before type inference."
 (deftype node-resumable-branch-list ()
   '(satisfies node-resumable-branch-list-p))
 
-(defstruct (node-resumable
-            (:include node)
-            (:copier nil))
+(define-node node-resumable (node)
   (expr     (util:required 'expr)     :type node                         :read-only t)
   (branches (util:required 'branches) :type node-resumable-branch-list :read-only t))
 
@@ -987,9 +916,7 @@ after variable renaming and before type inference."
 (deftype node-catch-branch-list ()
   '(satisfies node-catch-branch-list-p))
 
-(defstruct (node-catch
-            (:include node)
-            (:copier nil))
+(define-node node-catch (node)
   (expr     (util:required 'expr)     :type node                   :read-only t)
   (branches (util:required 'branches) :type node-catch-branch-list :read-only t))
 
