@@ -20,11 +20,6 @@
   (type (util:required 'type) :type t      :read-only t))
 
 
-(defun list-if-release (&rest xs)
-  (if (not (settings:coalton-release-p))
-      nil
-      xs))
-
 (defun struct-or-class (&key
                           (classname (error "Class Name required"))
                           (constructor (error "Constructor required"))
@@ -81,10 +76,6 @@ regardless of Coalton's release mode."
                                                       (values ,lisp-type &optional))
                                             ,reader-name)))))
 
-         ;; Inline constructor and readers (release-only):
-         (list-if-release
-          `(declaim (inline ,constructor ,@reader-names)))
-
          ;; Define the struct:
          (list
           `(defstruct (,classname
@@ -96,12 +87,7 @@ regardless of Coalton's release mode."
              ,@(loop :for field :in fields
                      :for name := (struct-or-class-field-name field)
                      :for lisp-type := (struct-or-class-field-type field)
-                     :collect `(,name nil :type ,lisp-type :read-only t))))
-
-         ;; Freeze the type (release-only):
-         (list-if-release
-          #+sbcl
-          `(declaim (sb-ext:freeze-type ,classname)))))
+                     :collect `(,name nil :type ,lisp-type :read-only t))))))
 
        (:class
         (append
@@ -127,8 +113,6 @@ regardless of Coalton's release mode."
                  :collect `(declaim (ftype (function (,classname)
                                                      (values ,lisp-type &optional))
                                            ,reader-name))
-               :when (settings:coalton-release-p)
-                 :collect `(declaim (inline ,reader-name))
                :collect `(defun ,reader-name (obj)
                            (slot-value obj ',field-name)))
 
@@ -139,9 +123,6 @@ regardless of Coalton's release mode."
                               ,(mapcar #'struct-or-class-field-type fields)
                               (values ,classname &optional))
                              ,constructor))))
-
-         (list-if-release
-          `(declaim (inline ,constructor)))
 
          (list
           `(defun ,constructor ,field-names

@@ -129,10 +129,12 @@
           #13=\"Compute the nth Fibonacci number\")
   (setf (documentation 'small-coalton-programs/fact-fib:fib 'function) #13#))
  (declaim (sb-ext:unmuffle-conditions sb-kernel:redefinition-warning))
- (values))" :cost (:parse (:min-seconds 4.15d-4 :median-seconds 4.81d-4 :bytes 98208 :iterations 5) :typecheck (:min-seconds 0.006308d0 :median-seconds 0.006498d0 :bytes 3242352 :iterations 5) :codegen (:min-seconds 0.00303d0 :median-seconds 0.003151d0 :bytes 645504 :iterations 5))) (:name "02-medium-classes.coal" :parse-summary (:types 1 :type-aliases 0 :structs 0 :classes 1 :instances 3 :declares 4 :defines 5 :specializations 0 :lisp-forms 0) :signatures (("DEMO" . "∀ :B. (Num :B) (Summable :B) (Ord :B) ⇒ Void → Tuple Integer :B") ("TREE-FOLD-SUM" . "∀ :A. Summable :A ⇒ Tree :A → :A") ("TREE-FROM-LIST" . "∀ :A. Ord :A ⇒ List :A → Tree :A") ("TREE-INSERT" . "∀ :A. Ord :A ⇒ :A * Tree :A → Tree :A") ("TREE-SIZE" . "∀ :A. Tree :A → Integer")) :codegen-text "(progn
+ (values))" :cost (:parse (:min-seconds 4.05d-4 :median-seconds 4.82d-4 :bytes 98240 :iterations 5) :typecheck (:min-seconds 0.005619d0 :median-seconds 0.005804d0 :bytes 3242352 :iterations 5) :codegen (:min-seconds 0.003261d0 :median-seconds 0.003378d0 :bytes 678704 :iterations 5))) (:name "02-medium-classes.coal" :parse-summary (:types 1 :type-aliases 0 :structs 0 :classes 1 :instances 3 :declares 4 :defines 5 :specializations 0 :lisp-forms 0) :signatures (("DEMO" . "∀ :B. (Num :B) (Summable :B) (Ord :B) ⇒ Void → Tuple Integer :B") ("TREE-FOLD-SUM" . "∀ :A. Summable :A ⇒ Tree :A → :A") ("TREE-FROM-LIST" . "∀ :A. Ord :A ⇒ List :A → Tree :A") ("TREE-INSERT" . "∀ :A. Ord :A ⇒ :A * Tree :A → Tree :A") ("TREE-SIZE" . "∀ :A. Tree :A → Integer")) :codegen-text "(progn
  (declaim (sb-ext:muffle-conditions sb-kernel:redefinition-warning))
  (eval-when (:compile-toplevel :load-toplevel :execute)
-   (defclass coalton-benchmark/medium-classes::tree nil nil)
+   (defstruct
+       (coalton-benchmark/medium-classes::tree (:constructor nil)
+        (:predicate nil) (:copier nil)))
    (defmethod make-load-form
               (
                (coalton-benchmark/medium-classes::obj
@@ -141,61 +143,18 @@
      (make-load-form-saving-slots coalton-benchmark/medium-classes::obj
                                   :environment
                                   coalton-benchmark/medium-classes::env))
-   (defclass coalton-benchmark/medium-classes::tree/node
-             (coalton-benchmark/medium-classes::tree)
-             ((coalton-benchmark/medium-classes::|_0| :type
-               coalton-benchmark/medium-classes::tree :initarg
-               coalton-benchmark/medium-classes::|_0|)
-              (coalton-benchmark/medium-classes::|_1| :type t :initarg
-               coalton-benchmark/medium-classes::|_1|)
-              (coalton-benchmark/medium-classes::|_2| :type
-               coalton-benchmark/medium-classes::tree :initarg
-               coalton-benchmark/medium-classes::|_2|)))
-   (declaim
-    (ftype
-     (function (coalton-benchmark/medium-classes::tree/node)
-      (values coalton-benchmark/medium-classes::tree &optional))
-     coalton-benchmark/medium-classes::tree/node-_0))
-   (defun coalton-benchmark/medium-classes::tree/node-_0
-          (coalton-impl/codegen/struct-or-class::obj)
-     (slot-value coalton-impl/codegen/struct-or-class::obj
-                 'coalton-benchmark/medium-classes::|_0|))
-   (declaim
-    (ftype
-     (function (coalton-benchmark/medium-classes::tree/node)
-      (values t &optional))
-     coalton-benchmark/medium-classes::tree/node-_1))
-   (defun coalton-benchmark/medium-classes::tree/node-_1
-          (coalton-impl/codegen/struct-or-class::obj)
-     (slot-value coalton-impl/codegen/struct-or-class::obj
-                 'coalton-benchmark/medium-classes::|_1|))
-   (declaim
-    (ftype
-     (function (coalton-benchmark/medium-classes::tree/node)
-      (values coalton-benchmark/medium-classes::tree &optional))
-     coalton-benchmark/medium-classes::tree/node-_2))
-   (defun coalton-benchmark/medium-classes::tree/node-_2
-          (coalton-impl/codegen/struct-or-class::obj)
-     (slot-value coalton-impl/codegen/struct-or-class::obj
-                 'coalton-benchmark/medium-classes::|_2|))
-   (declaim
-    (ftype
-     (function
-      (coalton-benchmark/medium-classes::tree t
-       coalton-benchmark/medium-classes::tree)
-      (values coalton-benchmark/medium-classes::tree/node &optional))
-     coalton-benchmark/medium-classes::node))
-   (defun coalton-benchmark/medium-classes::node
-          (coalton-benchmark/medium-classes::|_0|
-           coalton-benchmark/medium-classes::|_1|
-           coalton-benchmark/medium-classes::|_2|)
-     (make-instance 'coalton-benchmark/medium-classes::tree/node
-                    'coalton-benchmark/medium-classes::|_0|
-                    coalton-benchmark/medium-classes::|_0|
-                    'coalton-benchmark/medium-classes::|_1|
-                    coalton-benchmark/medium-classes::|_1|
-                    'coalton-benchmark/medium-classes::|_2|
-                    coalton-benchmark/medium-classes::|_2|))
+   (defstruct
+       (coalton-benchmark/medium-classes::tree/node (:copier nil)
+        (:predicate nil) (:include coalton-benchmark/medium-classes::tree)
+        (:constructor coalton-benchmark/medium-classes::node
+         (coalton-benchmark/medium-classes::|_0|
+          coalton-benchmark/medium-classes::|_1|
+          coalton-benchmark/medium-classes::|_2|)))
+     (coalton-benchmark/medium-classes::|_0| nil :type
+      coalton-benchmark/medium-classes::tree :read-only t)
+     (coalton-benchmark/medium-classes::|_1| nil :type t :read-only t)
+     (coalton-benchmark/medium-classes::|_2| nil :type
+      coalton-benchmark/medium-classes::tree :read-only t))
    (coalton-impl/global-lexical:define-global-lexical
     coalton-benchmark/medium-classes::node function)
    (setf coalton-benchmark/medium-classes::node
@@ -289,15 +248,10 @@
         stream)))
      (write-string \")\" stream)
      coalton-impl/codegen/codegen-type-definition::self)
-   (defclass coalton-benchmark/medium-classes::tree/leaf
-             (coalton-benchmark/medium-classes::tree) nil)
-   (declaim
-    (ftype
-     (function nil
-      (values coalton-benchmark/medium-classes::tree/leaf &optional))
-     coalton-benchmark/medium-classes::leaf))
-   (defun coalton-benchmark/medium-classes::leaf ()
-     (make-instance 'coalton-benchmark/medium-classes::tree/leaf))
+   (defstruct
+       (coalton-benchmark/medium-classes::tree/leaf (:copier nil)
+        (:predicate nil) (:include coalton-benchmark/medium-classes::tree)
+        (:constructor coalton-benchmark/medium-classes::leaf nil)))
    (coalton-impl/global-lexical:define-global-lexical
     coalton-benchmark/medium-classes::leaf
     coalton-benchmark/medium-classes::tree/leaf)
@@ -314,42 +268,15 @@
      (format stream \"#.~s\" 'coalton-benchmark/medium-classes::leaf)
      coalton-impl/codegen/codegen-type-definition::self))
  (eval-when (:compile-toplevel :load-toplevel :execute)
-   (defclass coalton-benchmark/medium-classes::class/summable nil
-             ((coalton-benchmark/medium-classes::zero :type t :initarg
-               coalton-benchmark/medium-classes::zero)
-              (coalton-benchmark/medium-classes::combine :type function
-               :initarg coalton-benchmark/medium-classes::combine)))
-   (declaim
-    (ftype
-     (function (coalton-benchmark/medium-classes::class/summable)
-      (values t &optional))
-     coalton-benchmark/medium-classes::class/summable-zero))
-   (defun coalton-benchmark/medium-classes::class/summable-zero
-          (coalton-impl/codegen/struct-or-class::obj)
-     (slot-value coalton-impl/codegen/struct-or-class::obj
-                 'coalton-benchmark/medium-classes::zero))
-   (declaim
-    (ftype
-     (function (coalton-benchmark/medium-classes::class/summable)
-      (values function &optional))
-     coalton-benchmark/medium-classes::class/summable-combine))
-   (defun coalton-benchmark/medium-classes::class/summable-combine
-          (coalton-impl/codegen/struct-or-class::obj)
-     (slot-value coalton-impl/codegen/struct-or-class::obj
-                 'coalton-benchmark/medium-classes::combine))
-   (declaim
-    (ftype
-     (function (t function)
-      (values coalton-benchmark/medium-classes::class/summable &optional))
-     coalton-benchmark/medium-classes::class/summable))
-   (defun coalton-benchmark/medium-classes::class/summable
-          (coalton-benchmark/medium-classes::zero
-           coalton-benchmark/medium-classes::combine)
-     (make-instance 'coalton-benchmark/medium-classes::class/summable
-                    'coalton-benchmark/medium-classes::zero
-                    coalton-benchmark/medium-classes::zero
-                    'coalton-benchmark/medium-classes::combine
-                    coalton-benchmark/medium-classes::combine))
+   (defstruct
+       (coalton-benchmark/medium-classes::class/summable (:copier nil)
+        (:predicate nil)
+        (:constructor coalton-benchmark/medium-classes::class/summable
+         (coalton-benchmark/medium-classes::zero
+          coalton-benchmark/medium-classes::combine)))
+     (coalton-benchmark/medium-classes::zero nil :type t :read-only t)
+     (coalton-benchmark/medium-classes::combine nil :type function :read-only
+      t))
    (coalton-impl/global-lexical:define-global-lexical
     coalton-benchmark/medium-classes::class/summable function)
    (setf coalton-benchmark/medium-classes::class/summable
@@ -822,7 +749,7 @@
            coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE STRING-COALTON-BENCHMARK/MEDIUM-CLASSES::ZERO|
            coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE STRING-COALTON-BENCHMARK/MEDIUM-CLASSES::COMBINE|)))
  (declaim (sb-ext:unmuffle-conditions sb-kernel:redefinition-warning))
- (values))" :cost (:parse (:min-seconds 0.001734d0 :median-seconds 0.001781d0 :bytes 357792 :iterations 5) :typecheck (:min-seconds 0.035834d0 :median-seconds 0.036665d0 :bytes 16637872 :iterations 5) :codegen (:min-seconds 0.008781d0 :median-seconds 0.008992d0 :bytes 1335600 :iterations 5))) (:name "03-large-inference.coal" :parse-summary (:types 0 :type-aliases 0 :structs 0 :classes 0 :instances 0 :declares 0 :defines 26 :specializations 0 :lisp-forms 0) :signatures (("Q-ALL" . "∀ :A. (:A → Boolean) * List :A → Boolean") ("Q-ANY" . "∀ :A. (:A → Boolean) * List :A → Boolean") ("Q-APP" . "∀ :A. List :A * List :A → List :A") ("Q-APPLY-N" . "∀ :A :B. Num :A ⇒ :A * (:B → :B) * :B → :B") ("Q-COMPOSE" . "∀ :A :B :C. (:A → :B) * (:C → :A) → :C → :B") ("Q-CONCAT-MAP" . "∀ :A :B. (:A → List :B) * List :A → List :B") ("Q-COUNT" . "∀ :A :B. Num :B ⇒ (:A → Boolean) * List :A → :B") ("Q-DROP" . "∀ :A :B. Num :A ⇒ :A * List :B → List :B") ("Q-ENUMERATE" . "∀ :B :A. Num :A ⇒ List :B → List (Tuple :A :B)") ("Q-ENUMERATE-ONTO" . "∀ :A :B. Num :A ⇒ :A * List :B → List (Tuple :A :B)") ("Q-FILTER" . "∀ :A. (:A → Boolean) * List :A → List :A") ("Q-FOLDL" . "∀ :A :B. (:A * :B → :A) * :A * List :B → :A") ("Q-LEN" . "∀ :A :B. Num :B ⇒ List :A → :B") ("Q-MAP" . "∀ :A :B. (:A → :B) * List :A → List :B") ("Q-MAXIMUM-ONTO" . "∀ :A. Ord :A ⇒ :A * List :A → :A") ("Q-PIPELINE" . "∀ :B :A. (Remainder :B) (Num :A) (Ord :B) ⇒ :B → Tuple :B (Tuple :A :B)") ("Q-PRODUCT" . "∀ :A. Num :A ⇒ List :A → :A") ("Q-RANGE-DOWN" . "∀ :A. Num :A ⇒ :A → List :A") ("Q-REPLICATE" . "∀ :A :B. Num :A ⇒ :A * :B → List :B") ("Q-REV" . "∀ :A. List :A → List :A") ("Q-REV-ONTO" . "∀ :A. List :A * List :A → List :A") ("Q-SINGLE" . "∀ :A. :A → List :A") ("Q-SUM" . "∀ :A. Num :A ⇒ List :A → :A") ("Q-TAKE" . "∀ :A :B. Num :A ⇒ :A * List :B → List :B") ("Q-TWICE" . "∀ :A. (:A → :A) → :A → :A") ("Q-ZIP-WITH" . "∀ :A :B :C. (:A * :B → :C) * List :A * List :B → List :C")) :codegen-text "(progn
+ (values))" :cost (:parse (:min-seconds 0.001678d0 :median-seconds 0.00183d0 :bytes 357792 :iterations 5) :typecheck (:min-seconds 0.035168d0 :median-seconds 0.035784d0 :bytes 16637872 :iterations 5) :codegen (:min-seconds 0.009729d0 :median-seconds 0.009946d0 :bytes 1401600 :iterations 5))) (:name "03-large-inference.coal" :parse-summary (:types 0 :type-aliases 0 :structs 0 :classes 0 :instances 0 :declares 0 :defines 26 :specializations 0 :lisp-forms 0) :signatures (("Q-ALL" . "∀ :A. (:A → Boolean) * List :A → Boolean") ("Q-ANY" . "∀ :A. (:A → Boolean) * List :A → Boolean") ("Q-APP" . "∀ :A. List :A * List :A → List :A") ("Q-APPLY-N" . "∀ :A :B. Num :A ⇒ :A * (:B → :B) * :B → :B") ("Q-COMPOSE" . "∀ :A :B :C. (:A → :B) * (:C → :A) → :C → :B") ("Q-CONCAT-MAP" . "∀ :A :B. (:A → List :B) * List :A → List :B") ("Q-COUNT" . "∀ :A :B. Num :B ⇒ (:A → Boolean) * List :A → :B") ("Q-DROP" . "∀ :A :B. Num :A ⇒ :A * List :B → List :B") ("Q-ENUMERATE" . "∀ :B :A. Num :A ⇒ List :B → List (Tuple :A :B)") ("Q-ENUMERATE-ONTO" . "∀ :A :B. Num :A ⇒ :A * List :B → List (Tuple :A :B)") ("Q-FILTER" . "∀ :A. (:A → Boolean) * List :A → List :A") ("Q-FOLDL" . "∀ :A :B. (:A * :B → :A) * :A * List :B → :A") ("Q-LEN" . "∀ :A :B. Num :B ⇒ List :A → :B") ("Q-MAP" . "∀ :A :B. (:A → :B) * List :A → List :B") ("Q-MAXIMUM-ONTO" . "∀ :A. Ord :A ⇒ :A * List :A → :A") ("Q-PIPELINE" . "∀ :B :A. (Remainder :B) (Num :A) (Ord :B) ⇒ :B → Tuple :B (Tuple :A :B)") ("Q-PRODUCT" . "∀ :A. Num :A ⇒ List :A → :A") ("Q-RANGE-DOWN" . "∀ :A. Num :A ⇒ :A → List :A") ("Q-REPLICATE" . "∀ :A :B. Num :A ⇒ :A * :B → List :B") ("Q-REV" . "∀ :A. List :A → List :A") ("Q-REV-ONTO" . "∀ :A. List :A * List :A → List :A") ("Q-SINGLE" . "∀ :A. :A → List :A") ("Q-SUM" . "∀ :A. Num :A ⇒ List :A → :A") ("Q-TAKE" . "∀ :A :B. Num :A ⇒ :A * List :B → List :B") ("Q-TWICE" . "∀ :A. (:A → :A) → :A → :A") ("Q-ZIP-WITH" . "∀ :A :B :C. (:A * :B → :C) * List :A * List :B → List :C")) :codegen-text "(progn
  (declaim (sb-ext:muffle-conditions sb-kernel:redefinition-warning))
  (locally
   (declare (optimize (sb-c::type-check 0)))
@@ -1556,4 +1483,4 @@
   (setf coalton-benchmark/large-inference::q-rev
           #'coalton-benchmark/large-inference::q-rev))
  (declaim (sb-ext:unmuffle-conditions sb-kernel:redefinition-warning))
- (values))" :cost (:parse (:min-seconds 0.001873d0 :median-seconds 0.001892d0 :bytes 425840 :iterations 5) :typecheck (:min-seconds 0.296458d0 :median-seconds 0.304714d0 :bytes 90039040 :iterations 5) :codegen (:min-seconds 0.017441d0 :median-seconds 0.018199d0 :bytes 3272144 :iterations 5))))
+ (values))" :cost (:parse (:min-seconds 0.001896d0 :median-seconds 0.001976d0 :bytes 425840 :iterations 5) :typecheck (:min-seconds 0.309598d0 :median-seconds 0.331794d0 :bytes 90039040 :iterations 5) :codegen (:min-seconds 0.01902d0 :median-seconds 0.019262d0 :bytes 3337424 :iterations 5))))

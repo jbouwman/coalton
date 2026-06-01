@@ -254,8 +254,6 @@
 
 (defstruct (value-environment (:include immutable-map)))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type value-environment))
 
 (defmethod apply-substitution (subst-list (env value-environment))
   (immutable-map-image (lambda (value) (apply-substitution subst-list value)) env #'make-value-environment))
@@ -332,13 +330,9 @@
 (defmethod kind-of ((entry type-entry))
   (kind-of (type-entry-type entry)))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type type-entry))
 
 (defstruct (type-environment (:include immutable-map)))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type type-environment))
 
 (defun make-default-type-environment ()
   "Create a TYPE-ENVIRONMENT containing early types."
@@ -521,8 +515,6 @@
 (defmethod make-load-form ((self constructor-entry) &optional env)
   (make-load-form-saving-slots self :environment env))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type constructor-entry))
 
 (defun constructor-entry-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -608,8 +600,6 @@
             :docstring "`None` expresses the absence of a meaningful value."
             :compressed-repr 'nil)))))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type constructor-environment))
 
 ;;;
 ;;; Type alias environment
@@ -628,8 +618,6 @@
 (defmethod make-load-form ((self type-alias-entry) &optional env)
   (make-load-form-saving-slots self :environment env))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type type-alias-entry))
 
 (defun type-alias-entry-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -640,8 +628,6 @@
 
 (defstruct (type-alias-environment (:include immutable-map)))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type type-alias-environment))
 
 ;;;
 ;;; Struct environment
@@ -749,8 +735,6 @@
 (defmethod make-load-form ((self ty-class) &optional env)
   (make-load-form-saving-slots self :environment env))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type ty-class))
 
 (defun ty-class-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -787,8 +771,6 @@
 
 (defstruct (class-environment (:include immutable-map)))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type class-environment))
 
 ;;;
 ;;; Fundep Environment
@@ -796,8 +778,6 @@
 
 (defstruct (fundep-environment (:include immutable-map)))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type fundep-environment))
 
 ;;;
 ;;; Instance environment
@@ -856,8 +836,6 @@ of constraint predicates."
 (defmethod make-load-form ((self ty-class-instance) &optional env)
   (make-load-form-saving-slots self :environment env))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type ty-class-instance))
 
 (defun ty-class-instance-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -866,8 +844,6 @@ of constraint predicates."
 (deftype ty-class-instance-list ()
   `(satisfies ty-class-instance-list-p))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type ty-class-instance-list))
 
 (defmethod apply-substitution (subst-list (instance ty-class-instance))
   (declare (type substitution-list subst-list)
@@ -885,8 +861,6 @@ of constraint predicates."
   (instances    (make-immutable-listmap) :type immutable-listmap :read-only t)
   (codegen-syms (make-immutable-map)     :type immutable-map     :read-only t))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type instance-environment))
 
 ;;;
 ;;; Function environment
@@ -900,8 +874,6 @@ of constraint predicates."
 (defmethod make-load-form ((self function-env-entry) &optional env)
   (make-load-form-saving-slots self :environment env))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type function-env-entry))
 
 (defun function-env-entry-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -912,8 +884,6 @@ of constraint predicates."
 
 (defstruct (function-environment (:include immutable-map)))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type function-environment))
 
 ;;;
 ;;; Name environment
@@ -934,13 +904,9 @@ of constraint predicates."
 (defmethod make-load-form ((self name-entry) &optional env)
   (make-load-form-saving-slots self :environment env))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type name-entry))
 
 (defstruct (name-environment (:include immutable-map)))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type name-environment))
 
 ;;;
 ;;; Method Inline environment
@@ -948,8 +914,6 @@ of constraint predicates."
 
 (defstruct (method-inline-environment (:include immutable-map)))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type method-inline-environment))
 
 ;;;
 ;;; Code environment
@@ -957,8 +921,6 @@ of constraint predicates."
 
 (defstruct (code-environment (:include immutable-map)))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type code-environment))
 
 ;;;
 ;;; Specialization Environment
@@ -1018,8 +980,6 @@ of constraint predicates."
 (defmethod make-load-form ((self environment) &optional env)
   (make-load-form-saving-slots self :environment env))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type environment))
 
 (defun make-default-environment ()
   (declare (values environment))

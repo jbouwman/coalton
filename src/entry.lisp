@@ -194,7 +194,6 @@
         (entry-point program)
       (setf *global-environment* env)
       `(progn
-         ,(make-prologue)
          ,(make-environment-updater updates)
          ,program))))
 
@@ -204,16 +203,6 @@
        (eql (first b) 'coalton-impl/typechecker/environment:set-code)
        (eql (second a)
             (second b))))
-
-(defun make-prologue ()
-  "Return source form of an assertion that prevents mixing development and release modes."
-  `(eval-when (:load-toplevel)
-     (unless (eq (settings:coalton-release-p) ,(settings:coalton-release-p))
-       ,(if (settings:coalton-release-p)
-            `(error "~A was compiled in release mode but loaded in development."
-                    ,(or *compile-file-pathname* *load-truename*))
-            `(error "~A was compiled in development mode but loaded in release."
-                    ,(or *compile-file-pathname* *load-truename*))))))
 
 (defun print-form (stream form &optional (package "CL"))
   "Print a FORM to a STREAM, separated by 2 lines."
@@ -239,7 +228,6 @@
                (program-text (entry-point program))
                (program-package (parser:program-package program))
                (package-name (parser:toplevel-package-name program-package)))
-          (print-form output (make-prologue))
           (print-form output (make-environment-updater updates))
           (print-form output (parser:make-defpackage program-package))
           (print-form output `(in-package ,package-name))

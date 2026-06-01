@@ -626,10 +626,8 @@ when possible."
            (type tc:environment env)
            (values node &optional))
 
-  ;; CLOS classes generated in development mode cannot be stack
-  ;; allocated
-  (unless (settings:coalton-release-p)
-    (return-from match-dynamic-extent-lift node))
+  ;; User types are emitted as structs (GOAL-025 removed the dev/release
+  ;; split), so match arguments that do not escape can be stack allocated.
 
   (labels ((apply-lift (node)
 

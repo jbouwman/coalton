@@ -60,18 +60,17 @@
                ()
                ,@(when (source:docstring def)
                    `((:documentation ,(source:docstring def))))))
-           ((settings:coalton-release-p)
+           ;; The parent type is always a (redefinable) struct: GOAL-025
+           ;; drops the dev/release split, with structs as the single
+           ;; runtime representation. The per-constructor structs below
+           ;; :include this one, so the two must agree.
+           (t
             `(defstruct (,(tc:type-definition-name def)
                          (:constructor nil)
                          (:predicate nil)
                          (:copier nil))
                ,@(when (source:docstring def)
-                   (list (source:docstring def)))))
-           (t
-            `(defclass ,(tc:type-definition-name def) ()
-               ()
-               ,@(when (source:docstring def)
-                   `((:documentation ,(source:docstring def)))))))
+                   (list (source:docstring def))))))
 
         (defmethod make-load-form ((,(intern "OBJ") ,(tc:type-definition-name def)) &optional ,(intern "ENV"))
           (make-load-form-saving-slots ,(intern "OBJ") :environment ,(intern "ENV")))
@@ -98,9 +97,7 @@
                        :constructor constructor-name
                        :superclass superclass
                        :fields fields
-                       :mode (if (settings:coalton-release-p)
-                                 ':struct
-                                 ':class))
+                       :mode ':struct)
             :else
               :append (codegen-exception
                        :classname classname
@@ -136,12 +133,7 @@
                                                 (write-string " " stream)
                                                 (prin1 (slot-value self ',slot) stream))))
                            (write-string ")" stream)
-                           self))))
-
-        ,@(when (settings:coalton-release-p)
-            (list
-             #+sbcl
-             `(declaim (sb-ext:freeze-type ,(tc:type-definition-name def))))))))
+                           self)))))))
 
    (loop :for constructor :in (tc:type-definition-constructors def)
          :for name := (tc:constructor-entry-name constructor)

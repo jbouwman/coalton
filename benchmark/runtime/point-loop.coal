@@ -1,0 +1,13 @@
+(package coalton-benchmark/runtime-point
+  "Hot struct field access for runtime codegen benchmarking: a tail loop
+   that matches a two-field struct each iteration."
+  (import coalton-prelude))
+
+(define-type Point (Point Integer Integer))
+
+(declare point-sum-loop (Integer * Point * Integer -> Integer))
+(define (point-sum-loop n p acc)
+  (if (== n 0)
+      acc
+      (match p
+        ((Point x y) (point-sum-loop (- n 1) p (+ acc (+ x y)))))))

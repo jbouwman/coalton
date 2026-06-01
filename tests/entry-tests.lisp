@@ -19,7 +19,10 @@
   (let* ((file (source:make-source-file (compile-test-file)))
          (source-form-types (mapcar #'first
                                     (source-forms (entry:codegen file)))))
-    (dolist (expect-type '(defpackage in-package eval-when locally))
+    ;; eval-when was the dev/release-mode prologue assertion, removed with
+    ;; the release split (GOAL-025); the environment updater (a let) and the
+    ;; codegen forms remain.
+    (dolist (expect-type '(defpackage in-package locally))
       (is (position expect-type source-form-types)
           "Missing expected ~A form in generated code" expect-type))))
 

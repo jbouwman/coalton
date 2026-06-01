@@ -22,18 +22,6 @@
 ;;; Optimization Predicates
 ;;;
 
-(defun match-exhaustive-p (match env)
-  "Check if match branches cover all cases of the type of the match
-subexpression."
-  (declare (type ast:node-match match)
-           (type tc:environment env)
-           (values t &optional))
-
-  (pattern:patterns-exhaustive-p
-   (mapcar #'ast:match-branch-pattern (ast:node-match-branches match))
-   (ast:node-type (ast:node-match-expr match))
-   env))
-
 (defun match-has-catch-all-p (match)
   "Check if match expression has a branch with a wildcard or variable
 pattern to catch all inputs."
@@ -59,52 +47,26 @@ pattern to catch all inputs."
           (tc:lookup-type env (tc:tycon-name ty))))))
 
 (defun match-emit-fallback-p (match env)
-  "Emit a fallback branch when there is no catch-all branch or if
-the match is exhaustive and settings demand it."
+  "Emit a fallback branch unless the match has a catch-all branch."
   (declare (type ast:node-match match)
-           (type tc:environment env)
+           (ignore env)
            (values t &optional))
-
-  (not (or
-        ;; Case #1:
-        ;;
-        ;; Don't emit a fallback branch if match has a wildcard or
-        ;; variable pattern because we would never reach it anyway.
-        (match-has-catch-all-p match)
-
-        ;; Case #2:
-        ;;
-        ;; Don't emit a fallback branch for exhaustive release-mode
-        ;; matches unless type annotations are disabled. Without
-        ;; annotations, the explicit fallback keeps CL from inferring
-        ;; an implicit NIL return path.
-        (and (settings:coalton-release-p)
-             settings:*emit-type-annotations*
-             (match-exhaustive-p match env)))))
+  ;; Don't emit a fallback branch if match has a wildcard or variable
+  ;; pattern because we would never reach it anyway.
+  (not (match-has-catch-all-p match)))
 
 (defun match-emit-branchless-p (match env)
   "Emit no conditional branching in cases where match is not used
 for control flow."
   (declare (type ast:node-match match)
-           (type tc:environment env)
+           (ignore env)
            (values t &optional))
-
   (let ((one-branch-p (= 1 (length (ast:node-match-branches match)))))
+    ;; Trivial cases of
+    ;;  (match x (_ y))
+    ;;  (match x (var y))
     (and one-branch-p
-         (or
-          ;; Case #1:
-          ;;
-          ;; Trivial cases of
-          ;;  (match x (_ y))
-          ;;  (match x (var y))
-          (match-has-catch-all-p match)
-
-          ;; Case #2:
-          ;;
-          ;; An exhaustive one-branch case
-          ;;  (match x (PAT y))
-          (and (settings:coalton-release-p)
-               (match-exhaustive-p match env))))))
+         (match-has-catch-all-p match))))
 
 ;; TODO: Deal with one branch + fallback.
 (defun match-emit-if-p (match)

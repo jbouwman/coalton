@@ -80,8 +80,6 @@
 (defmethod make-load-form ((self qualified-ty) &optional env)
   (make-load-form-saving-slots self :environment env))
 
-#+(and sbcl coalton-release)
-(declaim (sb-ext:freeze-type qualified-ty))
 
 (defun qualified-ty-list-p (x)
   (and (alexandria:proper-list-p x)

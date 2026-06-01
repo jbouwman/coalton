@@ -92,9 +92,10 @@
                  :classname codegen-name
                  :constructor codegen-name
                  :fields fields
-                 :mode (if (settings:coalton-release-p)
-                           :struct
-                           :class))
+                 ;; Always emit a (redefinable) struct: GOAL-025 drops the
+                 ;; dev/release split, with structs as the single runtime
+                 ;; representation.
+                 :mode :struct)
 
         :append (mapcan (lambda (m)
                           (make-method-fun m package class))
