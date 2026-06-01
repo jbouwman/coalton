@@ -184,13 +184,69 @@ module signature) rather than a memory-image dump, which is what
 - An encoder/decoder must exist for each entry type and the type structure.
   Much of the type side is tractable (Coalton has type printing and type
   syntax parsing); the entries are small records.
-- **The hard part is `set-code`.** It is the dominant payload and it is the
-  codegen AST kept for cross-unit inlining/monomorphization. The open
-  question is what the inliner actually requires and whether that can be a
-  compact, stable encoding (or even re-derived) rather than the full node
-  tree. This is the piece to scope before committing.
 - Decode runs at load time. That is compile/load-time cost, not the runtime
   constraint the goal sets aside, but it should be measured.
+
+## Scoping `set-code` (the dominant payload)
+
+`set-code` is the largest payload and the one that embeds the codegen AST,
+so it decides how hard the IR is. Reading the producer (optimizer.lisp:
+113-114, 150, 188) and every consumer (`tc:lookup-code` in `inliner.lisp`,
+`monomorphize.lisp`, `optimizer.lisp:538`, `debug.lisp`) gives a sharper
+answer than "compress the node."
+
+What is stored: the *fully optimized*, type-annotated body of each top-level
+definition -- a `node-abstraction` for a function, an arbitrary value node
+otherwise -- after the entire optimization pipeline. Stored for **every**
+binding, unconditionally (`update-binding-env` loops over all bindings). The
+nodes are immutable (`:read-only t` slots); no consumer mutates a looked-up
+node, all rebuild fresh copies. It is kept because cross-unit inlining and
+monomorphization need the source unit's optimized body, and that body is not
+re-derivable from the function's type or the already-translated Lisp.
+
+The consumers fall into two classes:
+
+- **Predicate-only** (`monomorphize.lisp:179` candidate validity, the
+  `node-abstraction-p` / `inline-p` tests, `update-function-env`): they read
+  only *is-abstraction?*, *arity*, *has-keyword-params?*, and the *type* --
+  never the body.
+- **Body-consuming** (`inliner.lisp:125,364`; `monomorphize.lisp:454,465`;
+  `resolve-compount-superclass` at `optimizer.lisp:538`): they splice or
+  traverse the full optimized subexpr tree.
+
+The pivotal observation: a definition's *body* is only ever consumed
+downstream when it is an **inline target, a monomorphize target, or a
+dictionary** reachable by superclass resolution -- a small, explicitly
+tracked subset (`inline-p-table`, `monomorphize-table`, instance dictionaries;
+heuristic inlining is off by default). Yet `set-code` stores and replays the
+full body for *every* definition. So most of the dominant payload is dead
+weight in the replay.
+
+This splits the `set-code` IR cleanly:
+
+1. **Common case (not inline / not monomorphize / not dictionary): omit it
+   from the replay entirely.** The predicate consumers need only
+   is-abstraction?, arity, keyword-params?, and type -- all derivable from
+   entries already replayed: `function-env-entry` (arity, inline-p, via
+   `set-function`) and the value's `ty-scheme` (type, function-ness,
+   keyword args, via `set-value-type`). Confirming this means rewiring the
+   handful of predicate consumers to consult those entries instead of
+   `lookup-code`; that is the bounded task that validates dropping the
+   common-case `set-code` replay. This removes the bulk of the 92% and
+   most of the codegen-AST coupling at a stroke.
+2. **Residual (inline / monomorphize / dictionary): the body must travel.**
+   This is the only case that needs a serialization of the codegen node,
+   and it is the focused remaining design -- far smaller surface than "all
+   definitions." Options, in order of preference: re-translate from a stored
+   *typed* AST (smaller, and the representation the inliner already works in)
+   and re-optimize downstream; a compact round-trippable node encoding; or,
+   as a fallback, embed the node for just this subset (the coupling then
+   survives only for explicitly-inlinable code -- few definitions, opted in).
+
+So the `set-code` payload is mostly *eliminable*, not merely compressible.
+That makes the edit IR tractable: the type/entry encodings are
+straightforward, and the one hard payload reduces to encoding bodies for the
+small inline/monomorphize/dictionary subset.
 
 ## Sequencing
 
