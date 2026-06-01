@@ -105,12 +105,9 @@
 ;;; environment, so unlike the pattern family this conversion is independent
 ;;; of the replay serialization.
 
-(defclass ty ()
-  ((location :initarg :location :reader ty-location :type source:location
-             :initform (util:required 'location)))
-  (:documentation "Abstract base of the parsed type AST."))
-
-(defun ty-p (x) (and (typep x 'ty) t))
+(define-node ty () :abstract
+  "Abstract base of the parsed type AST."
+  (location :type source:location))
 
 (defmethod source:location ((self ty))
   (ty-location self))
@@ -151,11 +148,10 @@
   ;; The type argument
   (to   :type ty))
 
-(defstruct (keyword-ty-entry
-            (:copier nil))
-  (keyword  (util:required 'keyword)  :type keyword-src     :read-only t)
-  (type     (util:required 'type)     :type ty              :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node keyword-ty-entry ()
+  (keyword :type keyword-src)
+  (type :type ty)
+  (location :type source:location))
 
 (defmethod source:location ((self keyword-ty-entry))
   (keyword-ty-entry-location self))
@@ -175,11 +171,10 @@
 (define-node result-ty (ty)
   (output-types :type (or null ty-list)))
 
-(defstruct (ty-predicate
-            (:copier nil))
-  (class    (util:required 'class)    :type identifier-src  :read-only t)
-  (types    (util:required 'types)    :type ty-list         :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node ty-predicate ()
+  (class :type identifier-src)
+  (types :type ty-list)
+  (location :type source:location))
 
 (defmethod source:location ((self ty-predicate))
   (ty-predicate-location self))
@@ -191,17 +186,15 @@
 (deftype ty-predicate-list ()
   '(satisfies ty-predicate-list-p))
 
-(defstruct (qualified-ty
-            (:predicate nil)
-            (:copier nil))
+(define-node qualified-ty ()
   ;; True when the source type used an explicit FORALL binder list.
-  (explicit-p         nil                 :type boolean           :read-only t)
+  (explicit-p :type boolean :default nil)
   ;; The explicit FORALL binders in source order, including nested FORALLs
   ;; after flattening, with original source spellings preserved.
-  (explicit-variables nil                 :type keyword-src-list  :read-only t)
-  (predicates         (util:required 'predicates) :type ty-predicate-list :read-only t)
-  (type               (util:required 'type)       :type ty                :read-only t)
-  (location           (util:required 'location)   :type source:location   :read-only t))
+  (explicit-variables :type keyword-src-list :default nil)
+  (predicates :type ty-predicate-list)
+  (type :type ty)
+  (location :type source:location))
 
 (defmethod source:location ((self qualified-ty))
   (qualified-ty-location self))

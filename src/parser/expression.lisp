@@ -413,18 +413,15 @@ Rebound to NIL parsing an anonymous FN.")
 ;;;;
 ;;;; node-continue := "(" "continue" label? ")"
 
-;;; The parsed expression AST is a CLOS hierarchy (GOAL-025 stage 3). The
-;;; subtypes use the define-node macro (base.lisp); the abstract bases (node
-;;; here, builder-clause below) are plain defclasses with no constructor.
-;;; The defstruct-compatible surface (make-X / X-p / X-slot, inherited
-;;; location via node-location) is preserved.
+;;; The parsed expression AST is a CLOS hierarchy (GOAL-025 stage 3), defined
+;;; with the define-node macro (base.lisp). The abstract bases (node here,
+;;; builder-clause below) use :abstract (class + predicate + readers, no
+;;; constructor). The defstruct-compatible surface (make-X / X-p / X-slot,
+;;; inherited location via node-location) is preserved.
 
-(defclass node ()
-  ((location :initarg :location :reader node-location :type source:location
-             :initform (util:required 'location)))
-  (:documentation "Abstract base of the parsed expression AST."))
-
-(defun node-p (x) (and (typep x 'node) t))
+(define-node node () :abstract
+  "Abstract base of the parsed expression AST."
+  (location :type source:location))
 
 (defmethod source:location ((self node))
   (node-location self))
@@ -437,7 +434,7 @@ Rebound to NIL parsing an anonymous FN.")
   '(satisfies node-list-p))
 
 (define-node node-variable (node)
-  (name (util:required 'name) :type identifier :read-only t))
+  (name :type identifier))
 
 (defun node-variable-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -447,31 +444,29 @@ Rebound to NIL parsing an anonymous FN.")
   '(satisfies node-variable-list-p))
 
 (define-node node-accessor (node)
-  (name (util:required 'name) :type string :read-only t))
+  (name :type string))
 
 (define-node node-literal (node)
-  (value (util:required 'value) :type (and util:literal-value (not integer)) :read-only t))
+  (value :type (and util:literal-value (not integer))))
 
 (define-node node-integer-literal (node)
-  (value (util:required 'value) :type integer :read-only t))
+  (value :type integer))
 
 ;;
 ;; Does not subclass node, can only appear in a node body
 ;;
-(defstruct (node-bind
-            (:copier nil))
-  (pattern  (util:required 'pattern)   :type pattern  :read-only t)
-  (expr     (util:required 'expr)      :type node     :read-only t)
-  (location (util:required 'location)  :type source:location :read-only t))
+(define-node node-bind ()
+  (pattern :type pattern)
+  (expr :type node)
+  (location :type source:location))
 
 (defmethod source:location ((self node-bind))
   (node-bind-location self))
 
-(defstruct (node-values-bind
-            (:copier nil))
-  (patterns (util:required 'patterns)  :type pattern-list    :read-only t)
-  (expr     (util:required 'expr)      :type node            :read-only t)
-  (location (util:required 'location)  :type source:location :read-only t))
+(define-node node-values-bind ()
+  (patterns :type pattern-list)
+  (expr :type node)
+  (location :type source:location))
 
 (defmethod source:location ((self node-values-bind))
   (node-values-bind-location self))
@@ -496,29 +491,27 @@ Rebound to NIL parsing an anonymous FN.")
 ;; - cannot be terminated by a `node-bind'
 ;; - does not have source information (but its children do)
 ;;
-(defstruct (node-body
-            (:copier nil))
-  (nodes     (util:required 'nodes)     :type node-body-element-list :read-only t)
-  (last-node (util:required 'last-node) :type node                   :read-only t))
+(define-node node-body ()
+  (nodes :type node-body-element-list)
+  (last-node :type node))
 
 (define-node node-abstraction (node)
-  (params                    (util:required 'params) :type pattern-list       :read-only t)
-  (keyword-params            nil                     :type keyword-param-list :read-only t)
-  (body                      (util:required 'body)   :type node-body          :read-only t)
+  (params :type pattern-list)
+  (keyword-params :type keyword-param-list :default nil)
+  (body :type node-body)
   ;; Internal-only marker for compiler-generated lambdas that should
   ;; leave RETURN bound to the next enclosing returnable context.
   ;; This is so we can implement the `:TRANSPARENT-TO-RETURN` option
   ;; for `fn`. It is a band-aid fix so that one can write macros which
   ;; use `fn` internally, but don't capture any enclosing `return`.
   ;; This should not be relied upon or used extensively.
-  (introduces-return-scope-p t                       :type boolean            :read-only t))
+  (introduces-return-scope-p :type boolean :default t))
 
-(defstruct (keyword-param
-            (:copier nil))
-  (keyword  (util:required 'keyword)  :type keyword-src     :read-only t)
-  (binder   (util:required 'binder)   :type node-variable   :read-only t)
-  (default  (util:required 'default)  :type node            :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node keyword-param ()
+  (keyword :type keyword-src)
+  (binder :type node-variable)
+  (default :type node)
+  (location :type source:location))
 
 (defmethod source:location ((self keyword-param))
   (keyword-param-location self))
@@ -531,11 +524,10 @@ Rebound to NIL parsing an anonymous FN.")
 (deftype keyword-param-list ()
   '(satisfies keyword-param-list-p))
 
-(defstruct (node-let-binding
-            (:copier nil))
-  (name     (util:required 'name)     :type node-variable   :read-only t)
-  (value    (util:required 'value)    :type node            :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-let-binding ()
+  (name :type node-variable)
+  (value :type node)
+  (location :type source:location))
 
 (defmethod source:location ((self node-let-binding))
   (node-let-binding-location self))
@@ -547,11 +539,10 @@ Rebound to NIL parsing an anonymous FN.")
 (deftype node-let-binding-list ()
   '(satisfies node-let-binding-list-p))
 
-(defstruct (node-dynamic-binding
-            (:copier nil))
-  (name     (util:required 'name)     :type node-variable   :read-only t)
-  (value    (util:required 'value)    :type node            :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-dynamic-binding ()
+  (name :type node-variable)
+  (value :type node)
+  (location :type source:location))
 
 (defmethod source:location ((self node-dynamic-binding))
   (node-dynamic-binding-location self))
@@ -563,12 +554,11 @@ Rebound to NIL parsing an anonymous FN.")
 (deftype node-dynamic-binding-list ()
   '(satisfies node-dynamic-binding-list-p))
 
-(defstruct (node-for-binding
-            (:copier nil))
-  (name     (util:required 'name)     :type node-variable   :read-only t)
-  (init     (util:required 'init)     :type node            :read-only t)
-  (step     nil                       :type (or null node)  :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-for-binding ()
+  (name :type node-variable)
+  (init :type node)
+  (step :type (or null node) :default nil)
+  (location :type source:location))
 
 (defmethod source:location ((self node-for-binding))
   (node-for-binding-location self))
@@ -580,11 +570,10 @@ Rebound to NIL parsing an anonymous FN.")
 (deftype node-for-binding-list ()
   '(satisfies node-for-binding-list-p))
 
-(defstruct (node-let-declare
-            (:copier nil))
-  (name     (util:required 'name)     :type node-variable   :read-only t)
-  (type     (util:required 'type)     :type qualified-ty    :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-let-declare ()
+  (name :type node-variable)
+  (type :type qualified-ty)
+  (location :type source:location))
 
 (defmethod source:location ((self node-let-declare))
   (node-let-declare-location self))
@@ -597,41 +586,40 @@ Rebound to NIL parsing an anonymous FN.")
   '(satisfies node-let-declare-list-p))
 
 (define-node node-let (node)
-  (bindings     (util:required 'bindings) :type node-let-binding-list :read-only t)
-  (declares     (util:required 'declares) :type node-let-declare-list :read-only t)
-  (body         (util:required 'body)     :type node-body             :read-only t)
+  (bindings :type node-let-binding-list)
+  (declares :type node-let-declare-list)
+  (body :type node-body)
   ;; T when parsed from LET*, so later bindings can see earlier ones.
-  (sequential-p nil                       :type boolean               :read-only t))
+  (sequential-p :type boolean :default nil))
 
 (define-node node-rec (node)
   ;; Name of the recursive function introduced by `rec`.
-  (name      (util:required 'name)      :type node-variable         :read-only t)
+  (name :type node-variable)
   ;; Non-self init bindings that seed the immediate recursive call.
-  (bindings  (util:required 'bindings)  :type node-let-binding-list :read-only t)
+  (bindings :type node-let-binding-list)
   ;; Declarations for the init bindings.
-  (declares  (util:required 'declares)  :type node-let-declare-list :read-only t)
+  (declares :type node-let-declare-list)
   ;; Parameters of the recursive function, in source order.
-  (params    (util:required 'params)    :type pattern-list          :read-only t)
+  (params :type pattern-list)
   ;; Arguments passed in the implicit immediate call, in source order.
-  (call-args (util:required 'call-args) :type node-variable-list    :read-only t)
+  (call-args :type node-variable-list)
   ;; Body of the recursive function itself.
-  (body      (util:required 'body)      :type node-body             :read-only t))
+  (body :type node-body))
 
 (define-node node-dynamic-let (node)
-  (bindings (util:required 'bindings) :type node-dynamic-binding-list :read-only t)
-  (subexpr  (util:required 'subexpr)  :type node                      :read-only t))
+  (bindings :type node-dynamic-binding-list)
+  (subexpr :type node))
 
 (define-node node-lisp (node)
-  (output-types (util:required 'output-types) :type (or null ty-list)  :read-only t)
-  (vars      (util:required 'vars)      :type node-variable-list :read-only t)
-  (var-names (util:required 'var-names) :type util:symbol-list   :read-only t)
-  (body      (util:required 'body)      :type t                  :read-only t))
+  (output-types :type (or null ty-list))
+  (vars :type node-variable-list)
+  (var-names :type util:symbol-list)
+  (body :type t))
 
-(defstruct (node-match-branch
-            (:copier nil))
-  (pattern  (util:required 'pattern)  :type pattern         :read-only t)
-  (body     (util:required 'body)     :type node-body       :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-match-branch ()
+  (pattern :type pattern)
+  (body :type node-body)
+  (location :type source:location))
 
 (defmethod source:location ((self node-match-branch))
   (node-match-branch-location self))
@@ -644,30 +632,30 @@ Rebound to NIL parsing an anonymous FN.")
   '(satisfies node-match-branch-list-p))
 
 (define-node node-match (node)
-  (expr     (util:required 'expr)     :type node                   :read-only t)
-  (branches (util:required 'branches) :type node-match-branch-list :read-only t))
+  (expr :type node)
+  (branches :type node-match-branch-list))
 
 (define-node node-progn (node)
-  (body (util:required 'body) :type node-body :read-only t))
+  (body :type node-body))
 
 (define-node node-type-of (node)
-  (expr (util:required 'expr) :type node :read-only t))
+  (expr :type node))
 (define-node node-unsafe (node)
-  (body (util:required 'body) :type node-body :read-only t))
+  (body :type node-body))
 
 (define-node node-the (node)
-  (type (util:required 'type) :type qualified-ty :read-only t)
-  (expr (util:required 'expr) :type node         :read-only t))
+  (type :type qualified-ty)
+  (expr :type node))
 
 (define-node node-collection-builder (node)
   "AST node for collection builder syntax such as `[a b c]`."
-  (elements (util:required 'elements) :type node-list :read-only t))
+  (elements :type node-list))
 
-(defstruct association-entry
+(define-node association-entry ()
   "AST node for one evaluated key/value entry inside an association builder."
-  (key      (util:required 'key)      :type node             :read-only t)
-  (value    (util:required 'value)    :type node             :read-only t)
-  (location (util:required 'location) :type source:location  :read-only t))
+  (key :type node)
+  (value :type node)
+  (location :type source:location))
 
 (defmethod source:location ((self association-entry))
   (association-entry-location self))
@@ -681,36 +669,33 @@ Rebound to NIL parsing an anonymous FN.")
 
 (define-node node-association-builder (node)
   "AST node for association builder syntax such as `[a => b c => d]`."
-  (entries (util:required 'entries) :type association-entry-list :read-only t))
+  (entries :type association-entry-list))
 
-(defclass builder-clause ()
-  ((location :initarg :location :reader builder-clause-location :type source:location
-             :initform (util:required 'location)))
-  (:documentation "Base AST type for builder comprehension clauses."))
-
-(defun builder-clause-p (x) (and (typep x 'builder-clause) t))
+(define-node builder-clause () :abstract
+  "Base AST type for builder comprehension clauses."
+  (location :type source:location))
 
 (defmethod source:location ((self builder-clause))
   (builder-clause-location self))
 
 (define-node builder-with-clause (builder-clause)
   "AST node for a `:with` clause inside builder comprehension syntax."
-  (binder (util:required 'binder) :type node-variable :read-only t)
-  (expr   (util:required 'expr)   :type node          :read-only t))
+  (binder :type node-variable)
+  (expr :type node))
 
 (define-node builder-for-clause (builder-clause)
   "AST node for a `:for ... :in ...` clause inside builder comprehension syntax."
-  (binder (util:required 'binder) :type node-variable :read-only t)
-  (expr   (util:required 'expr)   :type node          :read-only t))
+  (binder :type node-variable)
+  (expr :type node))
 
 (define-node builder-below-clause (builder-clause)
   "AST node for a `:for ... :below ...` clause inside builder comprehension syntax."
-  (binder (util:required 'binder) :type node-variable :read-only t)
-  (expr   (util:required 'expr)   :type node          :read-only t))
+  (binder :type node-variable)
+  (expr :type node))
 
 (define-node builder-when-clause (builder-clause)
   "AST node for a `:when` filter clause inside builder comprehension syntax."
-  (expr (util:required 'expr) :type node :read-only t))
+  (expr :type node))
 
 (defun builder-clause-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -721,45 +706,44 @@ Rebound to NIL parsing an anonymous FN.")
 
 (define-node node-collection-comprehension (node)
   "AST node for collection builder comprehension syntax."
-  (head    (util:required 'head)    :type node                :read-only t)
-  (clauses (util:required 'clauses) :type builder-clause-list :read-only t))
+  (head :type node)
+  (clauses :type builder-clause-list))
 
 (define-node node-association-comprehension (node)
   "AST node for association builder comprehension syntax."
-  (key     (util:required 'key)     :type node                :read-only t)
-  (value   (util:required 'value)   :type node                :read-only t)
-  (clauses (util:required 'clauses) :type builder-clause-list :read-only t))
+  (key :type node)
+  (value :type node)
+  (clauses :type builder-clause-list))
 
 (define-node node-block (node)
   "Internal control-flow node introducing a named return target."
-  (name (util:required 'name) :type symbol    :read-only t)
-  (body (util:required 'body) :type node-body :read-only t))
+  (name :type symbol)
+  (body :type node-body))
 
 (define-node node-return (node)
   "A Coalton `return` as written by the user.
 
 This node is rewritten to NODE-RETURN-FROM by TC:RESOLVE-CONTROL-FLOW
 after variable renaming and before type inference."
-  (expr (util:required 'expr) :type (or null node) :read-only t))
+  (expr :type (or null node)))
 
 (define-node node-return-from (node)
   "Internal control-flow node returning from a named enclosing block."
-  (name (util:required 'name) :type symbol :read-only t)
-  (expr (util:required 'expr) :type node   :read-only t))
+  (name :type symbol)
+  (expr :type node))
 
 (define-node node-values (node)
-  (nodes (util:required 'nodes) :type node-list :read-only t))
+  (nodes :type node-list))
 
 (define-node node-application (node)
-  (rator         (util:required 'rator) :type node                           :read-only t)
-  (rands         (util:required 'rands) :type node-list                      :read-only t)
-  (keyword-rands nil                    :type node-application-keyword-arg-list :read-only t))
+  (rator :type node)
+  (rands :type node-list)
+  (keyword-rands :type node-application-keyword-arg-list :default nil))
 
-(defstruct (node-application-keyword-arg
-            (:copier nil))
-  (keyword  (util:required 'keyword)  :type keyword-src     :read-only t)
-  (value    (util:required 'value)    :type node            :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-application-keyword-arg ()
+  (keyword :type keyword-src)
+  (value :type node)
+  (location :type source:location))
 
 (defmethod source:location ((self node-application-keyword-arg))
   (node-application-keyword-arg-location self))
@@ -773,29 +757,28 @@ after variable renaming and before type inference."
   '(satisfies node-application-keyword-arg-list-p))
 
 (define-node node-or (node)
-  (nodes (util:required 'nodes) :type node-list :read-only t))
+  (nodes :type node-list))
 
 (define-node node-and (node)
-  (nodes (util:required 'nodes) :type node-list :read-only t))
+  (nodes :type node-list))
 
 (define-node node-if (node)
-  (expr (util:required 'expr) :type node :read-only t)
-  (then (util:required 'expr) :type node :read-only t)
-  (else (util:required 'else) :type node :read-only t))
+  (expr :type node)
+  (then :type node)
+  (else :type node))
 
 (define-node node-when (node)
-  (expr (util:required 'expr) :type node      :read-only t)
-  (body (util:required 'body) :type node-body :read-only t))
+  (expr :type node)
+  (body :type node-body))
 
 (define-node node-unless (node)
-  (expr (util:required 'expr) :type node      :read-only t)
-  (body (util:required 'body) :type node-body :read-only t))
+  (expr :type node)
+  (body :type node-body))
 
-(defstruct (node-cond-clause
-            (:copier nil))
-  (expr   (util:required 'expr)   :type node            :read-only t)
-  (body   (util:required 'body)   :type node-body       :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-cond-clause ()
+  (expr :type node)
+  (body :type node-body)
+  (location :type source:location))
 
 (defmethod source:location ((self node-cond-clause))
   (node-cond-clause-location self))
@@ -808,13 +791,12 @@ after variable renaming and before type inference."
   '(satisfies node-cond-clause-list-p))
 
 (define-node node-cond (node)
-  (clauses (util:required 'clauses) :type node-cond-clause-list :read-only t))
+  (clauses :type node-cond-clause-list))
 
-(defstruct (node-do-bind
-            (:copier nil))
-  (pattern (util:required 'name)   :type pattern         :read-only t)
-  (expr    (util:required 'expr)   :type node            :read-only t)
-  (location  (util:required 'location) :type source:location :read-only t))
+(define-node node-do-bind ()
+  (pattern :type pattern)
+  (expr :type node)
+  (location :type source:location))
 
 (defmethod source:location ((self node-do-bind))
   (node-do-bind-location self))
@@ -833,25 +815,25 @@ after variable renaming and before type inference."
   '(satisfies node-do-body-element-list-p))
 
 (define-node node-do (node)
-  (nodes     (util:required 'nodes)     :type node-do-body-element-list :read-only t)
-  (last-node (util:required 'last-node) :type node                      :read-only t))
+  (nodes :type node-do-body-element-list)
+  (last-node :type node))
 
 (define-node node-break (node)
-  (label (util:required 'label) :type keyword :read-only t))
+  (label :type keyword))
 
 (define-node node-continue (node)
-  (label (util:required 'label) :type keyword :read-only t))
+  (label :type keyword))
 
 (define-node node-for (node)
-  (label            (util:required 'label)            :type keyword                    :read-only t)
-  (bindings         (util:required 'bindings)         :type node-for-binding-list     :read-only t)
-  (declares         (util:required 'declares)         :type node-let-declare-list      :read-only t)
-  (returns          nil                               :type (or null node)             :read-only t)
-  (termination-kind nil                               :type (member nil :while :until :repeat) :read-only t)
-  (termination-expr nil                               :type (or null node)             :read-only t)
-  (body             (util:required 'body)             :type node-body                  :read-only t)
+  (label :type keyword)
+  (bindings :type node-for-binding-list)
+  (declares :type node-let-declare-list)
+  (returns :type (or null node) :default nil)
+  (termination-kind :type (member nil :while :until :repeat) :default nil)
+  (termination-expr :type (or null node) :default nil)
+  (body :type node-body)
   ;; T when parsed from FOR*, so init and step bindings are sequential.
-  (sequential-p     nil                               :type boolean                    :read-only t))
+  (sequential-p :type boolean :default nil))
 
 (defun check-sequential-binding-duplicates (bindings source context)
   (declare (type list bindings)
@@ -875,16 +857,15 @@ after variable renaming and before type inference."
         (setf (gethash name seen) name-node)))))
 
 (define-node node-throw (node)
-  (expr (util:required 'expr) :type node :read-only t))
+  (expr :type node))
 
 (define-node node-resume-to (node)
-  (expr (util:required 'expr) :type node :read-only t))
+  (expr :type node))
 
-(defstruct (node-resumable-branch
-            (:copier nil))
-  (pattern  (util:required 'pattern)  :type pattern         :read-only t)
-  (body     (util:required 'body)     :type node-body       :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-resumable-branch ()
+  (pattern :type pattern)
+  (body :type node-body)
+  (location :type source:location))
 
 (defmethod source:location ((self node-resumable-branch))
   (node-resumable-branch-location self))
@@ -897,14 +878,13 @@ after variable renaming and before type inference."
   '(satisfies node-resumable-branch-list-p))
 
 (define-node node-resumable (node)
-  (expr     (util:required 'expr)     :type node                         :read-only t)
-  (branches (util:required 'branches) :type node-resumable-branch-list :read-only t))
+  (expr :type node)
+  (branches :type node-resumable-branch-list))
 
-(defstruct (node-catch-branch
-            (:copier nil))
-  (pattern  (util:required 'pattern)  :type pattern         :read-only t)
-  (body     (util:required 'body)     :type node-body       :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-catch-branch ()
+  (pattern :type pattern)
+  (body :type node-body)
+  (location :type source:location))
 
 (defmethod source:location ((self node-catch-branch))
   (node-catch-branch-location self))
@@ -917,8 +897,8 @@ after variable renaming and before type inference."
   '(satisfies node-catch-branch-list-p))
 
 (define-node node-catch (node)
-  (expr     (util:required 'expr)     :type node                   :read-only t)
-  (branches (util:required 'branches) :type node-catch-branch-list :read-only t))
+  (expr :type node)
+  (branches :type node-catch-branch-list))
 
 (defun values-symbol-p (symbol)
   (declare (type t symbol)

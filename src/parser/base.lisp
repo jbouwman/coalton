@@ -50,8 +50,13 @@ plain defclass for an abstract base (one with no constructor).
 The legacy defstruct slot form -- (slot-name default-form &key type
 read-only) where a default of (util:required 'X) means required -- is also
 accepted, so a family can be converted header-first and its slots tidied
-afterward."
-  (let ((doc (when (stringp (first slots)) (pop slots))))
+afterward.
+
+A leading :abstract marker (before any docstring/slots) defines an abstract
+base: the class, predicate, and readers are generated, but no make-NAME
+constructor."
+  (let* ((abstract (when (eq (first slots) :abstract) (pop slots)))
+         (doc (when (stringp (first slots)) (pop slots))))
     (labels ((isym (fmt &rest args)
                (apply #'alexandria:format-symbol (symbol-package name) fmt args))
              (parse-slot (slot)
@@ -86,8 +91,9 @@ afterward."
                                  :initform ,initform))))
            ,@(when doc `((:documentation ,doc))))
          (defun ,(isym "~A-P" name) (x) (and (typep x ',name) t))
-         (defun ,(isym "MAKE-~A" name) (&rest initargs)
-           (apply #'make-instance ',name initargs))))))
+         ,@(unless abstract
+             (list `(defun ,(isym "MAKE-~A" name) (&rest initargs)
+                      (apply #'make-instance ',name initargs))))))))
 
 ;;;
 ;;; Shared definitions for source parser
