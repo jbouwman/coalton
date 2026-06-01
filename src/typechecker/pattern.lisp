@@ -5,6 +5,7 @@
 (defpackage #:coalton-impl/typechecker/pattern
   (:use
    #:cl)
+  (:import-from #:coalton-impl/parser/base #:define-node)
   (:local-nicknames
    (#:util #:coalton-impl/util)
    (#:parser #:coalton-impl/parser)
@@ -43,11 +44,10 @@
 
 (in-package #:coalton-impl/typechecker/pattern)
 
-(defstruct (pattern
-            (:constructor nil)
-            (:copier nil))
-  (type     (util:required 'type) :type tc:qualified-ty           :read-only t)
-  (location nil                   :type (or source:location null) :read-only t))
+(define-node pattern ()
+  :abstract
+  (type :type tc:qualified-ty)
+  (location :type (or source:location null) :default nil))
 
 (defmethod source:location ((self pattern))
   (pattern-location self))
@@ -59,17 +59,13 @@
 (deftype pattern-list ()
   '(satisfies pattern-list-p))
 
-(defstruct (pattern-var
-            (:include pattern)
-            (:copier nil))
-  (name      (util:required 'name)      :type parser:identifier :read-only t)
-  (orig-name (util:required 'orig-name) :type parser:identifier :read-only t))
+(define-node pattern-var (pattern)
+  (name :type parser:identifier)
+  (orig-name :type parser:identifier))
 
-(defstruct (pattern-binding
-            (:include pattern)
-            (:copier nil))
-  (var     (util:required 'var)     :type pattern-var :read-only t)
-  (pattern (util:required 'pattern) :type pattern     :read-only t))
+(define-node pattern-binding (pattern)
+  (var :type pattern-var)
+  (pattern :type pattern))
 
 (defun pattern-var-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -78,20 +74,14 @@
 (deftype pattern-var-list ()
   '(satisfies pattern-var-list-p))
 
-(defstruct (pattern-literal
-            (:include pattern)
-            (:copier nil))
-  (value (util:required 'value) :type util:literal-value :read-only t))
+(define-node pattern-literal (pattern)
+  (value :type util:literal-value))
 
-(defstruct (pattern-wildcard
-            (:include pattern)
-            (:copier nil)))
+(define-node pattern-wildcard (pattern))
 
-(defstruct (pattern-constructor
-            (:include pattern)
-            (:copier nil))
-  (name     (util:required 'name)     :type parser:identifier :read-only t)
-  (patterns (util:required 'patterns) :type pattern-list      :read-only t))
+(define-node pattern-constructor (pattern)
+  (name :type parser:identifier)
+  (patterns :type pattern-list))
 
 ;;;
 ;;; Methods
