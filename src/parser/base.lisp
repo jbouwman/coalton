@@ -37,28 +37,53 @@
 defstruct-compatible surface the parser and typechecker call: a NAME-P
 predicate, NAME-<slot> readers, and a keyword constructor make-NAME.
 
-SLOTS use defstruct slot syntax -- (slot-name default-form &key type
-read-only ...) -- and the default-form is reused verbatim as the slot
-:initform, so a default of (util:required 'X) keeps the slot required while
-any other default makes it optional. make-NAME forwards its initargs to
-make-instance, so inherited slots (e.g. the base node's location) are
-accepted without the macro needing to know the superclass slots. A leading
-string is taken as the class documentation. Use a plain defclass for an
-abstract base (one with no constructor)."
+Slots are required by default; you do not write the requirement out:
+
+  (slot-name :type TYPE)                ; required -- missing => error
+  (slot-name :type TYPE :default FORM)  ; optional, defaulting to FORM
+
+make-NAME forwards its initargs to make-instance, so inherited slots (e.g.
+the base node's location) are accepted without the macro needing to know
+the superclass slots. A leading string is the class documentation. Use a
+plain defclass for an abstract base (one with no constructor).
+
+The legacy defstruct slot form -- (slot-name default-form &key type
+read-only) where a default of (util:required 'X) means required -- is also
+accepted, so a family can be converted header-first and its slots tidied
+afterward."
   (let ((doc (when (stringp (first slots)) (pop slots))))
-    (flet ((isym (fmt &rest args)
-             (apply #'alexandria:format-symbol (symbol-package name) fmt args)))
+    (labels ((isym (fmt &rest args)
+               (apply #'alexandria:format-symbol (symbol-package name) fmt args))
+             (parse-slot (slot)
+               ;; Returns (values slot-name type initform).
+               (let ((sname (first slot))
+                     (rest (rest slot)))
+                 (if (or (null rest) (keywordp (first rest)))
+                     ;; Clean form: (name :type T [:default FORM]) -- required
+                     ;; unless a :default is given.
+                     (values sname
+                             (getf rest :type)
+                             (if (member :default rest)
+                                 (getf rest :default)
+                                 `(coalton-impl/util:required ',sname)))
+                     ;; Legacy form: (name default-form &key type read-only).
+                     (let ((default (first rest))
+                           (opts (cddr slot)))
+                       (values sname
+                               (getf opts :type)
+                               (if (and (consp default)
+                                        (eq (first default) 'coalton-impl/util:required))
+                                   `(coalton-impl/util:required ',sname)
+                                   default)))))))
       `(progn
          (defclass ,name ,supers
            (,@(loop :for slot :in slots
-                    :for sname := (if (consp slot) (first slot) slot)
-                    :for default := (if (consp slot) (second slot) nil)
-                    :for opts := (if (consp slot) (cddr slot) nil)
-                    :collect `(,sname
-                               :initarg ,(intern (string sname) '#:keyword)
-                               :reader ,(isym "~A-~A" name sname)
-                               ,@(let ((ty (getf opts :type))) (when ty `(:type ,ty)))
-                               :initform ,default)))
+                    :collect (multiple-value-bind (sname type initform) (parse-slot slot)
+                               `(,sname
+                                 :initarg ,(intern (string sname) '#:keyword)
+                                 :reader ,(isym "~A-~A" name sname)
+                                 ,@(when type `(:type ,type))
+                                 :initform ,initform))))
            ,@(when doc `((:documentation ,doc))))
          (defun ,(isym "~A-P" name) (x) (and (typep x ',name) t))
          (defun ,(isym "MAKE-~A" name) (&rest initargs)

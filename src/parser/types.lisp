@@ -123,10 +123,10 @@
   '(satisfies ty-list-p))
 
 (define-node tyvar (ty)
-  (name        (util:required 'name)      :type keyword           :read-only t)
+  (name :type keyword)
   ;; The original source spelling survives parser renaming and is reused for
   ;; later printing of programmer-written type variables.
-  (source-name nil                        :type (or null keyword) :read-only t))
+  (source-name :type (or null keyword) :default nil))
 
 (defun tyvar-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -136,7 +136,7 @@
   '(satisfies tyvar-list-p))
 
 (define-node tycon (ty)
-  (name (util:required 'name) :type identifier :read-only t))
+  (name :type identifier))
 
 (defun tycon-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -147,9 +147,9 @@
 
 (define-node tapp (ty)
   ;; The type being applied to
-  (from (util:required 'from) :type ty :read-only t)
+  (from :type ty)
   ;; The type argument
-  (to   (util:required 'to)   :type ty :read-only t))
+  (to   :type ty))
 
 (defstruct (keyword-ty-entry
             (:copier nil))
@@ -168,12 +168,12 @@
   '(satisfies keyword-ty-entry-list-p))
 
 (define-node function-ty (ty)
-  (positional-input-types (util:required 'positional-input-types) :type ty-list               :read-only t)
-  (keyword-input-types    (util:required 'keyword-input-types)    :type keyword-ty-entry-list :read-only t)
-  (output-types           (util:required 'output-types)           :type (or null ty-list)     :read-only t))
+  (positional-input-types :type ty-list)
+  (keyword-input-types    :type keyword-ty-entry-list)
+  (output-types           :type (or null ty-list)))
 
 (define-node result-ty (ty)
-  (output-types (util:required 'output-types) :type (or null ty-list) :read-only t))
+  (output-types :type (or null ty-list)))
 
 (defstruct (ty-predicate
             (:copier nil))
