@@ -152,7 +152,7 @@
 (deftest coalton-readtable-syntax-in-lisp-fallback ()
   (let ((*package* (make-package "COALTON-SYNTAX-FALLBACK-PACKAGE" :use nil)))
     (unwind-protect
-         (let ((*readtable* (named-readtables:ensure-readtable 'coalton:coalton))
+         (let ((*readtable* (coalton-impl/reader:coalton-readtable))
                (list-symbol (intern "LIST" *package*))
                (f-symbol (intern "F" *package*))
                (x-symbol (intern "X" *package*)))
@@ -179,7 +179,8 @@
                              :suffix ".lisp"
                              :direction :output
                              :keep t)
-    (write-string "(named-readtables:in-readtable coalton:coalton)
+    (write-string "(cl:eval-when (:compile-toplevel :load-toplevel :execute)
+  (cl:setf cl:*readtable* (coalton-impl/reader:coalton-readtable)))
 (in-package #:coalton-user)
 ;; λ
 (coalton-toplevel

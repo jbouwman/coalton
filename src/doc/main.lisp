@@ -73,9 +73,11 @@ Remote path = ~A~%"
 Possible values for BACKEND are:
 
   :markdown generate markdown documentation
-  :html     generate a standalone HTML document
   :hugo     generate input for hugo static site generator
-            (mostly markdown, wrapped in metadata cruft)"
+            (mostly markdown, wrapped in metadata cruft)
+
+The :html backend (standalone HTML) is unavailable: its spinneret
+dependency does not build under the kreisler-pinned SBCL fork."
   (write-documentation filename (find-packages)
                        :local-path (local-path)
                        :remote-path (remote-path revision)

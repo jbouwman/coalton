@@ -226,10 +226,15 @@
   :author "Coalton contributors (https://github.com/coalton-lang/coalton)"
   :license "MIT"
   :version (:read-file-form "VERSION.txt")
+  ;; The :html backend (src/doc/html.lisp) is omitted: it is the only
+  ;; consumer of spinneret, which pulls in parenscript, which does not
+  ;; build under the kreisler-pinned SBCL fork (named-readtables
+  ;; readtable-iterator incompatibility). The markdown and hugo backends
+  ;; do not use spinneret. make-backend is registry-based, so dropping the
+  ;; file simply leaves :html unregistered; :markdown and :hugo remain.
   :depends-on ("coalton"
                "coalton/xmath"
                "html-entities"
-               "spinneret"
                "yason"
                "uiop")
   :around-compile (lambda (compile)
@@ -242,7 +247,6 @@
                (:file "model")
                (:file "string")
                (:file "markdown")
-               (:file "html")
                (:file "hugo")
                (:file "main")))
 

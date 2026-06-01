@@ -11,9 +11,16 @@
    (#:util #:coalton-impl/util)
    (#:parser #:coalton-impl/parser)
    (#:tc #:coalton-impl/typechecker)
-   (#:entry #:coalton-impl/entry)))
+   (#:entry #:coalton-impl/entry))
+  (:export
+   #:*coalton-readtable*                 ; VARIABLE
+   #:coalton-readtable))                 ; FUNCTION
 
 (in-package #:coalton-impl/reader)
+
+(defvar *standard-readtable* (copy-readtable nil)
+  "A private copy of the standard readtable, used to delegate to the
+standard reader macros for ( ` and , from the Coalton readtable.")
 
 (defvar *coalton-reader-allowed* t
   "Is the Coalton reader allowed to parse the current input?
@@ -283,7 +290,7 @@ each MODE."
 It ensures the presence of source metadata for STREAM and then calls MAYBE-READ-COALTON."
   (unless *coalton-reader-allowed*
     (return-from read-coalton-toplevel-open-paren
-      (funcall (get-macro-character #\( (named-readtables:ensure-readtable :standard)) stream char)))
+      (funcall (get-macro-character #\( *standard-readtable*) stream char)))
 
   (let ((start (1- (file-position stream))))
     (cond
@@ -374,18 +381,33 @@ Eclector bracket reader in parser/reader.lisp."
                  "Malformed short lambda: expected alphabetic parameter, `_`, or `.`, got `~A`"
                  param-char))))))
 
-(named-readtables:defreadtable coalton:coalton
-  (:merge :standard)
-  (:macro-char #\( 'read-coalton-toplevel-open-paren)
-  (:macro-char #\[ 'read-cl-bracket-form)
-  (:macro-char #\] 'read-cl-close-bracket)
-  (:macro-char #\ƒ 'read-cl-short-lambda-form)
-  (:macro-char #\` (lambda (s c)
-                     (let ((*coalton-reader-allowed* nil))
-                       (funcall (get-macro-character #\` (named-readtables:ensure-readtable :standard)) s c))))
-  (:macro-char #\, (lambda (s c)
-                     (let ((*coalton-reader-allowed* t))
-                       (funcall (get-macro-character #\, (named-readtables:ensure-readtable :standard)) s c)))))
+(defparameter *coalton-readtable*
+  (let ((rt (copy-readtable nil)))
+    (set-macro-character #\( 'read-coalton-toplevel-open-paren nil rt)
+    (set-macro-character #\[ 'read-cl-bracket-form nil rt)
+    (set-macro-character #\] 'read-cl-close-bracket nil rt)
+    (set-macro-character #\ƒ 'read-cl-short-lambda-form nil rt)
+    (set-macro-character #\`
+                         (lambda (s c)
+                           (let ((*coalton-reader-allowed* nil))
+                             (funcall (get-macro-character #\` *standard-readtable*) s c)))
+                         nil rt)
+    (set-macro-character #\,
+                         (lambda (s c)
+                           (let ((*coalton-reader-allowed* t))
+                             (funcall (get-macro-character #\, *standard-readtable*) s c)))
+                         nil rt)
+    rt)
+  "Readtable for reading Coalton source: the standard readtable plus the
+Coalton macro characters ( [ ] and the short-lambda character, with `
+and , delegating to the standard reader under a Coalton-reader guard.
+Built with plain CL readtable functions so it carries no dependency on
+named-readtables (whose SBCL readtable-iterator introspection is
+incompatible with the pinned SBCL).")
+
+(defun coalton-readtable ()
+  "The Coalton readtable. Bind *readtable* to this to read Coalton source."
+  *coalton-readtable*)
 
 (defun print-form (form)
   "Prevent truncation of a FORM that will be immediately re-read."
@@ -455,7 +477,7 @@ macro that did not preserve child source spans."
         (compile-cst-forms mode
                            pmacro:*macro-expansion-form*
                            pmacro:*macro-expansion-source*)
-        (let* ((*readtable* (named-readtables:ensure-readtable 'coalton:coalton))
+        (let* ((*readtable* *coalton-readtable*)
                (string (print-form (cons mode forms)))
                (*source* (coalton-impl/source:make-source-string string
                                                                  :name "<macroexpansion>")))

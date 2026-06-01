@@ -15,7 +15,6 @@
                "eclector"
                "eclector-concrete-syntax-tree"
                "float-features"
-               "named-readtables"
                "source-error"
                "trivial-gray-streams")
   :pathname "src/"

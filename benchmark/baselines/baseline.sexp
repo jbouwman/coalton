@@ -129,7 +129,7 @@
           #13=\"Compute the nth Fibonacci number\")
   (setf (documentation 'small-coalton-programs/fact-fib:fib 'function) #13#))
  (declaim (sb-ext:unmuffle-conditions sb-kernel:redefinition-warning))
- (values))" :cost (:parse (:min-seconds 4.22d-4 :median-seconds 4.69d-4 :bytes 127488 :iterations 5) :typecheck (:min-seconds 0.005519d0 :median-seconds 0.006156d0 :bytes 3768320 :iterations 5) :codegen (:min-seconds 0.003108d0 :median-seconds 0.003163d0 :bytes 827520 :iterations 5))) (:name "02-medium-classes.coal" :parse-summary (:types 1 :type-aliases 0 :structs 0 :classes 1 :instances 3 :declares 4 :defines 5 :specializations 0 :lisp-forms 0) :signatures (("DEMO" . "∀ :B. (Num :B) (Summable :B) (Ord :B) ⇒ Void → Tuple Integer :B") ("TREE-FOLD-SUM" . "∀ :A. Summable :A ⇒ Tree :A → :A") ("TREE-FROM-LIST" . "∀ :A. Ord :A ⇒ List :A → Tree :A") ("TREE-INSERT" . "∀ :A. Ord :A ⇒ :A * Tree :A → Tree :A") ("TREE-SIZE" . "∀ :A. Tree :A → Integer")) :codegen-text "(progn
+ (values))" :cost (:parse (:min-seconds 4.15d-4 :median-seconds 4.81d-4 :bytes 98208 :iterations 5) :typecheck (:min-seconds 0.006308d0 :median-seconds 0.006498d0 :bytes 3242352 :iterations 5) :codegen (:min-seconds 0.00303d0 :median-seconds 0.003151d0 :bytes 645504 :iterations 5))) (:name "02-medium-classes.coal" :parse-summary (:types 1 :type-aliases 0 :structs 0 :classes 1 :instances 3 :declares 4 :defines 5 :specializations 0 :lisp-forms 0) :signatures (("DEMO" . "∀ :B. (Num :B) (Summable :B) (Ord :B) ⇒ Void → Tuple Integer :B") ("TREE-FOLD-SUM" . "∀ :A. Summable :A ⇒ Tree :A → :A") ("TREE-FROM-LIST" . "∀ :A. Ord :A ⇒ List :A → Tree :A") ("TREE-INSERT" . "∀ :A. Ord :A ⇒ :A * Tree :A → Tree :A") ("TREE-SIZE" . "∀ :A. Tree :A → Integer")) :codegen-text "(progn
  (declaim (sb-ext:muffle-conditions sb-kernel:redefinition-warning))
  (eval-when (:compile-toplevel :load-toplevel :execute)
    (defclass coalton-benchmark/medium-classes::tree nil nil)
@@ -741,6 +741,15 @@
  (locally
   (declare (optimize (sb-c::type-check 0)))
   (coalton-impl/global-lexical:define-global-lexical
+   coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE INTEGER-COALTON-BENCHMARK/MEDIUM-CLASSES::ZERO|
+   integer))
+ (locally
+  (declare (optimize (sb-c::type-check 0)))
+  (setf coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE INTEGER-COALTON-BENCHMARK/MEDIUM-CLASSES::ZERO|
+          0))
+ (locally
+  (declare (optimize (sb-c::type-check 0)))
+  (coalton-impl/global-lexical:define-global-lexical
    coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE INTEGER-COALTON-BENCHMARK/MEDIUM-CLASSES::COMBINE|
    function))
  (declaim
@@ -766,15 +775,6 @@
  (locally
   (declare (optimize (sb-c::type-check 0)))
   (coalton-impl/global-lexical:define-global-lexical
-   coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE INTEGER-COALTON-BENCHMARK/MEDIUM-CLASSES::ZERO|
-   integer))
- (locally
-  (declare (optimize (sb-c::type-check 0)))
-  (setf coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE INTEGER-COALTON-BENCHMARK/MEDIUM-CLASSES::ZERO|
-          0))
- (locally
-  (declare (optimize (sb-c::type-check 0)))
-  (coalton-impl/global-lexical:define-global-lexical
    coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE INTEGER|
    coalton-benchmark/medium-classes::class/summable))
  (locally
@@ -783,6 +783,15 @@
           (coalton-benchmark/medium-classes::class/summable
            coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE INTEGER-COALTON-BENCHMARK/MEDIUM-CLASSES::ZERO|
            coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE INTEGER-COALTON-BENCHMARK/MEDIUM-CLASSES::COMBINE|)))
+ (locally
+  (declare (optimize (sb-c::type-check 0)))
+  (coalton-impl/global-lexical:define-global-lexical
+   coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE STRING-COALTON-BENCHMARK/MEDIUM-CLASSES::ZERO|
+   string))
+ (locally
+  (declare (optimize (sb-c::type-check 0)))
+  (setf coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE STRING-COALTON-BENCHMARK/MEDIUM-CLASSES::ZERO|
+          \"\"))
  (locally
   (declare (optimize (sb-c::type-check 0)))
   (coalton-impl/global-lexical:define-global-lexical
@@ -804,15 +813,6 @@
  (locally
   (declare (optimize (sb-c::type-check 0)))
   (coalton-impl/global-lexical:define-global-lexical
-   coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE STRING-COALTON-BENCHMARK/MEDIUM-CLASSES::ZERO|
-   string))
- (locally
-  (declare (optimize (sb-c::type-check 0)))
-  (setf coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE STRING-COALTON-BENCHMARK/MEDIUM-CLASSES::ZERO|
-          \"\"))
- (locally
-  (declare (optimize (sb-c::type-check 0)))
-  (coalton-impl/global-lexical:define-global-lexical
    coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE STRING|
    coalton-benchmark/medium-classes::class/summable))
  (locally
@@ -822,40 +822,8 @@
            coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE STRING-COALTON-BENCHMARK/MEDIUM-CLASSES::ZERO|
            coalton-benchmark/medium-classes::|INSTANCE/SUMMABLE STRING-COALTON-BENCHMARK/MEDIUM-CLASSES::COMBINE|)))
  (declaim (sb-ext:unmuffle-conditions sb-kernel:redefinition-warning))
- (values))" :cost (:parse (:min-seconds 0.001785d0 :median-seconds 0.001827d0 :bytes 434816 :iterations 5) :typecheck (:min-seconds 0.035808d0 :median-seconds 0.037601d0 :bytes 19365888 :iterations 5) :codegen (:min-seconds 0.008201d0 :median-seconds 0.008821d0 :bytes 1581184 :iterations 5))) (:name "03-large-inference.coal" :parse-summary (:types 0 :type-aliases 0 :structs 0 :classes 0 :instances 0 :declares 0 :defines 26 :specializations 0 :lisp-forms 0) :signatures (("Q-ALL" . "∀ :A. (:A → Boolean) * List :A → Boolean") ("Q-ANY" . "∀ :A. (:A → Boolean) * List :A → Boolean") ("Q-APP" . "∀ :A. List :A * List :A → List :A") ("Q-APPLY-N" . "∀ :A :B. Num :A ⇒ :A * (:B → :B) * :B → :B") ("Q-COMPOSE" . "∀ :A :B :C. (:A → :B) * (:C → :A) → :C → :B") ("Q-CONCAT-MAP" . "∀ :A :B. (:A → List :B) * List :A → List :B") ("Q-COUNT" . "∀ :A :B. Num :B ⇒ (:A → Boolean) * List :A → :B") ("Q-DROP" . "∀ :A :B. Num :A ⇒ :A * List :B → List :B") ("Q-ENUMERATE" . "∀ :B :A. Num :A ⇒ List :B → List (Tuple :A :B)") ("Q-ENUMERATE-ONTO" . "∀ :A :B. Num :A ⇒ :A * List :B → List (Tuple :A :B)") ("Q-FILTER" . "∀ :A. (:A → Boolean) * List :A → List :A") ("Q-FOLDL" . "∀ :A :B. (:A * :B → :A) * :A * List :B → :A") ("Q-LEN" . "∀ :A :B. Num :B ⇒ List :A → :B") ("Q-MAP" . "∀ :A :B. (:A → :B) * List :A → List :B") ("Q-MAXIMUM-ONTO" . "∀ :A. Ord :A ⇒ :A * List :A → :A") ("Q-PIPELINE" . "∀ :B :A. (Remainder :B) (Num :A) (Ord :B) ⇒ :B → Tuple :B (Tuple :A :B)") ("Q-PRODUCT" . "∀ :A. Num :A ⇒ List :A → :A") ("Q-RANGE-DOWN" . "∀ :A. Num :A ⇒ :A → List :A") ("Q-REPLICATE" . "∀ :A :B. Num :A ⇒ :A * :B → List :B") ("Q-REV" . "∀ :A. List :A → List :A") ("Q-REV-ONTO" . "∀ :A. List :A * List :A → List :A") ("Q-SINGLE" . "∀ :A. :A → List :A") ("Q-SUM" . "∀ :A. Num :A ⇒ List :A → :A") ("Q-TAKE" . "∀ :A :B. Num :A ⇒ :A * List :B → List :B") ("Q-TWICE" . "∀ :A. (:A → :A) → :A → :A") ("Q-ZIP-WITH" . "∀ :A :B :C. (:A * :B → :C) * List :A * List :B → List :C")) :codegen-text "(progn
+ (values))" :cost (:parse (:min-seconds 0.001734d0 :median-seconds 0.001781d0 :bytes 357792 :iterations 5) :typecheck (:min-seconds 0.035834d0 :median-seconds 0.036665d0 :bytes 16637872 :iterations 5) :codegen (:min-seconds 0.008781d0 :median-seconds 0.008992d0 :bytes 1335600 :iterations 5))) (:name "03-large-inference.coal" :parse-summary (:types 0 :type-aliases 0 :structs 0 :classes 0 :instances 0 :declares 0 :defines 26 :specializations 0 :lisp-forms 0) :signatures (("Q-ALL" . "∀ :A. (:A → Boolean) * List :A → Boolean") ("Q-ANY" . "∀ :A. (:A → Boolean) * List :A → Boolean") ("Q-APP" . "∀ :A. List :A * List :A → List :A") ("Q-APPLY-N" . "∀ :A :B. Num :A ⇒ :A * (:B → :B) * :B → :B") ("Q-COMPOSE" . "∀ :A :B :C. (:A → :B) * (:C → :A) → :C → :B") ("Q-CONCAT-MAP" . "∀ :A :B. (:A → List :B) * List :A → List :B") ("Q-COUNT" . "∀ :A :B. Num :B ⇒ (:A → Boolean) * List :A → :B") ("Q-DROP" . "∀ :A :B. Num :A ⇒ :A * List :B → List :B") ("Q-ENUMERATE" . "∀ :B :A. Num :A ⇒ List :B → List (Tuple :A :B)") ("Q-ENUMERATE-ONTO" . "∀ :A :B. Num :A ⇒ :A * List :B → List (Tuple :A :B)") ("Q-FILTER" . "∀ :A. (:A → Boolean) * List :A → List :A") ("Q-FOLDL" . "∀ :A :B. (:A * :B → :A) * :A * List :B → :A") ("Q-LEN" . "∀ :A :B. Num :B ⇒ List :A → :B") ("Q-MAP" . "∀ :A :B. (:A → :B) * List :A → List :B") ("Q-MAXIMUM-ONTO" . "∀ :A. Ord :A ⇒ :A * List :A → :A") ("Q-PIPELINE" . "∀ :B :A. (Remainder :B) (Num :A) (Ord :B) ⇒ :B → Tuple :B (Tuple :A :B)") ("Q-PRODUCT" . "∀ :A. Num :A ⇒ List :A → :A") ("Q-RANGE-DOWN" . "∀ :A. Num :A ⇒ :A → List :A") ("Q-REPLICATE" . "∀ :A :B. Num :A ⇒ :A * :B → List :B") ("Q-REV" . "∀ :A. List :A → List :A") ("Q-REV-ONTO" . "∀ :A. List :A * List :A → List :A") ("Q-SINGLE" . "∀ :A. :A → List :A") ("Q-SUM" . "∀ :A. Num :A ⇒ List :A → :A") ("Q-TAKE" . "∀ :A :B. Num :A ⇒ :A * List :B → List :B") ("Q-TWICE" . "∀ :A. (:A → :A) → :A → :A") ("Q-ZIP-WITH" . "∀ :A :B :C. (:A * :B → :C) * List :A * List :B → List :C")) :codegen-text "(progn
  (declaim (sb-ext:muffle-conditions sb-kernel:redefinition-warning))
- (locally
-  (declare (optimize (sb-c::type-check 0)))
-  (coalton-impl/global-lexical:define-global-lexical
-   coalton-benchmark/large-inference::q-maximum-onto function))
- (declaim
-  (ftype (function (coalton/classes::class/ord t list) (values t &optional))
-   coalton-benchmark/large-inference::q-maximum-onto))
- (locally
-  (declare (optimize (sb-c::type-check 0)))
-  (defun coalton-benchmark/large-inference::q-maximum-onto
-         (#1=#:g1 #2=#:g2 #3=#:g3)
-    (declare (ignorable #1# #2# #3#))
-    (the (values t &optional)
-         (let ((#4=#:g4 #3#))
-           (declare (ignorable #4#)
-                    (type list #4#))
-           (locally
-            (declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
-            (cond ((null #4#) #2#)
-                  ((and (consp #4#) t t)
-                   (let ((#5=#:g5 (car #4#)) (#6=#:g6 (cdr #4#)))
-                     (declare (ignorable #5# #6#)
-                              (type t #5#)
-                              (type list #6#))
-                     (coalton-benchmark/large-inference::q-maximum-onto #1#
-                      (if (coalton/classes:> #1# #5# #2#)
-                          #5#
-                          #2#)
-                      #6#)))
-                  (t (error #7=\"Pattern match not exhaustive error.\")))))))
-  (setf coalton-benchmark/large-inference::q-maximum-onto
-          #'coalton-benchmark/large-inference::q-maximum-onto))
  (locally
   (declare (optimize (sb-c::type-check 0)))
   (coalton-impl/global-lexical:define-global-lexical
@@ -865,126 +833,25 @@
    coalton-benchmark/large-inference::q-len))
  (locally
   (declare (optimize (sb-c::type-check 0)))
-  (defun coalton-benchmark/large-inference::q-len (#8=#:g7 #9=#:g8)
-    (declare (ignorable #8# #9#))
+  (defun coalton-benchmark/large-inference::q-len (#1=#:g1 #2=#:g2)
+    (declare (ignorable #1# #2#))
     (the (values t &optional)
-         (let ((#10=#:g9 #9#))
-           (declare (ignorable #10#)
-                    (type list #10#))
+         (let ((#3=#:g3 #2#))
+           (declare (ignorable #3#)
+                    (type list #3#))
            (locally
             (declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
-            (cond ((null #10#) (coalton/classes:fromint #8# 0))
-                  ((and (consp #10#) t t)
-                   (let ((#11=#:g10 (cdr #10#)))
-                     (declare (ignorable #11#)
-                              (type list #11#))
-                     (coalton/classes:+ #8# (coalton/classes:fromint #8# 1)
+            (cond ((null #3#) (coalton/classes:fromint #1# 0))
+                  ((and (consp #3#) t t)
+                   (let ((#4=#:g4 (cdr #3#)))
+                     (declare (ignorable #4#)
+                              (type list #4#))
+                     (coalton/classes:+ #1# (coalton/classes:fromint #1# 1)
                                         (coalton-benchmark/large-inference::q-len
-                                         #8# #11#))))
-                  (t (error #7#)))))))
+                                         #1# #4#))))
+                  (t (error #5=\"Pattern match not exhaustive error.\")))))))
   (setf coalton-benchmark/large-inference::q-len
           #'coalton-benchmark/large-inference::q-len))
- (locally
-  (declare (optimize (sb-c::type-check 0)))
-  (coalton-impl/global-lexical:define-global-lexical
-   coalton-benchmark/large-inference::q-foldl function))
- (declaim
-  (ftype (function (function t list) (values t &optional))
-   coalton-benchmark/large-inference::q-foldl))
- (locally
-  (declare (optimize (sb-c::type-check 0)))
-  (defun coalton-benchmark/large-inference::q-foldl
-         (#12=#:g11 #13=#:g12 #14=#:g13)
-    (declare (ignorable #12# #13# #14#))
-    (the (values t &optional)
-         (let ((#15=#:g14 #14#))
-           (declare (ignorable #15#)
-                    (type list #15#))
-           (locally
-            (declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
-            (cond ((null #15#) #13#)
-                  ((and (consp #15#) t t)
-                   (let ((#16=#:g15 (car #15#)) (#17=#:g16 (cdr #15#)))
-                     (declare (ignorable #16# #17#)
-                              (type t #16#)
-                              (type list #17#))
-                     (coalton-benchmark/large-inference::q-foldl #12#
-                      (funcall #12# #13# #16#) #17#)))
-                  (t (error #7#)))))))
-  (setf coalton-benchmark/large-inference::q-foldl
-          #'coalton-benchmark/large-inference::q-foldl))
- (locally
-  (declare (optimize (sb-c::type-check 0)))
-  (coalton-impl/global-lexical:define-global-lexical
-   coalton-benchmark/large-inference::q-sum function))
- (declaim
-  (ftype (function (coalton/classes::class/num list) (values t &optional))
-   coalton-benchmark/large-inference::q-sum))
- (locally
-  (declare (optimize (sb-c::type-check 0)))
-  (defun coalton-benchmark/large-inference::q-sum (#18=#:g17 #19=#:g18)
-    (declare (ignorable #18# #19#))
-    (the (values t &optional)
-         (coalton-benchmark/large-inference::q-foldl
-          (lambda (#20=#:g19 #21=#:g20)
-            (declare (ignorable #20# #21#)
-                     (type t #20#)
-                     (type t #21#)
-                     (values t &optional))
-            (the (values t &optional) (coalton/classes:+ #18# #20# #21#)))
-          (coalton/classes:fromint #18# 0) #19#)))
-  (setf coalton-benchmark/large-inference::q-sum
-          #'coalton-benchmark/large-inference::q-sum))
- (locally
-  (declare (optimize (sb-c::type-check 0)))
-  (coalton-impl/global-lexical:define-global-lexical
-   coalton-benchmark/large-inference::q-enumerate-onto function))
- (declaim
-  (ftype (function (coalton/classes::class/num t list) (values list &optional))
-   coalton-benchmark/large-inference::q-enumerate-onto))
- (locally
-  (declare (optimize (sb-c::type-check 0)))
-  (defun coalton-benchmark/large-inference::q-enumerate-onto
-         (#22=#:g21 #23=#:g22 #24=#:g23)
-    (declare (ignorable #22# #23# #24#))
-    (the (values list &optional)
-         (let ((#25=#:g24 #24#))
-           (declare (ignorable #25#)
-                    (type list #25#))
-           (locally
-            (declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
-            (cond ((null #25#) 'nil)
-                  ((and (consp #25#) t t)
-                   (let ((#26=#:g25 (car #25#)) (#27=#:g26 (cdr #25#)))
-                     (declare (ignorable #26# #27#)
-                              (type t #26#)
-                              (type list #27#))
-                     (coalton:cons (coalton/classes:tuple #23# #26#)
-                                   (coalton-benchmark/large-inference::q-enumerate-onto
-                                    #22#
-                                    (coalton/classes:+ #22# #23#
-                                                       (coalton/classes:fromint
-                                                        #22# 1))
-                                    #27#))))
-                  (t (error #7#)))))))
-  (setf coalton-benchmark/large-inference::q-enumerate-onto
-          #'coalton-benchmark/large-inference::q-enumerate-onto))
- (locally
-  (declare (optimize (sb-c::type-check 0)))
-  (coalton-impl/global-lexical:define-global-lexical
-   coalton-benchmark/large-inference::q-enumerate function))
- (declaim
-  (ftype (function (coalton/classes::class/num list) (values list &optional))
-   coalton-benchmark/large-inference::q-enumerate))
- (locally
-  (declare (optimize (sb-c::type-check 0)))
-  (defun coalton-benchmark/large-inference::q-enumerate (#28=#:g27 #29=#:g28)
-    (declare (ignorable #28# #29#))
-    (the (values list &optional)
-         (coalton-benchmark/large-inference::q-enumerate-onto #28#
-          (coalton/classes:fromint #28# 0) #29#)))
-  (setf coalton-benchmark/large-inference::q-enumerate
-          #'coalton-benchmark/large-inference::q-enumerate))
  (locally
   (declare (optimize (sb-c::type-check 0)))
   (coalton-impl/global-lexical:define-global-lexical
@@ -994,24 +861,24 @@
    coalton-benchmark/large-inference::q-map))
  (locally
   (declare (optimize (sb-c::type-check 0)))
-  (defun coalton-benchmark/large-inference::q-map (#30=#:g29 #31=#:g30)
-    (declare (ignorable #30# #31#))
+  (defun coalton-benchmark/large-inference::q-map (#6=#:g5 #7=#:g6)
+    (declare (ignorable #6# #7#))
     (the (values list &optional)
-         (let ((#32=#:g31 #31#))
-           (declare (ignorable #32#)
-                    (type list #32#))
+         (let ((#8=#:g7 #7#))
+           (declare (ignorable #8#)
+                    (type list #8#))
            (locally
             (declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
-            (cond ((null #32#) 'nil)
-                  ((and (consp #32#) t t)
-                   (let ((#33=#:g32 (car #32#)) (#34=#:g33 (cdr #32#)))
-                     (declare (ignorable #33# #34#)
-                              (type t #33#)
-                              (type list #34#))
-                     (coalton:cons (funcall #30# #33#)
+            (cond ((null #8#) 'nil)
+                  ((and (consp #8#) t t)
+                   (let ((#9=#:g8 (car #8#)) (#10=#:g9 (cdr #8#)))
+                     (declare (ignorable #9# #10#)
+                              (type t #9#)
+                              (type list #10#))
+                     (coalton:cons (funcall #6# #9#)
                                    (coalton-benchmark/large-inference::q-map
-                                    #30# #34#))))
-                  (t (error #7#)))))))
+                                    #6# #10#))))
+                  (t (error #5#)))))))
   (setf coalton-benchmark/large-inference::q-map
           #'coalton-benchmark/large-inference::q-map))
  (locally
@@ -1023,29 +890,112 @@
    coalton-benchmark/large-inference::q-filter))
  (locally
   (declare (optimize (sb-c::type-check 0)))
-  (defun coalton-benchmark/large-inference::q-filter (#35=#:g34 #36=#:g35)
-    (declare (ignorable #35# #36#))
+  (defun coalton-benchmark/large-inference::q-filter (#11=#:g10 #12=#:g11)
+    (declare (ignorable #11# #12#))
     (the (values list &optional)
-         (let ((#37=#:g36 #36#))
-           (declare (ignorable #37#)
-                    (type list #37#))
+         (let ((#13=#:g12 #12#))
+           (declare (ignorable #13#)
+                    (type list #13#))
            (locally
             (declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
-            (cond ((null #37#) 'nil)
-                  ((and (consp #37#) t t)
-                   (let ((#38=#:g37 (car #37#)) (#39=#:g38 (cdr #37#)))
-                     (declare (ignorable #38# #39#)
-                              (type t #38#)
-                              (type list #39#))
-                     (if (funcall #35# #38#)
-                         (coalton:cons #38#
+            (cond ((null #13#) 'nil)
+                  ((and (consp #13#) t t)
+                   (let ((#14=#:g13 (car #13#)) (#15=#:g14 (cdr #13#)))
+                     (declare (ignorable #14# #15#)
+                              (type t #14#)
+                              (type list #15#))
+                     (if (funcall #11# #14#)
+                         (coalton:cons #14#
                                        (coalton-benchmark/large-inference::q-filter
-                                        #35# #39#))
-                         (coalton-benchmark/large-inference::q-filter #35#
-                          #39#))))
-                  (t (error #7#)))))))
+                                        #11# #15#))
+                         (coalton-benchmark/large-inference::q-filter #11#
+                          #15#))))
+                  (t (error #5#)))))))
   (setf coalton-benchmark/large-inference::q-filter
           #'coalton-benchmark/large-inference::q-filter))
+ (locally
+  (declare (optimize (sb-c::type-check 0)))
+  (coalton-impl/global-lexical:define-global-lexical
+   coalton-benchmark/large-inference::q-foldl function))
+ (declaim
+  (ftype (function (function t list) (values t &optional))
+   coalton-benchmark/large-inference::q-foldl))
+ (locally
+  (declare (optimize (sb-c::type-check 0)))
+  (defun coalton-benchmark/large-inference::q-foldl
+         (#16=#:g15 #17=#:g16 #18=#:g17)
+    (declare (ignorable #16# #17# #18#))
+    (the (values t &optional)
+         (let ((#19=#:g18 #18#))
+           (declare (ignorable #19#)
+                    (type list #19#))
+           (locally
+            (declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
+            (cond ((null #19#) #17#)
+                  ((and (consp #19#) t t)
+                   (let ((#20=#:g19 (car #19#)) (#21=#:g20 (cdr #19#)))
+                     (declare (ignorable #20# #21#)
+                              (type t #20#)
+                              (type list #21#))
+                     (coalton-benchmark/large-inference::q-foldl #16#
+                      (funcall #16# #17# #20#) #21#)))
+                  (t (error #5#)))))))
+  (setf coalton-benchmark/large-inference::q-foldl
+          #'coalton-benchmark/large-inference::q-foldl))
+ (locally
+  (declare (optimize (sb-c::type-check 0)))
+  (coalton-impl/global-lexical:define-global-lexical
+   coalton-benchmark/large-inference::q-sum function))
+ (declaim
+  (ftype (function (coalton/classes::class/num list) (values t &optional))
+   coalton-benchmark/large-inference::q-sum))
+ (locally
+  (declare (optimize (sb-c::type-check 0)))
+  (defun coalton-benchmark/large-inference::q-sum (#22=#:g21 #23=#:g22)
+    (declare (ignorable #22# #23#))
+    (the (values t &optional)
+         (coalton-benchmark/large-inference::q-foldl
+          (lambda (#24=#:g23 #25=#:g24)
+            (declare (ignorable #24# #25#)
+                     (type t #24#)
+                     (type t #25#)
+                     (values t &optional))
+            (the (values t &optional) (coalton/classes:+ #22# #24# #25#)))
+          (coalton/classes:fromint #22# 0) #23#)))
+  (setf coalton-benchmark/large-inference::q-sum
+          #'coalton-benchmark/large-inference::q-sum))
+ (locally
+  (declare (optimize (sb-c::type-check 0)))
+  (coalton-impl/global-lexical:define-global-lexical
+   coalton-benchmark/large-inference::q-maximum-onto function))
+ (declaim
+  (ftype (function (coalton/classes::class/ord t list) (values t &optional))
+   coalton-benchmark/large-inference::q-maximum-onto))
+ (locally
+  (declare (optimize (sb-c::type-check 0)))
+  (defun coalton-benchmark/large-inference::q-maximum-onto
+         (#26=#:g25 #27=#:g26 #28=#:g27)
+    (declare (ignorable #26# #27# #28#))
+    (the (values t &optional)
+         (let ((#29=#:g28 #28#))
+           (declare (ignorable #29#)
+                    (type list #29#))
+           (locally
+            (declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
+            (cond ((null #29#) #27#)
+                  ((and (consp #29#) t t)
+                   (let ((#30=#:g29 (car #29#)) (#31=#:g30 (cdr #29#)))
+                     (declare (ignorable #30# #31#)
+                              (type t #30#)
+                              (type list #31#))
+                     (coalton-benchmark/large-inference::q-maximum-onto #26#
+                      (if (coalton/classes:> #26# #30# #27#)
+                          #30#
+                          #27#)
+                      #31#)))
+                  (t (error #5#)))))))
+  (setf coalton-benchmark/large-inference::q-maximum-onto
+          #'coalton-benchmark/large-inference::q-maximum-onto))
  (locally
   (declare (optimize (sb-c::type-check 0)))
   (coalton-impl/global-lexical:define-global-lexical
@@ -1055,9 +1005,9 @@
    coalton-benchmark/large-inference::q-single))
  (locally
   (declare (optimize (sb-c::type-check 0)))
-  (defun coalton-benchmark/large-inference::q-single (#40=#:g39)
-    (declare (ignorable #40#))
-    (the (values list &optional) (coalton:cons #40# 'nil)))
+  (defun coalton-benchmark/large-inference::q-single (#32=#:g31)
+    (declare (ignorable #32#))
+    (the (values list &optional) (coalton:cons #32# 'nil)))
   (setf coalton-benchmark/large-inference::q-single
           #'coalton-benchmark/large-inference::q-single))
  (locally
@@ -1069,21 +1019,71 @@
    coalton-benchmark/large-inference::q-range-down))
  (locally
   (declare (optimize (sb-c::type-check 0)))
-  (defun coalton-benchmark/large-inference::q-range-down (#41=#:g40 #42=#:g41)
-    (declare (ignorable #41# #42#))
+  (defun coalton-benchmark/large-inference::q-range-down (#33=#:g32 #34=#:g33)
+    (declare (ignorable #33# #34#))
     (the (values list &optional)
-         (if (coalton/classes:== (coalton/classes::class/num-super-0 #41#) #42#
-                                 (coalton/classes:fromint #41# 0))
+         (if (coalton/classes:== (coalton/classes::class/num-super-0 #33#) #34#
+                                 (coalton/classes:fromint #33# 0))
              (coalton-benchmark/large-inference::q-single
-              (coalton/classes:fromint #41# 0))
-             (coalton:cons #42#
+              (coalton/classes:fromint #33# 0))
+             (coalton:cons #34#
                            (coalton-benchmark/large-inference::q-range-down
-                            #41#
-                            (coalton/classes:- #41# #42#
-                                               (coalton/classes:fromint #41#
+                            #33#
+                            (coalton/classes:- #33# #34#
+                                               (coalton/classes:fromint #33#
                                                                         1)))))))
   (setf coalton-benchmark/large-inference::q-range-down
           #'coalton-benchmark/large-inference::q-range-down))
+ (locally
+  (declare (optimize (sb-c::type-check 0)))
+  (coalton-impl/global-lexical:define-global-lexical
+   coalton-benchmark/large-inference::q-enumerate-onto function))
+ (declaim
+  (ftype (function (coalton/classes::class/num t list) (values list &optional))
+   coalton-benchmark/large-inference::q-enumerate-onto))
+ (locally
+  (declare (optimize (sb-c::type-check 0)))
+  (defun coalton-benchmark/large-inference::q-enumerate-onto
+         (#35=#:g34 #36=#:g35 #37=#:g36)
+    (declare (ignorable #35# #36# #37#))
+    (the (values list &optional)
+         (let ((#38=#:g37 #37#))
+           (declare (ignorable #38#)
+                    (type list #38#))
+           (locally
+            (declare (sb-ext:muffle-conditions sb-ext:code-deletion-note))
+            (cond ((null #38#) 'nil)
+                  ((and (consp #38#) t t)
+                   (let ((#39=#:g38 (car #38#)) (#40=#:g39 (cdr #38#)))
+                     (declare (ignorable #39# #40#)
+                              (type t #39#)
+                              (type list #40#))
+                     (coalton:cons (coalton/classes:tuple #36# #39#)
+                                   (coalton-benchmark/large-inference::q-enumerate-onto
+                                    #35#
+                                    (coalton/classes:+ #35# #36#
+                                                       (coalton/classes:fromint
+                                                        #35# 1))
+                                    #40#))))
+                  (t (error #5#)))))))
+  (setf coalton-benchmark/large-inference::q-enumerate-onto
+          #'coalton-benchmark/large-inference::q-enumerate-onto))
+ (locally
+  (declare (optimize (sb-c::type-check 0)))
+  (coalton-impl/global-lexical:define-global-lexical
+   coalton-benchmark/large-inference::q-enumerate function))
+ (declaim
+  (ftype (function (coalton/classes::class/num list) (values list &optional))
+   coalton-benchmark/large-inference::q-enumerate))
+ (locally
+  (declare (optimize (sb-c::type-check 0)))
+  (defun coalton-benchmark/large-inference::q-enumerate (#41=#:g40 #42=#:g41)
+    (declare (ignorable #41# #42#))
+    (the (values list &optional)
+         (coalton-benchmark/large-inference::q-enumerate-onto #41#
+          (coalton/classes:fromint #41# 0) #42#)))
+  (setf coalton-benchmark/large-inference::q-enumerate
+          #'coalton-benchmark/large-inference::q-enumerate))
  (locally
   (declare (optimize (sb-c::type-check 0)))
   (coalton-impl/global-lexical:define-global-lexical
@@ -1266,7 +1266,7 @@
                      (coalton:cons #69#
                                    (coalton-benchmark/large-inference::q-app
                                     #70# #67#))))
-                  (t (error #7#)))))))
+                  (t (error #5#)))))))
   (setf coalton-benchmark/large-inference::q-app
           #'coalton-benchmark/large-inference::q-app))
  (locally
@@ -1296,7 +1296,7 @@
                       (funcall #71# #74#)
                       (coalton-benchmark/large-inference::q-concat-map #71#
                        #75#))))
-                  (t (error #7#)))))))
+                  (t (error #5#)))))))
   (setf coalton-benchmark/large-inference::q-concat-map
           #'coalton-benchmark/large-inference::q-concat-map))
  (locally
@@ -1390,7 +1390,7 @@
                           (coalton/classes:- #87# #88#
                                              (coalton/classes:fromint #87# 1))
                           #91#)))
-                      (t (error #7#))))))))
+                      (t (error #5#))))))))
   (setf coalton-benchmark/large-inference::q-drop
           #'coalton-benchmark/large-inference::q-drop))
  (locally
@@ -1427,7 +1427,7 @@
                                                            (coalton/classes:fromint
                                                             #92# 1))
                                         #97#))))
-                      (t (error #7#))))))))
+                      (t (error #5#))))))))
   (setf coalton-benchmark/large-inference::q-take
           #'coalton-benchmark/large-inference::q-take))
  (locally
@@ -1457,7 +1457,7 @@
                          't
                          (coalton-benchmark/large-inference::q-any #98#
                           #102#))))
-                  (t (error #7#)))))))
+                  (t (error #5#)))))))
   (setf coalton-benchmark/large-inference::q-any
           #'coalton-benchmark/large-inference::q-any))
  (locally
@@ -1486,7 +1486,7 @@
                      (if (funcall #103# #106#)
                          (coalton-benchmark/large-inference::q-all #103# #107#)
                          'nil)))
-                  (t (error #7#)))))))
+                  (t (error #5#)))))))
   (setf coalton-benchmark/large-inference::q-all
           #'coalton-benchmark/large-inference::q-all))
  (locally
@@ -1537,7 +1537,7 @@
                               (type list #116#))
                      (coalton-benchmark/large-inference::q-rev-onto
                       (coalton:cons #115# #112#) #116#)))
-                  (t (error #7#)))))))
+                  (t (error #5#)))))))
   (setf coalton-benchmark/large-inference::q-rev-onto
           #'coalton-benchmark/large-inference::q-rev-onto))
  (locally
@@ -1556,4 +1556,4 @@
   (setf coalton-benchmark/large-inference::q-rev
           #'coalton-benchmark/large-inference::q-rev))
  (declaim (sb-ext:unmuffle-conditions sb-kernel:redefinition-warning))
- (values))" :cost (:parse (:min-seconds 0.001666d0 :median-seconds 0.001783d0 :bytes 460800 :iterations 5) :typecheck (:min-seconds 0.309307d0 :median-seconds 0.327185d0 :bytes 104839296 :iterations 5) :codegen (:min-seconds 0.017927d0 :median-seconds 0.018897d0 :bytes 3979136 :iterations 5))))
+ (values))" :cost (:parse (:min-seconds 0.001873d0 :median-seconds 0.001892d0 :bytes 425840 :iterations 5) :typecheck (:min-seconds 0.296458d0 :median-seconds 0.304714d0 :bytes 90039040 :iterations 5) :codegen (:min-seconds 0.017441d0 :median-seconds 0.018199d0 :bytes 3272144 :iterations 5))))

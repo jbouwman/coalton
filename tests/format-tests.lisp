@@ -1,6 +1,7 @@
 (cl:in-package #:coalton-native-tests)
 
-(named-readtables:in-readtable coalton:coalton)
+(cl:eval-when (:compile-toplevel :load-toplevel :execute)
+  (cl:setf cl:*readtable* (coalton-impl/reader:coalton-readtable)))
 
 ;;; Test Successes
 

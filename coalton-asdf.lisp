@@ -13,11 +13,11 @@
   ((type :initform "ct")))
 
 (defmethod perform :around ((o compile-op) (c ct-file))
-  (let ((*readtable* (named-readtables:ensure-readtable 'coalton:coalton)))
+  (let ((*readtable* (coalton-impl/reader:coalton-readtable)))
     (call-next-method)))
 
 (defmethod perform :around ((o load-source-op) (c ct-file))
-  (let ((*readtable* (named-readtables:ensure-readtable 'coalton:coalton)))
+  (let ((*readtable* (coalton-impl/reader:coalton-readtable)))
     (call-next-method)))
 
 
