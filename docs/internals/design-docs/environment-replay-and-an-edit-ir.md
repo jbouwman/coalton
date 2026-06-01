@@ -248,6 +248,39 @@ That makes the edit IR tractable: the type/entry encodings are
 straightforward, and the one hard payload reduces to encoding bodies for the
 small inline/monomorphize/dictionary subset.
 
+### Counterpoint: bodies as unfoldings, and adaptive optimization
+
+Elimination is a *static-compilation* optimization, and it forecloses a
+capability. The bodies `set-code` stores are unfoldings (in GHC's sense):
+re-optimizable definition bodies. GHC keeps them for static cross-module
+inlining; if every body is instead retained at runtime, profiling can drive
+inlining and monomorphization online -- specialize a polymorphic function
+for the instantiation it is actually called at, inline a call site that
+proves hot -- rather than fixing those decisions at compile time. Coalton
+already has three of the four pieces: the bodies (`set-code`), a re-runnable
+pure optimizer (`optimize-node` / `monomorphize` / the inliner), and an
+install/swap path (redef-detection + recompile-on-redefine). What is missing
+is the profiler and the trigger/policy for a runtime re-optimize-and-swap
+loop.
+
+So "drop the bodies static inlining does not need" trades away the adaptive
+regime. The two are not mutually exclusive, and the edit IR is what makes the
+keep-all regime affordable rather than prohibitive:
+
+- it shrinks the body store from `make-load-form` dumps to compact data;
+- because it is data (not `make-load-form`, which reconstructs eagerly at
+  fasl load), a body can be decoded *on demand* -- when a function goes hot or
+  is chosen for inlining -- so cost is per hot function, not per definition,
+  which answers the size objection to shipping everything;
+- it integrates with redef-detection for the recompile-and-swap.
+
+Whether to eliminate (static regime) or retain all bodies in compact, lazily
+decoded IR (adaptive regime) is then a deliberate policy choice on one
+substrate, not a forced consequence of the serialization. The IR is worth
+building either way; the adaptive option (and its interaction with
+cross-unit specialization at runtime) is recorded here as forward-looking,
+not committed.
+
 ## Sketch of the edit IR
 
 The IR is plain, readable data -- symbols, keywords, fixnums, strings, and
@@ -390,12 +423,44 @@ hold plain data (CL type designators), so there is no opaque residual at the
 entry layer -- every entry is fully plain-data-serializable.
 
 So the entire data layer of the edit IR -- types and all environment
-entries -- is prototyped and round-trips over the whole stdlib. What remains
-is only the two AST payloads (`pattern` for 3b, and the residual `code` body
-for the inline/monomorphize/dictionary subset) and wiring `encode-edit` /
-`replay-environment-edits` into `make-environment-updater` in place of
+entries -- is prototyped and round-trips over the whole stdlib.
+
+### AST payloads (pattern, code)
+
+The `pattern` payload (`set-function-source-parameter-names`, 3b) is a small
+tagged form per variant (`pvar`/`plit`/`pwild`/`pbind`/`pctor` + a location).
+Round-tripping every source-parameter pattern in the loaded environment:
+**1649 of 1649 ok**, 0 failures.
+
+The `code` payload (`set-code`, the codegen node body) was prototyped as a
+*reflective* encoder -- `sb-mop:class-slots` over the structure-classes, with
+nested types encoded compactly. It encodes every stored body without error
+(**3075 of 3075**), which proves the optimized body is fully expressible as
+plain data. But the reflective encoding is **0.92x** the current replay --
+slightly *larger*, because mirroring the struct layout (a slot-name-keyed
+record per node) carries the same bulk as `make-load-form`. Two conclusions:
+
+- A generic reflective codec is the wrong tool for the `code` *size*. The
+  code size win comes from the scoping above -- eliminating common-case
+  `set-code` so most of those 3075 bodies are never shipped -- plus a compact
+  per-node schema (positional, derivable fields omitted) for the residual
+  inline/monomorphize/dictionary subset, the way the type encoder gets 2.95x.
+- Faithful generic *decode* of the body needs a uniform constructor over the
+  node family, which the structure-classes do not provide (`defstruct` has no
+  `make-instance`). The stage-4 CLOS conversion of the codegen nodes provides
+  exactly that (`make-instance` + the MOP), so the `code` round-trip codec
+  sequences naturally after stage 4. Until then the body remains the one
+  payload not yet round-tripped end-to-end -- which is consistent with the
+  scoping (it is the residual, and most bodies should not be shipped at all).
+
+So the IR's data layer (types + entries) and the `pattern` payload round-trip
+the whole stdlib; the `code` payload is proven serializable, with its size and
+round-trip resolved by `set-code` elimination + a per-node schema + the stage-4
+node CLOS conversion. What remains to make the IR live is wiring `encode-edit`
+/ `replay-environment-edits` into `make-environment-updater` in place of
 `runtime-quote`. The prototype is `benchmark/serde/type-serde.lisp`
-(`roundtrip-report`, `roundtrip-entries-report`, `size-report`).
+(`roundtrip-report`, `roundtrip-entries-report`, `roundtrip-patterns-report`,
+`code-encode-report`, `size-report`).
 
 ## Sequencing
 

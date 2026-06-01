@@ -22,12 +22,17 @@
    (#:pred #:coalton-impl/typechecker/predicate)
    (#:tcenv #:coalton-impl/typechecker/environment)
    (#:src #:coalton-impl/source)
+   (#:pat #:coalton-impl/parser/pattern)
+   (#:cgast #:coalton-impl/codegen/ast)
    (#:algo #:coalton-impl/algorithm)
    (#:entry #:coalton-impl/entry))
   (:export #:encode-scheme #:decode-scheme
            #:encode-type #:decode-type
+           #:encode-pattern #:decode-pattern
+           #:encode-node
            #:roundtrip-report #:size-report
-           #:roundtrip-entries-report))
+           #:roundtrip-entries-report
+           #:roundtrip-patterns-report #:code-encode-report))
 
 (in-package #:coalton-serde)
 
@@ -485,3 +490,107 @@
     (format t "~64,,,'-<~>~%")
     (format t "TOTAL: ~D / ~D ok~%" grand-ok grand-total)
     (values grand-ok grand-total)))
+
+;;;; ----------------------------------------------------------------------
+;;;; Pattern encoder (the set-function-source-parameter-names payload, 3b).
+;;;; A small tagged form per pattern variant, with a source location.
+
+(defun encode-pattern (p)
+  (typecase p
+    (pat::pattern-var
+     (list 'pvar (pat::pattern-var-name p) (pat::pattern-var-orig-name p)
+           (encode-location (pat::pattern-location p))))
+    (pat::pattern-literal
+     (list 'plit (pat::pattern-literal-value p)
+           (encode-location (pat::pattern-location p))))
+    (pat::pattern-wildcard
+     (list 'pwild (encode-location (pat::pattern-location p))))
+    (pat::pattern-binding
+     (list 'pbind (encode-pattern (pat::pattern-binding-var p))
+           (encode-pattern (pat::pattern-binding-pattern p))
+           (encode-location (pat::pattern-location p))))
+    (pat::pattern-constructor
+     (list 'pctor (pat::pattern-constructor-name p)
+           (mapcar #'encode-pattern (pat::pattern-constructor-patterns p))
+           (encode-location (pat::pattern-location p))))
+    (t (error "unencodable pattern: ~S" p))))
+
+(defun decode-pattern (f)
+  (ecase (first f)
+    (pvar (pat::make-pattern-var :name (second f) :orig-name (third f)
+                                 :location (decode-location (fourth f))))
+    (plit (pat::make-pattern-literal :value (second f)
+                                     :location (decode-location (third f))))
+    (pwild (pat::make-pattern-wildcard :location (decode-location (second f))))
+    (pbind (pat::make-pattern-binding :var (decode-pattern (second f))
+                                      :pattern (decode-pattern (third f))
+                                      :location (decode-location (fourth f))))
+    (pctor (pat::make-pattern-constructor :name (second f)
+                                          :patterns (mapcar #'decode-pattern (third f))
+                                          :location (decode-location (fourth f))))))
+
+(defun roundtrip-patterns-report ()
+  (let* ((env entry::*global-environment*)
+         (lists (map-items (tcenv::environment-source-name-environment env)))
+         (n 0) (ok 0) (first-fail nil))
+    (dolist (plist lists)
+      (dolist (p plist)
+        (incf n)
+        (handler-case
+            (if (rt-consistent-p #'encode-pattern #'decode-pattern p) (incf ok)
+                (unless first-fail (setf first-fail "mismatch")))
+          (error (e) (unless first-fail (setf first-fail (princ-to-string (type-of e))))))))
+    (format t "~&edit-IR pattern serde round-trip (source-parameter patterns)~%")
+    (format t "~60,,,'-<~>~%")
+    (format t "patterns: ~D  ok: ~D  fail: ~D~@[  first-fail: ~A~]~%"
+            n ok (- n ok) (and (plusp (- n ok)) first-fail))
+    (when (plusp n)
+      (format t "sample: ~S~%" (encode-pattern (first (first lists)))))
+    (values n ok)))
+
+;;;; ----------------------------------------------------------------------
+;;;; Code (set-code) payload: a reflective ENCODER over the codegen node
+;;;; family. Encode reads slots generically (sb-mop:class-slots works on the
+;;;; structure-classes), with nested types encoded compactly via encode-type.
+;;;; This proves the optimized body is fully expressible as plain data and
+;;;; lets us measure its size. Faithful generic DECODE wants a uniform
+;;;; constructor over the node family -- which the stage-4 CLOS conversion
+;;;; provides (make-instance + the MOP) -- so the code round-trip is
+;;;; sequenced after that; here we validate the encode direction and size.
+
+(defun encode-value (v)
+  (cond
+    ((typep v 'ty::ty) (list :ty (encode-type v)))
+    ((typep v 'pat::pattern) (list :pat (encode-pattern v)))
+    ((typep v 'structure-object) (encode-node v))
+    ((consp v) (cons (encode-value (car v)) (encode-value (cdr v))))
+    (t v)))
+
+(defun encode-node (n)
+  "Reflectively encode a codegen node (or any nested struct) to plain data."
+  (list* :s (type-of n)
+         (loop :for sd :in (sb-mop:class-slots (class-of n))
+               :for name := (sb-mop:slot-definition-name sd)
+               :collect (cons name (encode-value (slot-value n name))))))
+
+(defun code-encode-report ()
+  (let* ((env entry::*global-environment*)
+         (bodies (map-items (tcenv::environment-code-environment env)))
+         (n 0) (ok 0) (first-fail nil) (ir 0) (replay 0))
+    (dolist (b bodies)
+      (incf n)
+      (handler-case
+          (let ((enc (encode-node b)))
+            (incf ok)
+            (incf ir (ir-chars enc))
+            (incf replay (replay-chars b)))
+        (error (e) (unless first-fail (setf first-fail (princ-to-string e))))))
+    (format t "~&edit-IR code (set-code) reflective encode over stored bodies~%")
+    (format t "~60,,,'-<~>~%")
+    (format t "bodies: ~D  encoded ok: ~D  fail: ~D~@[~%  first-fail: ~A~]~%"
+            n ok (- n ok) (and (plusp (- n ok)) first-fail))
+    (when (plusp ok)
+      (format t "current replay (readable #S): ~:D chars~%" replay)
+      (format t "edit-IR encoding:             ~:D chars~%" ir)
+      (format t "ratio (replay / IR):          ~,2Fx~%" (/ (float replay) (max 1 ir))))
+    (values n ok)))
