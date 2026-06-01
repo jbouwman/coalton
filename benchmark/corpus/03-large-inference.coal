@@ -1,0 +1,129 @@
+(package coalton-benchmark/large-inference
+  "A large top-level form of undeclared, mutually-composed polymorphic
+   functions over lists and integers. Type declarations are omitted on
+   purpose so the typechecker infers every signature, which is the heavy
+   work this corpus file is meant to exercise. Names are prefixed `q-` to
+   avoid shadowing prelude bindings."
+  (import coalton-prelude))
+
+(define (q-len xs)
+  (match xs
+    ((Nil) 0)
+    ((Cons _ rest) (+ 1 (q-len rest)))))
+
+(define (q-rev-onto acc xs)
+  (match xs
+    ((Nil) acc)
+    ((Cons x rest) (q-rev-onto (Cons x acc) rest))))
+
+(define (q-rev xs) (q-rev-onto Nil xs))
+
+(define (q-app xs ys)
+  (match xs
+    ((Nil) ys)
+    ((Cons x rest) (Cons x (q-app rest ys)))))
+
+(define (q-map f xs)
+  (match xs
+    ((Nil) Nil)
+    ((Cons x rest) (Cons (f x) (q-map f rest)))))
+
+(define (q-filter p xs)
+  (match xs
+    ((Nil) Nil)
+    ((Cons x rest)
+     (if (p x)
+         (Cons x (q-filter p rest))
+         (q-filter p rest)))))
+
+(define (q-foldl f acc xs)
+  (match xs
+    ((Nil) acc)
+    ((Cons x rest) (q-foldl f (f acc x) rest))))
+
+(define (q-sum xs) (q-foldl + 0 xs))
+
+(define (q-product xs) (q-foldl * 1 xs))
+
+(define (q-maximum-onto best xs)
+  (match xs
+    ((Nil) best)
+    ((Cons x rest) (q-maximum-onto (if (> x best) x best) rest))))
+
+(define (q-all p xs)
+  (match xs
+    ((Nil) True)
+    ((Cons x rest) (and (p x) (q-all p rest)))))
+
+(define (q-any p xs)
+  (match xs
+    ((Nil) False)
+    ((Cons x rest) (or (p x) (q-any p rest)))))
+
+(define (q-take n xs)
+  (if (== n 0)
+      Nil
+      (match xs
+        ((Nil) Nil)
+        ((Cons x rest) (Cons x (q-take (- n 1) rest))))))
+
+(define (q-drop n xs)
+  (if (== n 0)
+      xs
+      (match xs
+        ((Nil) Nil)
+        ((Cons _ rest) (q-drop (- n 1) rest)))))
+
+(define (q-single x) (Cons x Nil))
+
+(define (q-range-down n)
+  (if (== n 0)
+      (q-single 0)
+      (Cons n (q-range-down (- n 1)))))
+
+(define (q-replicate n x)
+  (if (== n 0)
+      Nil
+      (Cons x (q-replicate (- n 1) x))))
+
+(define (q-zip-with f xs ys)
+  (match (Tuple xs ys)
+    ((Tuple (Cons x xrest) (Cons y yrest))
+     (Cons (f x y) (q-zip-with f xrest yrest)))
+    (_ Nil)))
+
+(define (q-enumerate-onto i xs)
+  (match xs
+    ((Nil) Nil)
+    ((Cons x rest) (Cons (Tuple i x) (q-enumerate-onto (+ i 1) rest)))))
+
+(define (q-enumerate xs) (q-enumerate-onto 0 xs))
+
+(define (q-concat-map f xs)
+  (match xs
+    ((Nil) Nil)
+    ((Cons x rest) (q-app (f x) (q-concat-map f rest)))))
+
+(define (q-count p xs)
+  (q-foldl (fn (acc x) (if (p x) (+ acc 1) acc)) 0 xs))
+
+(define (q-compose f g) (fn (x) (f (g x))))
+
+(define (q-twice f) (q-compose f f))
+
+(define (q-apply-n n f x)
+  (if (== n 0)
+      x
+      (q-apply-n (- n 1) f (f x))))
+
+;;; A driver tying many of the above together, so inference has to
+;;; reconcile their types through composition.
+
+(define (q-pipeline n)
+  (let ((xs (q-range-down n))
+        (evens (q-filter (fn (k) (== 0 (mod k 2))) xs))
+        (squared (q-map (fn (k) (* k k)) evens))
+        (tagged (q-enumerate squared)))
+    (Tuple (q-sum squared)
+           (Tuple (q-len tagged)
+                  (q-maximum-onto 0 (q-map snd tagged))))))

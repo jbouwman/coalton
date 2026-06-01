@@ -1,0 +1,60 @@
+(package coalton-benchmark/medium-classes
+  "Typeclass- and instance-heavy: a small binary tree with class instances
+   and undeclared polymorphic functions, to exercise inference and instance
+   resolution."
+  (import coalton-prelude))
+
+(define-type (Tree :a)
+  Leaf
+  (Node (Tree :a) :a (Tree :a)))
+
+(declare tree-insert ((Ord :a) => :a * Tree :a -> Tree :a))
+(define (tree-insert x t)
+  (match t
+    ((Leaf) (Node Leaf x Leaf))
+    ((Node l y r)
+     (match (<=> x y)
+       ((LT) (Node (tree-insert x l) y r))
+       ((GT) (Node l y (tree-insert x r)))
+       ((EQ) (Node l y r))))))
+
+(declare tree-size (Tree :a -> Integer))
+(define (tree-size t)
+  (match t
+    ((Leaf) 0)
+    ((Node l _ r) (+ 1 (+ (tree-size l) (tree-size r))))))
+
+(declare tree-from-list ((Ord :a) => List :a -> Tree :a))
+(define (tree-from-list xs)
+  (match xs
+    ((Nil) Leaf)
+    ((Cons x rest) (tree-insert x (tree-from-list rest)))))
+
+(define-instance (Functor Tree)
+  (define (map f t)
+    (match t
+      ((Leaf) Leaf)
+      ((Node l x r) (Node (map f l) (f x) (map f r))))))
+
+(define-class (Summable :a)
+  (zero :a)
+  (combine (:a * :a -> :a)))
+
+(define-instance (Summable Integer)
+  (define zero 0)
+  (define (combine a b) (+ a b)))
+
+(define-instance (Summable String)
+  (define zero "")
+  (define (combine a b) (<> a b)))
+
+(declare tree-fold-sum ((Summable :a) => Tree :a -> :a))
+(define (tree-fold-sum t)
+  (match t
+    ((Leaf) zero)
+    ((Node l x r) (combine (combine (tree-fold-sum l) x) (tree-fold-sum r)))))
+
+(define (demo)
+  (let t = (tree-from-list (make-list 5 3 8 1 4 7 2)))
+  (Tuple (tree-size t)
+         (tree-fold-sum (map (fn (x) (* x x)) t))))

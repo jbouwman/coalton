@@ -103,6 +103,30 @@ mine:
 	$(MAKE) -C mine mine
 
 ###############################################################################
+# BENCHMARK (GOAL-025 step 1 / kreisler PLAN-308)
+#
+# Per-phase correctness + cost baseline. Run inside `nix develop`, which
+# puts the coalton dependencies on CL_SOURCE_REGISTRY; benchmark/run.lisp
+# registers the coalton-benchmark system itself.
+###############################################################################
+BASELINE ?= benchmark/baselines/baseline.sexp
+
+.PHONY: bench bench-diff
+
+# Run the corpus, print the per-phase report, and (re)write the baseline.
+bench:
+	$(SBCL_BIN) --script benchmark/run.lisp $(BASELINE)
+
+# Run the corpus and compare correctness against the pinned baseline.
+# Exits non-zero if any phase output changed.
+bench-diff:
+	$(SBCL) \
+		--eval '(require :asdf)' \
+		--eval '(asdf:load-asd (truename "benchmark/coalton-benchmark.asd"))' \
+		--eval '(asdf:load-system :coalton-benchmark)' \
+		--eval '(uiop:quit (if (coalton-benchmark:diff-baseline (truename "$(BASELINE)")) 0 1))'
+
+###############################################################################
 # CLEAN
 ###############################################################################
 .PHONY: clean-quicklisp clean-cache cleanall
