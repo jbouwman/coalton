@@ -7,6 +7,9 @@
   (:use
    #:cl
    #:coalton-impl/typechecker/pattern)
+  (:import-from
+   #:coalton-impl/parser/base
+   #:define-node)
   (:local-nicknames
    (#:parser #:coalton-impl/parser)
    (#:source #:coalton-impl/source)
@@ -214,11 +217,9 @@
 ;;; Expression Nodes
 ;;;
 
-(defstruct (node
-            (:constructor nil)
-            (:copier nil))
-  (type     (util:required 'type)     :type tc:qualified-ty :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node () :abstract
+  (type :type tc:qualified-ty)
+  (location :type source:location))
 
 (defmethod source:location ((self node))
   (node-location self))
@@ -230,10 +231,8 @@
 (deftype node-list ()
   '(satisfies node-list-p))
 
-(defstruct (node-variable
-            (:include node)
-            (:copier nil))
-  (name (util:required 'name) :type parser:identifier :read-only t))
+(define-node node-variable (node)
+  (name :type parser:identifier))
 
 (defun node-variable-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -242,35 +241,27 @@
 (deftype node-variable-list ()
   '(satisfies node-variable-list-p))
 
-(defstruct (node-accessor
-            (:include node)
-            (:copier nil))
-  (name (util:required 'name) :type string :read-only t))
+(define-node node-accessor (node)
+  (name :type string))
 
-(defstruct (node-literal
-            (:include node)
-            (:copier nil))
-  (value (util:required 'value) :type (and util:literal-value (not integer)) :read-only t))
+(define-node node-literal (node)
+  (value :type (and util:literal-value (not integer))))
 
-(defstruct (node-integer-literal
-            (:include node)
-            (:copier nil))
-  (value (util:required 'value) :type integer :read-only t))
+(define-node node-integer-literal (node)
+  (value :type integer))
 
-(defstruct (node-bind
-            (:copier nil))
-  (pattern  (util:required 'pattern)  :type pattern         :read-only t)
-  (expr     (util:required 'expr)     :type node            :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-bind ()
+  (pattern :type pattern)
+  (expr :type node)
+  (location :type source:location))
 
 (defmethod source:location ((self node-bind))
   (node-bind-location self))
 
-(defstruct (node-values-bind
-            (:copier nil))
-  (patterns (util:required 'patterns)  :type pattern-list    :read-only t)
-  (expr     (util:required 'expr)      :type node            :read-only t)
-  (location (util:required 'location)  :type source:location :read-only t))
+(define-node node-values-bind ()
+  (patterns :type pattern-list)
+  (expr :type node)
+  (location :type source:location))
 
 (defmethod source:location ((self node-values-bind))
   (node-values-bind-location self))
@@ -288,16 +279,14 @@
 (deftype node-body-element-list ()
   '(satisfies node-body-element-list-p))
 
-(defstruct (node-body
-            (:copier nil))
-  (nodes     (util:required 'nodes)     :type node-body-element-list :read-only t)
-  (last-node (util:required 'last-node) :type node                   :read-only t))
+(define-node node-body ()
+  (nodes :type node-body-element-list)
+  (last-node :type node))
 
-(defstruct (keyword-param
-            (:copier nil))
-  (keyword        (util:required 'keyword)        :type keyword          :read-only t)
-  (value-var      (util:required 'value-var)      :type parser:identifier :read-only t)
-  (supplied-p-var (util:required 'supplied-p-var) :type parser:identifier :read-only t))
+(define-node keyword-param ()
+  (keyword :type keyword)
+  (value-var :type parser:identifier)
+  (supplied-p-var :type parser:identifier))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defun keyword-param-list-p (x)
@@ -307,18 +296,15 @@
 (deftype keyword-param-list ()
   '(satisfies keyword-param-list-p))
 
-(defstruct (node-abstraction
-            (:include node)
-            (:copier nil))
-  (params         (util:required 'params)         :type pattern-list      :read-only t)
-  (keyword-params nil                             :type keyword-param-list :read-only t)
-  (body           (util:required 'body)           :type node-body         :read-only t))
+(define-node node-abstraction (node)
+  (params :type pattern-list)
+  (keyword-params :type keyword-param-list :default nil)
+  (body :type node-body))
 
-(defstruct (node-let-binding
-            (:copier nil))
-  (name     (util:required 'name)     :type node-variable   :read-only t)
-  (value    (util:required 'value)    :type node            :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-let-binding ()
+  (name :type node-variable)
+  (value :type node)
+  (location :type source:location))
 
 (defmethod source:location ((self node-let-binding))
   (node-let-binding-location self))
@@ -330,11 +316,10 @@
 (deftype node-let-binding-list ()
   '(satisfies node-let-binding-list-p))
 
-(defstruct (node-dynamic-binding
-            (:copier nil))
-  (name     (util:required 'name)     :type node-variable   :read-only t)
-  (value    (util:required 'value)    :type node            :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-dynamic-binding ()
+  (name :type node-variable)
+  (value :type node)
+  (location :type source:location))
 
 (defmethod source:location ((self node-dynamic-binding))
   (node-dynamic-binding-location self))
@@ -346,12 +331,11 @@
 (deftype node-dynamic-binding-list ()
   '(satisfies node-dynamic-binding-list-p))
 
-(defstruct (node-for-binding
-            (:copier nil))
-  (name     (util:required 'name)     :type node-variable   :read-only t)
-  (init     (util:required 'init)     :type node            :read-only t)
-  (step     nil                       :type (or null node)  :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-for-binding ()
+  (name :type node-variable)
+  (init :type node)
+  (step :type (or null node) :default nil)
+  (location :type source:location))
 
 (defmethod source:location ((self node-for-binding))
   (node-for-binding-location self))
@@ -363,30 +347,23 @@
 (deftype node-for-binding-list ()
   '(satisfies node-for-binding-list-p))
 
-(defstruct (node-let
-            (:include node)
-            (:copier nil))
-  (bindings (util:required 'bindings) :type node-let-binding-list :read-only t)
-  (body     (util:required 'body)     :type node-body             :read-only t))
+(define-node node-let (node)
+  (bindings :type node-let-binding-list)
+  (body :type node-body))
 
-(defstruct (node-dynamic-let
-            (:include node)
-            (:copier nil))
-  (bindings (util:required 'bindings) :type node-dynamic-binding-list :read-only t)
-  (subexpr  (util:required 'subexpr)  :type node                      :read-only t))
+(define-node node-dynamic-let (node)
+  (bindings :type node-dynamic-binding-list)
+  (subexpr :type node))
 
-(defstruct (node-lisp
-            (:include node)
-            (:copier nil))
-  (vars      (util:required 'vars)      :type node-variable-list :read-only t)
-  (var-names (util:required 'var-names) :type util:symbol-list   :read-only t)
-  (body      (util:required 'body)      :type t                  :read-only t))
+(define-node node-lisp (node)
+  (vars :type node-variable-list)
+  (var-names :type util:symbol-list)
+  (body :type t))
 
-(defstruct (node-match-branch
-            (:copier nil))
-  (pattern  (util:required 'pattern)  :type pattern         :read-only t)
-  (body     (util:required 'body)     :type node-body       :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-match-branch ()
+  (pattern :type pattern)
+  (body :type node-body)
+  (location :type source:location))
 
 (defmethod source:location ((self node-match-branch))
   (node-match-branch-location self))
@@ -398,61 +375,44 @@
 (deftype node-match-branch-list ()
   '(satisfies node-match-branch-list-p))
 
-(defstruct (node-match
-            (:include node)
-            (:copier nil))
-  (expr     (util:required 'expr)         :type node                   :read-only t)
-  (branches (util:required 'branches)     :type node-match-branch-list :read-only t))
+(define-node node-match (node)
+  (expr :type node)
+  (branches :type node-match-branch-list))
 
-(defstruct (node-progn
-            (:include node)
-            (:copier nil))
-  (body (util:required 'body) :type node-body :read-only t))
+(define-node node-progn (node)
+  (body :type node-body))
 
-(defstruct (node-unsafe
-            (:include node)
-            (:copier nil))
-  (body (util:required 'body) :type node-body :read-only t))
+(define-node node-unsafe (node)
+  (body :type node-body))
 
 ;; node-the does not exist in this AST!
 
-(defstruct (node-block
-            (:include node)
-            (:copier nil))
-  (name (util:required 'name) :type symbol    :read-only t)
-  (body (util:required 'body) :type node-body :read-only t))
+(define-node node-block (node)
+  (name :type symbol)
+  (body :type node-body))
 
-(defstruct (node-return-from
-            (:include node)
-            (:copier nil))
-  (name (util:required 'name) :type symbol :read-only t)
+(define-node node-return-from (node)
+  (name :type symbol)
   ;; Bare (return) is rewritten to a zero-value NODE-VALUES during
   ;; control-flow resolution, so the returned expression is always explicit.
-  (expr (util:required 'expr) :type node   :read-only t))
+  (expr :type node))
 
-(defstruct (node-values
-            (:include node)
-            (:copier nil))
+(define-node node-values (node)
   ;; Multiple values expression, lowered directly by codegen.
-  (nodes (util:required 'nodes) :type node-list :read-only t))
+  (nodes :type node-list))
 
-(defstruct (node-throw
-            (:include node)
-            (:copier nil))
+(define-node node-throw (node)
   ;; The thrown expression
-  (expr (util:required 'expr) :type (or null node) :read-only t))
+  (expr :type (or null node)))
 
-(defstruct (node-resume-to
-            (:include node)
-            (:copier nil))
+(define-node node-resume-to (node)
   ;; The resumption instance
-  (expr (util:required 'expr) :type (or null node) :read-only t))
+  (expr :type (or null node)))
 
-(defstruct (node-resumable-branch
-            (:copier nil))
-  (pattern  (util:required 'pattern)  :type pattern         :read-only t)
-  (body     (util:required 'body)     :type node-body       :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-resumable-branch ()
+  (pattern :type pattern)
+  (body :type node-body)
+  (location :type source:location))
 
 (defmethod source:location ((self node-resumable-branch))
   (node-resumable-branch-location self))
@@ -464,17 +424,14 @@
 (deftype node-resumable-branch-list ()
   '(satisfies node-resumable-branch-list-p))
 
-(defstruct (node-resumable
-            (:include node)
-            (:copier nil))
-  (expr     (util:required 'expr)         :type node                       :read-only t)
-  (branches (util:required 'branches)     :type node-resumable-branch-list :read-only t))
+(define-node node-resumable (node)
+  (expr :type node)
+  (branches :type node-resumable-branch-list))
 
-(defstruct (node-catch-branch
-            (:copier nil))
-  (pattern  (util:required 'pattern)  :type pattern         :read-only t)
-  (body     (util:required 'body)     :type node-body       :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-catch-branch ()
+  (pattern :type pattern)
+  (body :type node-body)
+  (location :type source:location))
 
 (defmethod source:location ((self node-catch-branch))
   (node-catch-branch-location self))
@@ -486,23 +443,18 @@
 (deftype node-catch-branch-list ()
   '(satisfies node-catch-branch-list-p))
 
-(defstruct (node-catch
-            (:include node)
-            (:copier nil))
-  (expr     (util:required 'expr)         :type node                   :read-only t)
-  (branches (util:required 'branches)     :type node-catch-branch-list :read-only t))
+(define-node node-catch (node)
+  (expr :type node)
+  (branches :type node-catch-branch-list))
 
-(defstruct (node-application
-            (:include node)
-            (:copier nil))
-  (rator         (util:required 'rator) :type node      :read-only t)
-  (rands         (util:required 'rands) :type node-list :read-only t)
-  (keyword-rands nil                    :type node-application-keyword-arg-list :read-only t))
+(define-node node-application (node)
+  (rator :type node)
+  (rands :type node-list)
+  (keyword-rands :type node-application-keyword-arg-list :default nil))
 
-(defstruct (node-application-keyword-arg
-            (:copier nil))
-  (keyword (util:required 'keyword) :type keyword :read-only t)
-  (value   (util:required 'value)   :type node    :read-only t))
+(define-node node-application-keyword-arg ()
+  (keyword :type keyword)
+  (value :type node))
 
 (eval-when (:load-toplevel :compile-toplevel :execute)
   (defun node-application-keyword-arg-list-p (x)
@@ -512,61 +464,44 @@
 (deftype node-application-keyword-arg-list ()
   '(satisfies node-application-keyword-arg-list-p))
 
-(defstruct (node-or
-            (:include node)
-            (:copier nil))
-  (nodes (util:required 'nodes) :type node-list :read-only t))
+(define-node node-or (node)
+  (nodes :type node-list))
 
-(defstruct (node-and
-            (:include node)
-            (:copier nil))
-  (nodes (util:required 'nodes) :type node-list :read-only t))
+(define-node node-and (node)
+  (nodes :type node-list))
 
-(defstruct (node-if
-            (:include node)
-            (:copier nil))
-  (expr (util:required 'expr) :type node :read-only t)
-  (then (util:required 'then) :type node :read-only t)
-  (else (util:required 'else) :type node :read-only t))
+(define-node node-if (node)
+  (expr :type node)
+  (then :type node)
+  (else :type node))
 
-(defstruct (node-when
-            (:include node)
-            (:copier nil))
-  (expr (util:required 'expr) :type node      :read-only t)
-  (body (util:required 'body) :type node-body :read-only t))
+(define-node node-when (node)
+  (expr :type node)
+  (body :type node-body))
 
-(defstruct (node-unless
-            (:include node)
-            (:copier nil))
-  (expr (util:required 'expr) :type node      :read-only t)
-  (body (util:required 'body) :type node-body :read-only t))
+(define-node node-unless (node)
+  (expr :type node)
+  (body :type node-body))
 
-(defstruct (node-for
-            (:include node)
-            (:copier nil))
-  (label            (util:required 'label)            :type keyword                        :read-only t)
-  (bindings         (util:required 'bindings)         :type node-for-binding-list         :read-only t)
-  (sequential-p     nil                               :type boolean                        :read-only t)
-  (returns          nil                               :type (or null node)                 :read-only t)
-  (termination-kind nil                               :type (member nil :while :until :repeat) :read-only t)
-  (termination-expr nil                               :type (or null node)                 :read-only t)
-  (body             (util:required 'body)             :type node-body                      :read-only t))
+(define-node node-for (node)
+  (label :type keyword)
+  (bindings :type node-for-binding-list)
+  (sequential-p :type boolean :default nil)
+  (returns :type (or null node) :default nil)
+  (termination-kind :type (member nil :while :until :repeat) :default nil)
+  (termination-expr :type (or null node) :default nil)
+  (body :type node-body))
 
-(defstruct (node-break
-            (:include node)
-            (:copier nil))
-  (label (util:required 'label) :type keyword :read-only t))
+(define-node node-break (node)
+  (label :type keyword))
 
-(defstruct (node-continue
-            (:include node)
-            (:copier nil))
-  (label (util:required 'label) :type keyword :read-only t))
+(define-node node-continue (node)
+  (label :type keyword))
 
-(defstruct (node-cond-clause
-            (:copier nil))
-  (expr     (util:required 'expr)     :type node            :read-only t)
-  (body     (util:required 'body)     :type node-body       :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-cond-clause ()
+  (expr :type node)
+  (body :type node-body)
+  (location :type source:location))
 
 (defmethod source:location ((self node-cond-clause))
   (node-cond-clause-location self))
@@ -578,16 +513,13 @@
 (deftype node-cond-clause-list ()
   '(satisfies node-cond-clause-list-p))
 
-(defstruct (node-cond
-            (:include node)
-            (:copier nil))
-  (clauses (util:required 'clauses) :type node-cond-clause-list :read-only t))
+(define-node node-cond (node)
+  (clauses :type node-cond-clause-list))
 
-(defstruct (node-do-bind
-            (:copier nil))
-  (pattern  (util:required 'pattern)  :type pattern         :read-only t)
-  (expr     (util:required 'expr)     :type node            :read-only t)
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node node-do-bind ()
+  (pattern :type pattern)
+  (expr :type node)
+  (location :type source:location))
 
 (defmethod source:location ((self node-do-bind))
   (node-do-bind-location self))
@@ -605,11 +537,9 @@
 (deftype node-do-body-element-list ()
   '(satisfies node-do-body-element-list-p))
 
-(defstruct (node-do
-            (:include node)
-            (:copier nil))
-  (nodes     (util:required 'nodes)     :type node-do-body-element-list :read-only t)
-  (last-node (util:required 'last-node) :type node                      :read-only t))
+(define-node node-do (node)
+  (nodes :type node-do-body-element-list)
+  (last-node :type node))
 
 ;;;
 ;;; Methods
