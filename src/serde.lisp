@@ -511,7 +511,11 @@ type form. Occurrences of one index agree, so the first seen wins."
 (defun encode-code-value (v)
   (cond
     ((typep v 'ty::ty)           (cons :type (encode-type v)))
-    ((typep v 'structure-object) (encode-code-structure v))
+    ;; Compiler structures are reflected generically. Codegen nodes are CLOS
+    ;; (standard-object); codegen patterns and source locations are still
+    ;; defstructs (structure-object); both rebuild through make-<type>.
+    ((or (typep v 'standard-object)
+         (typep v 'structure-object)) (encode-code-structure v))
     ((consp v)                   (list :cons (encode-code-value (car v))
                                              (encode-code-value (cdr v))))
     (t                           (cons :verbatim v))))

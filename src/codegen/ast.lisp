@@ -2,6 +2,7 @@
   (:use
    #:cl
    #:coalton-impl/codegen/pattern)
+  (:import-from #:coalton-impl/parser/base #:define-node)
   (:local-nicknames
    (#:util #:coalton-impl/util)
    (#:algo #:coalton-impl/algorithm)
@@ -200,12 +201,22 @@
 ;;;
 
 
-(defstruct (node (:conc-name %node-)
-                 (:constructor nil)
-                 (:copier %copy-node))
-  ;; The `type` slot can be accessed by the exported function
-  ;; `node-type`.
-  (type (util:required 'type) :type tc:ty))
+(defclass node ()
+  ;; The `type` slot can be accessed by the exported function `node-type`.
+  ((type :initarg :type :accessor %node-type :type tc:ty))
+  (:documentation "Abstract base of the codegen node representation."))
+
+(defun node-p (x) (and (typep x 'node) t))
+
+(defun %copy-node (node)
+  "A shallow copy of NODE. The representation is CLOS, so there is no struct
+copier; copy slots through the metaobject protocol."
+  (let* ((class (class-of node))
+         (copy (allocate-instance class)))
+    (dolist (slot (sb-mop:class-slots class) copy)
+      (let ((name (sb-mop:slot-definition-name slot)))
+        (when (slot-boundp node name)
+          (setf (slot-value copy name) (slot-value node name)))))))
 
 (defun copy-node (node &optional (new-type nil supplied-p))
   "Make a copy of `node`, optionally with a `new-type`."
@@ -249,19 +260,19 @@
 coalton symbols (`parser:identifier`)"
   '(satisfies lisp-coalton-var-alist-p))
 
-(defstruct (node-literal (:include node))
+(define-node node-literal (node)
   "Literal values like 1 or \"hello\""
-  (value (util:required 'value) :type util:literal-value :read-only t))
+  (value :type util:literal-value))
 
-(defstruct (node-variable (:include node))
+(define-node node-variable (node)
   "Variables like x or y"
-  (value (util:required 'value) :type parser:identifier :read-only t))
+  (value :type parser:identifier))
 
-(defstruct keyword-param
+(define-node keyword-param ()
   "A keyword parameter in a compiled lambda list."
-  (keyword        (util:required 'keyword)        :type keyword           :read-only t)
-  (var            (util:required 'var)            :type parser:identifier :read-only t)
-  (supplied-p-var (util:required 'supplied-p-var) :type parser:identifier :read-only t))
+  (keyword :type keyword)
+  (var :type parser:identifier)
+  (supplied-p-var :type parser:identifier))
 
 (defmethod make-load-form ((self keyword-param) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -273,11 +284,11 @@ coalton symbols (`parser:identifier`)"
 (deftype keyword-param-list ()
   '(satisfies keyword-param-list-p))
 
-(defstruct node-application-keyword-arg
+(define-node node-application-keyword-arg ()
   "A keyword argument in a compiled call."
-  (keyword    (util:required 'keyword)    :type keyword            :read-only t)
-  (value      (util:required 'value)      :type node               :read-only t)
-  (supplied-p nil                         :type (or null node)     :read-only t))
+  (keyword :type keyword)
+  (value :type node)
+  (supplied-p :type (or null node) :default nil))
 
 (defmethod make-load-form ((self node-application-keyword-arg) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -289,40 +300,40 @@ coalton symbols (`parser:identifier`)"
 (deftype keyword-arg-list ()
   '(satisfies keyword-arg-list-p))
 
-(defstruct (node-application (:include node))
+(define-node node-application (node)
   "Function application (f x)"
-  ;; Extra information for use in optimizer can be stored here.
-  ;; Currently its only valid keys are `:inline' and `:noinline'
-  (properties (util:required 'properties) :type list      :read-only t)
-  (rator      (util:required 'rator)      :type node      :read-only t)
-  (rands      (util:required 'rands)      :type node-list :read-only t)
-  (keyword-rands nil                      :type keyword-arg-list :read-only t))
+  ;; properties stores extra information for the optimizer; its only valid
+  ;; keys are `:inline' and `:noinline'.
+  (properties :type list)
+  (rator :type node)
+  (rands :type node-list)
+  (keyword-rands :type keyword-arg-list :default nil))
 
-(defstruct (node-direct-application (:include node))
+(define-node node-direct-application (node)
   "Fully saturated function application of a known function"
-  ;; Extra information for use in optimizer can be stored here.
-  ;; Currently its only valid keys are `:inline' and `:noinline'
-  (properties (util:required 'properties) :type list              :read-only t)
-  (rator-type (util:required 'rator-type) :type tc:ty             :read-only t)
-  (rator      (util:required 'rator)      :type parser:identifier :read-only t)
-  (rands      (util:required 'rands)      :type node-list         :read-only t)
-  (keyword-rands nil                      :type keyword-arg-list  :read-only t))
+  ;; properties stores extra information for the optimizer; its only valid
+  ;; keys are `:inline' and `:noinline'.
+  (properties :type list)
+  (rator-type :type tc:ty)
+  (rator :type parser:identifier)
+  (rands :type node-list)
+  (keyword-rands :type keyword-arg-list :default nil))
 
-(defstruct (node-abstraction (:include node))
+(define-node node-abstraction (node)
   "Lambda literals (fn (x) x)"
-  (vars           (util:required 'vars) :type parser:identifier-list :read-only t)
-  (keyword-params nil                    :type keyword-param-list    :read-only t)
-  (subexpr        (util:required 'subexpr) :type node               :read-only t))
+  (vars :type parser:identifier-list)
+  (keyword-params :type keyword-param-list :default nil)
+  (subexpr :type node))
 
-(defstruct (node-let (:include node))
+(define-node node-let (node)
   "Introduction of local mutually-recursive bindings (let ((x 2)) (+ x x))"
-  (bindings (util:required 'bindings) :type binding-list :read-only t)
-  (subexpr  (util:required 'subexpr)  :type node         :read-only t))
+  (bindings :type binding-list)
+  (subexpr :type node))
 
-(defstruct node-dynamic-binding
+(define-node node-dynamic-binding ()
   "A special-variable binding used by dynamic-bind."
-  (name  (util:required 'name)  :type parser:identifier :read-only t)
-  (value (util:required 'value) :type node              :read-only t))
+  (name :type parser:identifier)
+  (value :type node))
 
 (defmethod make-load-form ((self node-dynamic-binding) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -334,26 +345,26 @@ coalton symbols (`parser:identifier`)"
 (deftype node-dynamic-binding-list ()
   '(satisfies node-dynamic-binding-list-p))
 
-(defstruct (node-dynamic-let (:include node))
+(define-node node-dynamic-let (node)
   "A dynamic scope wrapper implemented with Common Lisp special bindings."
-  (bindings (util:required 'bindings) :type node-dynamic-binding-list :read-only t)
-  (subexpr  (util:required 'subexpr)  :type node                      :read-only t))
+  (bindings :type node-dynamic-binding-list)
+  (subexpr :type node))
 
-(defstruct (node-lisp (:include node))
+(define-node node-lisp (node)
   "An embedded lisp form"
-  (vars (util:required 'vars) :type lisp-coalton-var-alist    :read-only t)
-  (form (util:required 'form) :type t                         :read-only t))
+  (vars :type lisp-coalton-var-alist)
+  (form :type t))
 
-(defstruct (node-locally (:include node))
+(define-node node-locally (node)
   "Node for the optimizer to use, similar to `cl:locally'."
-  (noinline-functions (util:required 'noinline-functions) :type parser:identifier-list :read-only t)
-  (type-check nil :type (or null (integer 0 3)) :read-only t)
-  (subexpr            (util:required 'subexpr)            :type node                   :read-only t))
+  (noinline-functions :type parser:identifier-list)
+  (type-check :type (or null (integer 0 3)) :default nil)
+  (subexpr :type node))
 
-(defstruct match-branch
+(define-node match-branch ()
   "A branch of a match expression"
-  (pattern (util:required 'pattern) :type pattern :read-only t)
-  (body    (util:required 'body)    :type node    :read-only t))
+  (pattern :type pattern)
+  (body :type node))
 
 (defmethod make-load-form ((self match-branch) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -365,15 +376,15 @@ coalton symbols (`parser:identifier`)"
 (deftype branch-list ()
   '(satisfies branch-list-p))
 
-(defstruct (node-match (:include node))
+(define-node node-match (node)
   "A pattern matching construct. Uses MATCH-BRANCH to represent branches"
-  (expr     (util:required 'expr)     :type node        :read-only t)
-  (branches (util:required 'branches) :type branch-list :read-only t))
+  (expr :type node)
+  (branches :type branch-list))
 
-(defstruct catch-branch
+(define-node catch-branch ()
   "A branch of a catch expression."
-  (pattern (util:required 'pattern) :type pattern :read-only t)
-  (body    (util:required 'body)    :type node    :read-only t))
+  (pattern :type pattern)
+  (body :type node))
 
 (defmethod make-load-form ((self catch-branch) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -385,15 +396,15 @@ coalton symbols (`parser:identifier`)"
 (deftype catch-branch-list ()
   '(satisfies catch-branch-list-p))
 
-(defstruct (node-catch (:include node))
+(define-node node-catch (node)
   "An exception-catching construct. Uses CATCH-BRANCH to represent branches"
-  (expr     (util:required 'expr)     :type node              :read-only t)
-  (branches (util:required 'branches) :type catch-branch-list :read-only t))
+  (expr :type node)
+  (branches :type catch-branch-list))
 
-(defstruct resumable-branch
+(define-node resumable-branch ()
   "A branch of a resumable expression."
-  (pattern (util:required 'pattern) :type pattern :read-only t)
-  (body    (util:required 'body)    :type node    :read-only t))
+  (pattern :type pattern)
+  (body :type node))
 
 (defmethod make-load-form ((self resumable-branch) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -405,19 +416,19 @@ coalton symbols (`parser:identifier`)"
 (deftype resumable-branch-list ()
   '(satisfies resumable-branch-list-p))
 
-(defstruct (node-resumable (:include node))
-  "A construct for continuing from a non-stack-unwinding transfer of control. 
+(define-node node-resumable (node)
+  "A construct for continuing from a non-stack-unwinding transfer of control.
    Uses RESUMABLE-BRANCH to represent branches"
-  (expr     (util:required 'expr)     :type node                  :read-only t)
-  (branches (util:required 'branches) :type resumable-branch-list :read-only t))
+  (expr :type node)
+  (branches :type resumable-branch-list))
 
 
-(defstruct node-for-binding
+(define-node node-for-binding ()
   "A single `for` variable with an initializer and optional step expression."
-  (name (util:required 'name) :type parser:identifier :read-only t)
-  (type (util:required 'type) :type tc:ty             :read-only t)
-  (init (util:required 'init) :type node              :read-only t)
-  (step nil                   :type (or null node)    :read-only t))
+  (name :type parser:identifier)
+  (type :type tc:ty)
+  (init :type node)
+  (step :type (or null node) :default nil))
 
 (defmethod make-load-form ((self node-for-binding) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -429,72 +440,72 @@ coalton symbols (`parser:identifier`)"
 (deftype node-for-binding-list ()
   '(satisfies node-for-binding-list-p))
 
-(defstruct (node-for (:include node))
+(define-node node-for (node)
   "A labelled imperative `for` with explicit bindings and step expressions."
-  (label            (util:required 'label)            :type keyword                         :read-only t)
-  (bindings         (util:required 'bindings)         :type node-for-binding-list          :read-only t)
-  (sequential-p     nil                               :type boolean                         :read-only t)
-  (returns          nil                               :type (or null node)                  :read-only t)
-  (termination-kind nil                               :type (member nil :while :until :repeat) :read-only t)
-  (termination-expr nil                               :type (or null node)                  :read-only t)
-  (body             (util:required 'body)             :type node                            :read-only t))
+  (label :type keyword)
+  (bindings :type node-for-binding-list)
+  (sequential-p :type boolean :default nil)
+  (returns :type (or null node) :default nil)
+  (termination-kind :type (member nil :while :until :repeat) :default nil)
+  (termination-expr :type (or null node) :default nil)
+  (body :type node))
 
-(defstruct (node-break (:include node))
+(define-node node-break (node)
   "A break statement used to exit a `for`."
-  (label (util:required 'label) :type keyword :read-only t))
+  (label :type keyword))
 
-(defstruct (node-continue (:include node))
+(define-node node-continue (node)
   "A continue statement used to skip to the next iteration of a `for`."
-  (label (util:required 'label) :type keyword :read-only t))
+  (label :type keyword))
 
-(defstruct (node-seq (:include node))
+(define-node node-seq (node)
   "A series of statements to be executed sequentially"
-  (nodes (util:required 'nodes) :type node-list :read-only t))
+  (nodes :type node-list))
 
-(defstruct (node-return-from (:include node))
+(define-node node-return-from (node)
   "A return statement, used for explicit returns in functions"
-  (name (util:required 'name) :type symbol :read-only t)
-  (expr (util:required 'expr) :type node   :read-only t))
+  (name :type symbol)
+  (expr :type node))
 
-(defstruct (node-throw (:include node))
+(define-node node-throw (node)
   "A node that throws an exception, its argument."
-  (expr (util:required 'expr) :type node :read-only t))
+  (expr :type node))
 
-(defstruct (node-resume-to (:include node))
+(define-node node-resume-to (node)
   "A node that invokes a resumption, if any exists."
-  (expr (util:required 'expr) :type node :read-only t))
+  (expr :type node))
 
-(defstruct (node-block (:include node))
+(define-node node-block (node)
   "A return target, used for explicit returns in functions"
-  (name (util:required 'node) :type symbol :read-only t)
-  (body (util:required 'body) :type node   :read-only t))
+  (name :type symbol)
+  (body :type node))
 
-(defstruct (node-field (:include node))
+(define-node node-field (node)
   "Accessing a superclass on a typeclass dictionary"
-  (name (util:required 'name) :type parser:identifier :read-only t)
-  (dict (util:required 'dict) :type node              :read-only t))
+  (name :type parser:identifier)
+  (dict :type node))
 
-(defstruct (node-dynamic-extent (:include node))
+(define-node node-dynamic-extent (node)
   "A single stack allocated binding"
-  (name (util:required 'name) :type parser:identifier :read-only t)
-  (node (util:required 'node) :type node              :read-only t)
-  (body (util:required 'body) :type node              :read-only t))
+  (name :type parser:identifier)
+  (node :type node)
+  (body :type node))
 
-(defstruct (node-bind (:include node))
+(define-node node-bind (node)
   "A single non-recursive binding"
-  (name (util:required 'name) :type parser:identifier :read-only t)
-  (expr (util:required 'expr) :type node              :read-only t)
-  (body (util:required 'body) :type node              :read-only t))
+  (name :type parser:identifier)
+  (expr :type node)
+  (body :type node))
 
-(defstruct (node-values (:include node))
+(define-node node-values (node)
   "Produce multiple values."
-  (nodes (util:required 'nodes) :type node-list :read-only t))
+  (nodes :type node-list))
 
-(defstruct (node-values-bind (:include node))
+(define-node node-values-bind (node)
   "Bind multiple values and evaluate body."
-  (vars (util:required 'vars) :type parser:identifier-list :read-only t)
-  (expr (util:required 'expr) :type node                   :read-only t)
-  (body (util:required 'body) :type node                   :read-only t))
+  (vars :type parser:identifier-list)
+  (expr :type node)
+  (body :type node))
 
 ;;;
 ;;; Functions
