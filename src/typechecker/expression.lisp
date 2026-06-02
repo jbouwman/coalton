@@ -4,9 +4,20 @@
 ;;;;
 
 (defpackage #:coalton-impl/typechecker/expression
+  ;; PLAN-310: the expression-node AST is shared with the parser. This package
+  ;; re-uses the parser node classes (the `type` annotation lives on the shared
+  ;; base) and adds only the typechecker methods. The two keyword classes are
+  ;; genuinely lowered between phases, so they stay typechecker-specific and
+  ;; shadow the parser's same-named (but differently-shaped) classes.
   (:use
    #:cl
-   #:coalton-impl/typechecker/pattern)
+   #:coalton-impl/typechecker/pattern
+   #:coalton-impl/parser/expression)
+  (:shadow
+   #:keyword-param #:make-keyword-param #:keyword-param-keyword #:keyword-param-list
+   #:node-application-keyword-arg #:make-node-application-keyword-arg
+   #:node-application-keyword-arg-keyword #:node-application-keyword-arg-value
+   #:node-application-keyword-arg-list)
   (:import-from
    #:coalton-impl/parser/base
    #:define-node)
@@ -217,72 +228,6 @@
 ;;; Expression Nodes
 ;;;
 
-(define-node node () :abstract
-  (type :type tc:qualified-ty)
-  (location :type source:location))
-
-(defmethod source:location ((self node))
-  (node-location self))
-
-(defun node-list-p (x)
-  (and (alexandria:proper-list-p x)
-       (every #'node-p x)))
-
-(deftype node-list ()
-  '(satisfies node-list-p))
-
-(define-node node-variable (node)
-  (name :type parser:identifier))
-
-(defun node-variable-list-p (x)
-  (and (alexandria:proper-list-p x)
-       (every #'node-variable-p x)))
-
-(deftype node-variable-list ()
-  '(satisfies node-variable-list-p))
-
-(define-node node-accessor (node)
-  (name :type string))
-
-(define-node node-literal (node)
-  (value :type (and util:literal-value (not integer))))
-
-(define-node node-integer-literal (node)
-  (value :type integer))
-
-(define-node node-bind ()
-  (pattern :type pattern)
-  (expr :type node)
-  (location :type source:location))
-
-(defmethod source:location ((self node-bind))
-  (node-bind-location self))
-
-(define-node node-values-bind ()
-  (patterns :type pattern-list)
-  (expr :type node)
-  (location :type source:location))
-
-(defmethod source:location ((self node-values-bind))
-  (node-values-bind-location self))
-
-(deftype node-body-element ()
-  '(or node node-bind node-values-bind))
-
-(defun node-body-element-p (x)
-  (typep x 'node-body-element))
-
-(defun node-body-element-list-p (x)
-  (and (alexandria:proper-list-p x)
-       (every #'node-body-element-p x)))
-
-(deftype node-body-element-list ()
-  '(satisfies node-body-element-list-p))
-
-(define-node node-body ()
-  (nodes :type node-body-element-list)
-  (last-node :type node))
-
 (define-node keyword-param ()
   (keyword :type keyword)
   (value-var :type parser:identifier)
@@ -296,162 +241,6 @@
 (deftype keyword-param-list ()
   '(satisfies keyword-param-list-p))
 
-(define-node node-abstraction (node)
-  (params :type pattern-list)
-  (keyword-params :type keyword-param-list :default nil)
-  (body :type node-body))
-
-(define-node node-let-binding ()
-  (name :type node-variable)
-  (value :type node)
-  (location :type source:location))
-
-(defmethod source:location ((self node-let-binding))
-  (node-let-binding-location self))
-
-(defun node-let-binding-list-p (x)
-  (and (alexandria:proper-list-p x)
-       (every #'node-let-binding-p x)))
-
-(deftype node-let-binding-list ()
-  '(satisfies node-let-binding-list-p))
-
-(define-node node-dynamic-binding ()
-  (name :type node-variable)
-  (value :type node)
-  (location :type source:location))
-
-(defmethod source:location ((self node-dynamic-binding))
-  (node-dynamic-binding-location self))
-
-(defun node-dynamic-binding-list-p (x)
-  (and (alexandria:proper-list-p x)
-       (every #'node-dynamic-binding-p x)))
-
-(deftype node-dynamic-binding-list ()
-  '(satisfies node-dynamic-binding-list-p))
-
-(define-node node-for-binding ()
-  (name :type node-variable)
-  (init :type node)
-  (step :type (or null node) :default nil)
-  (location :type source:location))
-
-(defmethod source:location ((self node-for-binding))
-  (node-for-binding-location self))
-
-(defun node-for-binding-list-p (x)
-  (and (alexandria:proper-list-p x)
-       (every #'node-for-binding-p x)))
-
-(deftype node-for-binding-list ()
-  '(satisfies node-for-binding-list-p))
-
-(define-node node-let (node)
-  (bindings :type node-let-binding-list)
-  (body :type node-body))
-
-(define-node node-dynamic-let (node)
-  (bindings :type node-dynamic-binding-list)
-  (subexpr :type node))
-
-(define-node node-lisp (node)
-  (vars :type node-variable-list)
-  (var-names :type util:symbol-list)
-  (body :type t))
-
-(define-node node-match-branch ()
-  (pattern :type pattern)
-  (body :type node-body)
-  (location :type source:location))
-
-(defmethod source:location ((self node-match-branch))
-  (node-match-branch-location self))
-
-(defun node-match-branch-list-p (x)
-  (and (alexandria:proper-list-p x)
-       (every #'node-match-branch-p x)))
-
-(deftype node-match-branch-list ()
-  '(satisfies node-match-branch-list-p))
-
-(define-node node-match (node)
-  (expr :type node)
-  (branches :type node-match-branch-list))
-
-(define-node node-progn (node)
-  (body :type node-body))
-
-(define-node node-unsafe (node)
-  (body :type node-body))
-
-;; node-the does not exist in this AST!
-
-(define-node node-block (node)
-  (name :type symbol)
-  (body :type node-body))
-
-(define-node node-return-from (node)
-  (name :type symbol)
-  ;; Bare (return) is rewritten to a zero-value NODE-VALUES during
-  ;; control-flow resolution, so the returned expression is always explicit.
-  (expr :type node))
-
-(define-node node-values (node)
-  ;; Multiple values expression, lowered directly by codegen.
-  (nodes :type node-list))
-
-(define-node node-throw (node)
-  ;; The thrown expression
-  (expr :type (or null node)))
-
-(define-node node-resume-to (node)
-  ;; The resumption instance
-  (expr :type (or null node)))
-
-(define-node node-resumable-branch ()
-  (pattern :type pattern)
-  (body :type node-body)
-  (location :type source:location))
-
-(defmethod source:location ((self node-resumable-branch))
-  (node-resumable-branch-location self))
-
-(defun node-resumable-branch-list-p (x)
-  (and (alexandria:proper-list-p x)
-       (every #'node-resumable-branch-p x)))
-
-(deftype node-resumable-branch-list ()
-  '(satisfies node-resumable-branch-list-p))
-
-(define-node node-resumable (node)
-  (expr :type node)
-  (branches :type node-resumable-branch-list))
-
-(define-node node-catch-branch ()
-  (pattern :type pattern)
-  (body :type node-body)
-  (location :type source:location))
-
-(defmethod source:location ((self node-catch-branch))
-  (node-catch-branch-location self))
-
-(defun node-catch-branch-list-p (x)
-  (and (alexandria:proper-list-p x)
-       (every #'node-catch-branch-p x)))
-
-(deftype node-catch-branch-list ()
-  '(satisfies node-catch-branch-list-p))
-
-(define-node node-catch (node)
-  (expr :type node)
-  (branches :type node-catch-branch-list))
-
-(define-node node-application (node)
-  (rator :type node)
-  (rands :type node-list)
-  (keyword-rands :type node-application-keyword-arg-list :default nil))
-
 (define-node node-application-keyword-arg ()
   (keyword :type keyword)
   (value :type node))
@@ -463,83 +252,6 @@
 
 (deftype node-application-keyword-arg-list ()
   '(satisfies node-application-keyword-arg-list-p))
-
-(define-node node-or (node)
-  (nodes :type node-list))
-
-(define-node node-and (node)
-  (nodes :type node-list))
-
-(define-node node-if (node)
-  (expr :type node)
-  (then :type node)
-  (else :type node))
-
-(define-node node-when (node)
-  (expr :type node)
-  (body :type node-body))
-
-(define-node node-unless (node)
-  (expr :type node)
-  (body :type node-body))
-
-(define-node node-for (node)
-  (label :type keyword)
-  (bindings :type node-for-binding-list)
-  (sequential-p :type boolean :default nil)
-  (returns :type (or null node) :default nil)
-  (termination-kind :type (member nil :while :until :repeat) :default nil)
-  (termination-expr :type (or null node) :default nil)
-  (body :type node-body))
-
-(define-node node-break (node)
-  (label :type keyword))
-
-(define-node node-continue (node)
-  (label :type keyword))
-
-(define-node node-cond-clause ()
-  (expr :type node)
-  (body :type node-body)
-  (location :type source:location))
-
-(defmethod source:location ((self node-cond-clause))
-  (node-cond-clause-location self))
-
-(defun node-cond-clause-list-p (x)
-  (and (alexandria:proper-list-p x)
-       (every #'node-cond-clause-p x)))
-
-(deftype node-cond-clause-list ()
-  '(satisfies node-cond-clause-list-p))
-
-(define-node node-cond (node)
-  (clauses :type node-cond-clause-list))
-
-(define-node node-do-bind ()
-  (pattern :type pattern)
-  (expr :type node)
-  (location :type source:location))
-
-(defmethod source:location ((self node-do-bind))
-  (node-do-bind-location self))
-
-(deftype node-do-body-element ()
-  '(or node node-bind node-values-bind node-do-bind))
-
-(defun node-do-body-element-p (x)
-  (typep x 'node-do-body-element))
-
-(defun node-do-body-element-list-p (x)
-  (and (alexandria:proper-list-p x)
-       (every #'node-do-body-element-p x)))
-
-(deftype node-do-body-element-list ()
-  '(satisfies node-do-body-element-list-p))
-
-(define-node node-do (node)
-  (nodes :type node-do-body-element-list)
-  (last-node :type node))
 
 ;;;
 ;;; Methods
