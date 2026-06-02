@@ -47,10 +47,9 @@
 ;;;;          | "_"
 ;;;;          | "(" variable pattern* ")"
 
-(defstruct (pattern
-            (:constructor nil)
-            (:copier nil))
-  (location (util:required 'location) :type source:location :read-only t))
+(define-node pattern ()
+  :abstract
+  (location :type source:location))
 
 (defmethod make-load-form ((self pattern) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -65,11 +64,9 @@
 (deftype pattern-list ()
   '(satisfies pattern-list-p))
 
-(defstruct (pattern-var
-            (:include pattern)
-            (:copier nil))
-  (name      (util:required 'name)      :type identifier :read-only t)
-  (orig-name (util:required 'orig-name) :type identifier :read-only t))
+(define-node pattern-var (pattern)
+  (name :type identifier)
+  (orig-name :type identifier))
 
 (defun pattern-var-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -78,31 +75,23 @@
 (deftype pattern-var-list ()
   '(satisfies pattern-var-list-p))
 
-(defstruct (pattern-literal
-            (:include pattern)
-            (:copier nil))
-  (value (util:required 'value) :type util:literal-value :read-only t))
+(define-node pattern-literal (pattern)
+  (value :type util:literal-value))
 
-(defstruct (pattern-wildcard
-            (:include pattern)
-            (:copier nil)))
+(define-node pattern-wildcard (pattern))
 
-(defstruct (pattern-binding
-            (:include pattern)
-            (:copier nil))
+(define-node pattern-binding (pattern)
   "A pattern that captures the runtime value it matches and binds it to a
 variable.
 
 This is distinct from a a PATTERN-VAR pattern, which matches any
 runtime value and binds it to a variable."
-  (var     (util:required 'var)     :type pattern-var :read-only t)
-  (pattern (util:required 'pattern) :type pattern     :read-only t))
+  (var :type pattern-var)
+  (pattern :type pattern))
 
-(defstruct (pattern-constructor
-            (:include pattern)
-            (:copier nil))
-  (name     (util:required 'name)     :type identifier           :read-only t)
-  (patterns (util:required 'patterns) :type pattern-list         :read-only t))
+(define-node pattern-constructor (pattern)
+  (name :type identifier)
+  (patterns :type pattern-list))
 
 (defun parse-pattern (form source)
   (declare (type cst:cst form))

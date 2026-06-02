@@ -10,7 +10,8 @@
    (#:source #:coalton-impl/source)
    (#:tc #:coalton-impl/typechecker)
    (#:analysis #:coalton-impl/analysis)
-   (#:codegen #:coalton-impl/codegen))
+   (#:codegen #:coalton-impl/codegen)
+   (#:serde #:coalton-impl/serde))
   (:export
    #:*global-environment*
    #:entry-point                        ; FUNCTION
@@ -183,7 +184,7 @@
   (let ((updates (remove-duplicates (coerce update-log 'list) :test #'code-update-eql)))
     `(let ((env *global-environment*))
        ,@(loop :for (fn . args) :in updates
-               :collect `(setf env (,fn env ,@(mapcar #'util:runtime-quote args))))
+               :collect `(setf env (,fn env ,@(serde:edit-arg-forms fn args))))
        (setf *global-environment* env)
        (tc:synchronize-type-variable-counter env))))
 
