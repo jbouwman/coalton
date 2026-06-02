@@ -16,6 +16,7 @@
    (#:const #:coalton-impl/constants))
   (:export
    #:node                               ; STRUCT
+   #:node-type                          ; ACCESSOR
    #:node-list                          ; TYPE
    #:node-variable                      ; STRUCT
    #:make-node-variable                 ; CONSTRUCTOR
@@ -420,7 +421,11 @@ Rebound to NIL parsing an anonymous FN.")
 ;;; inherited location via node-location) is preserved.
 
 (define-node node () :abstract
-  "Abstract base of the parsed expression AST."
+  "Abstract base of the expression AST, shared across phases (PLAN-310).
+The `type` annotation is nil in the freshly parsed tree and is set to a
+`qualified-ty` by the typechecker (declared `t` here because the typechecker's
+type representation is not yet loaded when the parser is)."
+  (type :type t :default nil)
   (location :type source:location))
 
 (defmethod source:location ((self node))
