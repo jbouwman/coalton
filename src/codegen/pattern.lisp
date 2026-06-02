@@ -1,6 +1,7 @@
 (defpackage #:coalton-impl/codegen/pattern
   (:use
    #:cl)
+  (:import-from #:coalton-impl/parser/base #:define-node)
   (:local-nicknames
    (#:pe #:coalton-impl/analysis/pattern-exhaustiveness)
    (#:util #:coalton-impl/util)
@@ -36,10 +37,9 @@
 
 (in-package #:coalton-impl/codegen/pattern)
 
-(defstruct (pattern
-            (:constructor nil)
-            (:copier nil))
-  (type (util:required 'type) :type tc:ty :read-only t))
+(define-node pattern ()
+  :abstract
+  (type :type tc:ty))
 
 (defmethod make-load-form ((self pattern) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -51,31 +51,21 @@
 (deftype pattern-list ()
   '(satisfies pattern-list-p))
 
-(defstruct (pattern-var
-            (:include pattern)
-            (:copier nil))
-  (name (util:required 'name) :type symbol :read-only t))
+(define-node pattern-var (pattern)
+  (name :type symbol))
 
-(defstruct (pattern-binding
-            (:include pattern)
-            (:copier nil))
-  (var     (util:required 'var)     :type pattern-var :read-only t)
-  (pattern (util:required 'pattern) :type pattern     :read-only t))
+(define-node pattern-binding (pattern)
+  (var :type pattern-var)
+  (pattern :type pattern))
 
-(defstruct (pattern-literal
-            (:include pattern)
-            (:copier nil))
-  (value (util:required 'value) :type util:literal-value :read-only t))
+(define-node pattern-literal (pattern)
+  (value :type util:literal-value))
 
-(defstruct (pattern-wildcard
-            (:include pattern)
-            (:copier nil)))
+(define-node pattern-wildcard (pattern))
 
-(defstruct (pattern-constructor
-            (:include pattern)
-            (:copier nil))
-  (name     (util:required 'name)     :type symbol       :read-only t)
-  (patterns (util:required 'patterns) :type pattern-list :read-only t))
+(define-node pattern-constructor (pattern)
+  (name :type symbol)
+  (patterns :type pattern-list))
 
 (defun pattern-variables (pattern)
   (delete-duplicates (pattern-variables-generic% pattern) :test #'eq))
