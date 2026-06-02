@@ -3,6 +3,7 @@
    #:cl
    #:coalton-impl/typechecker/base
    #:coalton-impl/typechecker/kinds)
+  (:import-from #:coalton-impl/parser/base #:define-node)
   (:local-nicknames
    (#:util #:coalton-impl/util)
    (#:settings #:coalton-impl/settings))
@@ -139,7 +140,7 @@
 ;;; Types
 ;;;
 
-(defstruct (ty (:constructor nil))
+(defclass ty ()
   ;; When this field is not null, it comprises a head which is the
   ;; explicit type-alias used, and a tail which consists of the
   ;; type-aliases used to define the explicit alias.
@@ -152,7 +153,10 @@
   ;; populated with (Cons T2 (Cons T1 Nil)).
   ;;
   ;; Could be replaced by a weak hash table.
-  (alias nil :type (or null ty-list) :read-only nil))
+  ((alias :initarg :alias :accessor ty-alias :type (or null ty-list) :initform nil))
+  (:documentation "Abstract base of the Coalton type representation."))
+
+(defun ty-p (x) (and (typep x 'ty) t))
 
 (defmethod make-load-form ((self ty) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -164,15 +168,15 @@
 (deftype ty-list ()
   '(satisfies ty-list-p))
 
-(defstruct (tyvar (:include ty))
-  (id          (util:required 'id)      :type fixnum             :read-only t)
-  (kind        (util:required 'kind)    :type kind               :read-only t)
+(define-node tyvar (ty)
+  (id :type fixnum)
+  (kind :type kind)
   ;; True when this variable may unify with a result pack (Void or
   ;; multiple values). Ordinary value variables leave this false.
-  (allow-result-p nil                   :type boolean            :read-only t)
+  (allow-result-p :type boolean :default nil)
   ;; The original programmer-written name, if this type variable originated
   ;; from source rather than anonymous inference state.
-  (source-name nil                      :type (or null symbol)   :read-only t))
+  (source-name :type (or null symbol) :default nil))
 
 (defun tyvar-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -181,17 +185,17 @@
 (deftype tyvar-list ()
   '(satisfies tyvar-list-p))
 
-(defstruct (tycon (:include ty))
-  (name (util:required 'name) :type symbol :read-only t)
-  (kind (util:required 'kind) :type kind   :read-only t))
+(define-node tycon (ty)
+  (name :type symbol)
+  (kind :type kind))
 
-(defstruct (tapp (:include ty))
-  (from (util:required 'from) :type ty :read-only t)
-  (to   (util:required 'to)   :type ty :read-only t))
+(define-node tapp (ty)
+  (from :type ty)
+  (to :type ty))
 
-(defstruct keyword-ty-entry
-  (keyword (util:required 'keyword) :type keyword :read-only t)
-  (type    (util:required 'type)    :type ty      :read-only t))
+(define-node keyword-ty-entry ()
+  (keyword :type keyword)
+  (type :type ty))
 
 (defmethod make-load-form ((self keyword-ty-entry) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -203,23 +207,23 @@
 (deftype keyword-ty-entry-list ()
   '(satisfies keyword-ty-entry-list-p))
 
-(defstruct (function-ty (:include ty))
-  (positional-input-types nil :type ty-list                  :read-only t)
-  (keyword-input-types    nil :type keyword-ty-entry-list    :read-only t)
-  (keyword-open-p         nil :type boolean                  :read-only t)
-  (output-types           nil :type (or null ty-list)        :read-only t))
+(define-node function-ty (ty)
+  (positional-input-types :type ty-list :default nil)
+  (keyword-input-types :type keyword-ty-entry-list :default nil)
+  (keyword-open-p :type boolean :default nil)
+  (output-types :type (or null ty-list) :default nil))
 
-(defstruct (result-ty (:include ty))
-  (output-types nil :type ty-list :read-only t))
+(define-node result-ty (ty)
+  (output-types :type ty-list :default nil))
 
-(defstruct (tgen (:include ty))
-  (id          (util:required 'id)      :type fixnum             :read-only t)
+(define-node tgen (ty)
+  (id :type fixnum)
   ;; Preserve whether this quantified variable may unify with result
   ;; packs when re-instantiated later.
-  (allow-result-p nil                   :type boolean            :read-only t)
+  (allow-result-p :type boolean :default nil)
   ;; Preserve source binder names across quantification so fresh
   ;; instantiation and printing can recover them later.
-  (source-name nil                      :type (or null symbol)   :read-only t))
+  (source-name :type (or null symbol) :default nil))
 
 (defmethod make-load-form ((self tgen) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -569,12 +573,22 @@ Examples:
 ;;; Operations on Types
 ;;;
 
+(defun shallow-copy-type (type)
+  "A fresh TYPE with the same slot values. The type representation is CLOS, so
+there is no copy-structure; copy slots through the metaobject protocol."
+  (let* ((class (class-of type))
+         (copy (allocate-instance class)))
+    (dolist (slot (sb-mop:class-slots class) copy)
+      (let ((name (sb-mop:slot-definition-name slot)))
+        (when (slot-boundp type name)
+          (setf (slot-value copy name) (slot-value type name)))))))
+
 (defun push-type-alias (type alias)
   "Update the alias field of TYPE with ALIAS as the most high-level alias."
   (declare (type ty type)
            (type ty alias)
            (values ty &optional))
-  (let ((new-type (copy-structure type)))
+  (let ((new-type (shallow-copy-type type)))
     (push alias (ty-alias new-type))
     new-type))
 
@@ -746,7 +760,7 @@ the list (T1 T2 T3 T4 ...). Otherwise, return (LIST TYPE)."
     (declare (type ty ty))
     (and (tapp-p ty)
          (tapp-p (tapp-from ty))
-         (equalp *arrow-type* (tapp-from (tapp-from ty))))))
+         (ty= *arrow-type* (tapp-from (tapp-from ty))))))
 
 (defgeneric function-type-from (ty)
   (:method ((ty function-ty))
@@ -865,12 +879,12 @@ the list (T1 T2 T3 T4 ...). Otherwise, return (LIST TYPE)."
      (append (type-variables (function-ty-positional-input-types type))
              (type-variables (function-ty-keyword-input-types type))
              (type-variables (function-ty-output-types type)))
-     :test #'equalp
+     :test #'ty=
      :from-end t))
   (:method ((type result-ty))
     (remove-duplicates
      (type-variables (result-ty-output-types type))
-     :test #'equalp
+     :test #'ty=
      :from-end t))
   ;; Otherwise, return nothing
   (:method ((type ty))

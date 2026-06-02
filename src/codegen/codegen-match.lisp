@@ -77,49 +77,49 @@ When true, returns two `ast:node' objects representing then/else branches."
   (declare (type ast:node-match match)
            (values boolean (or null ast:node) (or null ast:node) &optional))
 
-  (let ((branches (ast:node-match-branches match))
-        (true-pattern
-          (pattern:make-pattern-constructor :type tc:*boolean-type*
-                                            :name 'coalton:True
-                                            :patterns nil))
-        (false-pattern
-          (pattern:make-pattern-constructor :type tc:*boolean-type*
-                                            :name 'coalton:False
-                                            :patterns nil)))
+  (flet ((constructor-named-p (pattern name)
+           ;; A nullary Boolean constructor pattern for NAME. Compare the
+           ;; constructor name rather than `equalp' on the whole pattern: the
+           ;; pattern's type slot can differ from `*boolean-type*' only by an
+           ;; alias chain, and alias metadata is not part of type identity --
+           ;; and with CLOS types `equalp' is identity, not structural.
+           (and (pattern:pattern-constructor-p pattern)
+                (eq (pattern:pattern-constructor-name pattern) name))))
 
-    (cond
-      ;; Case #1:
-      ;;
-      ;; Do not emit `cl:if' unless matching on a boolean with two branches.
-      ((not (and
-             (equalp (ast:node-type (ast:node-match-expr match)) tc:*boolean-type*)
-             (= 2 (length branches))))
-       (values nil nil nil))
+    (let ((branches (ast:node-match-branches match)))
+      (cond
+        ;; Case #1:
+        ;;
+        ;; Do not emit `cl:if' unless matching on a boolean with two branches.
+        ((not (and
+               (tc:ty= (ast:node-type (ast:node-match-expr match)) tc:*boolean-type*)
+               (= 2 (length branches))))
+         (values nil nil nil))
 
-      ;; Case #2:
-      ;;
-      ;; Emit `cl:if' when first branch is `True' and second branch is `False'
-      ((and (equalp true-pattern (ast:match-branch-pattern (first branches)))
-            (equalp false-pattern (ast:match-branch-pattern (second branches))))
-       (values t
-               (ast:match-branch-body (first branches))
-               (ast:match-branch-body (second branches))))
+        ;; Case #2:
+        ;;
+        ;; Emit `cl:if' when first branch is `True' and second branch is `False'
+        ((and (constructor-named-p (ast:match-branch-pattern (first branches)) 'coalton:True)
+              (constructor-named-p (ast:match-branch-pattern (second branches)) 'coalton:False))
+         (values t
+                 (ast:match-branch-body (first branches))
+                 (ast:match-branch-body (second branches))))
 
-      ;; Case #3:
-      ;;
-      ;; Emit `cl:if' when second branch is `True' and first branch is `False'
-      ((and (equalp true-pattern (ast:match-branch-pattern (second branches)))
-            (equalp false-pattern (ast:match-branch-pattern (first branches))))
-       (values t
-               (ast:match-branch-body (second branches))
-               (ast:match-branch-body (first branches))))
+        ;; Case #3:
+        ;;
+        ;; Emit `cl:if' when second branch is `True' and first branch is `False'
+        ((and (constructor-named-p (ast:match-branch-pattern (second branches)) 'coalton:True)
+              (constructor-named-p (ast:match-branch-pattern (first branches)) 'coalton:False))
+         (values t
+                 (ast:match-branch-body (second branches))
+                 (ast:match-branch-body (first branches))))
 
-      ;; Case #4:
-      ;;
-      ;; Do not emit `cl:if' unless exhaustively matching boolean with
-      ;; constructor pattern branches.
-      (t
-       (values nil nil nil)))))
+        ;; Case #4:
+        ;;
+        ;; Do not emit `cl:if' unless exhaustively matching boolean with
+        ;; constructor pattern branches.
+        (t
+         (values nil nil nil))))))
 
 ;;;
 ;;; Codegen Functions
