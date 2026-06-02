@@ -11,6 +11,9 @@
    (#:util #:coalton-impl/util))
   (:export
    #:pattern                            ; STRUCT
+   #:pattern-type                       ; ACCESSOR
+   #:pattern-location                   ; ACCESSOR
+   #:pattern-list-p                     ; FUNCTION
    #:pattern-list                       ; TYPE
    #:pattern-var                        ; STRUCT
    #:make-pattern-var                   ; ACCESSOR
@@ -20,16 +23,20 @@
    #:pattern-literal                    ; STRUCT
    #:make-pattern-literal               ; CONSTRUCTOR
    #:pattern-literal-value              ; ACCESSOR
+   #:pattern-literal-p                  ; FUNCTION
    #:pattern-wildcard                   ; STRUCT
    #:make-pattern-wildcard              ; ACCESSOR
+   #:pattern-wildcard-p                 ; FUNCTION
    #:pattern-binding                    ; STRUCT
    #:pattern-binding-var                ; ACCESSOR
    #:pattern-binding-pattern            ; ACCESSOR
    #:make-pattern-binding               ; CONSTRUCTOR
+   #:pattern-binding-p                  ; FUNCTION
    #:pattern-constructor                ; STRUCT
    #:make-pattern-constructor           ; CONSTRUCTOR
    #:pattern-constructor-name           ; ACCESSOR
    #:pattern-constructor-patterns       ; ACCESSOR
+   #:pattern-constructor-p              ; FUNCTION
    #:parse-pattern                      ; FUNCTION
    #:pattern-variables                  ; FUNCTION
    ))
@@ -49,7 +56,12 @@
 
 (define-node pattern ()
   :abstract
-  (location :type source:location))
+  ;; PLAN-310: shared across phases. `type` is nil in the parsed tree and set
+  ;; to a qualified-ty by the typechecker (declared `t` since the typechecker's
+  ;; type representation is not loaded when the parser is). `location` is
+  ;; nullable to match the typechecker-built patterns.
+  (type :type t :default nil)
+  (location :type (or source:location null) :default nil))
 
 (defmethod make-load-form ((self pattern) &optional env)
   (make-load-form-saving-slots self :environment env))

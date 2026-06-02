@@ -3,9 +3,12 @@
 ;;;;
 
 (defpackage #:coalton-impl/typechecker/pattern
+  ;; PLAN-310: the pattern AST is shared with the parser. This package re-uses
+  ;; the parser pattern classes (the `type` annotation lives on the shared
+  ;; base) and adds only the typechecker methods over them.
   (:use
-   #:cl)
-  (:import-from #:coalton-impl/parser/base #:define-node)
+   #:cl
+   #:coalton-impl/parser/pattern)
   (:local-nicknames
    (#:util #:coalton-impl/util)
    (#:parser #:coalton-impl/parser)
@@ -44,80 +47,12 @@
 
 (in-package #:coalton-impl/typechecker/pattern)
 
-(define-node pattern ()
-  :abstract
-  (type :type tc:qualified-ty)
-  (location :type (or source:location null) :default nil))
-
-(defmethod source:location ((self pattern))
-  (pattern-location self))
-
-(defun pattern-list-p (x)
-  (and (alexandria:proper-list-p x)
-       (every #'pattern-p x)))
-
-(deftype pattern-list ()
-  '(satisfies pattern-list-p))
-
-(define-node pattern-var (pattern)
-  (name :type parser:identifier)
-  (orig-name :type parser:identifier))
-
-(define-node pattern-binding (pattern)
-  (var :type pattern-var)
-  (pattern :type pattern))
-
-(defun pattern-var-list-p (x)
-  (and (alexandria:proper-list-p x)
-       (every #'pattern-var-p x)))
-
-(deftype pattern-var-list ()
-  '(satisfies pattern-var-list-p))
-
-(define-node pattern-literal (pattern)
-  (value :type util:literal-value))
-
-(define-node pattern-wildcard (pattern))
-
-(define-node pattern-constructor (pattern)
-  (name :type parser:identifier)
-  (patterns :type pattern-list))
-
 ;;;
 ;;; Methods
 ;;;
-
-(defun pattern-variables (pattern)
-  (declare (type t pattern)
-           (values pattern-var-list))
-
-  (remove-duplicates (pattern-variables-generic% pattern) :test #'eq))
-
-(defgeneric pattern-variables-generic% (pattern)
-  (:method ((pattern pattern-var))
-    (declare (values pattern-var-list))
-    (list pattern))
-
-  (:method ((pattern pattern-literal))
-    (declare (values pattern-var-list))
-    nil)
-
-  (:method ((pattern pattern-wildcard))
-    (declare (values pattern-var-list))
-    nil)
-
-  (:method ((pattern pattern-constructor))
-    (declare (values pattern-var-list &optional))
-    (pattern-variables-generic% (pattern-constructor-patterns pattern)))
-
-  (:method ((pattern pattern-binding))
-    (declare (values pattern-var-list &optional))
-    (cons (pattern-binding-var pattern)
-          (pattern-variables-generic% (pattern-binding-pattern pattern))))
-
-  (:method ((list list))
-    (declare (values pattern-var-list))
-    (mapcan #'pattern-variables-generic% list)))
+;;; The pattern classes, constructors, accessors, predicates, and
+;;; `pattern-variables` are inherited from `coalton-impl/parser/pattern` (the
+;;; shared family, PLAN-310). The typechecker adds only `apply-substitution`.
 
 (defmethod tc:apply-substitution (subs (node pattern-var))
   (declare (type tc:substitution-list subs)
