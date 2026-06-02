@@ -44,6 +44,7 @@
   (:export
    #:edit-arg-forms                     ; FUNCTION (compile-time)
    ;; Decoders, referenced by the emitted replay source (load-time).
+   #:decode-code
    #:decode-scheme
    #:decode-predicate #:decode-predicates
    #:decode-pattern #:decode-patterns
@@ -491,6 +492,55 @@ type form. Occurrences of one index agree, so the first seen wins."
 (defun decode-patterns (fs) (mapcar #'decode-pattern fs))
 
 ;;;; ----------------------------------------------------------------------
+;;;; Codegen body (the set-code payload).
+;;;;
+;;;; The optimized codegen node is a deep tree of structures whose leaves are
+;;;; types, symbols, literals, and (inside node-lisp) arbitrary readable Lisp
+;;;; forms. It is encoded reflectively through the metaobject protocol: every
+;;;; value is wrapped with a discriminator so decoding is unambiguous, embedded
+;;;; types go through the type encoder (which is what removes the last
+;;;; readable-print dependency on the type representation), structures recurse,
+;;;; and every other leaf is carried verbatim. Decoding rebuilds each structure
+;;;; through its keyword constructor (make-<type>).
+
+(defun structure-constructor (type)
+  "The default keyword constructor function for structure class named TYPE."
+  (fdefinition (intern (concatenate 'string "MAKE-" (symbol-name type))
+                       (symbol-package type))))
+
+(defun encode-code-value (v)
+  (cond
+    ((typep v 'ty::ty)           (cons :type (encode-type v)))
+    ((typep v 'structure-object) (encode-code-structure v))
+    ((consp v)                   (list :cons (encode-code-value (car v))
+                                             (encode-code-value (cdr v))))
+    (t                           (cons :verbatim v))))
+
+(defun encode-code-structure (s)
+  (list* :structure (type-of s)
+         (loop :for slot :in (sb-mop:class-slots (class-of s))
+               :for name := (sb-mop:slot-definition-name slot)
+               :collect (cons name (encode-code-value (slot-value s name))))))
+
+(defun decode-code-value (form)
+  (ecase (car form)
+    (:type      (decode-type (cdr form)))
+    (:verbatim  (cdr form))
+    (:cons      (cons (decode-code-value (second form))
+                      (decode-code-value (third form))))
+    (:structure (decode-code-structure form))))
+
+(defun decode-code-structure (form)
+  (destructuring-bind (type . slot-forms) (cdr form)
+    (apply (structure-constructor type)
+           (loop :for (name . v) :in slot-forms
+                 :collect (intern (symbol-name name) :keyword)
+                 :collect (decode-code-value v)))))
+
+(defun encode-code (node) (encode-code-structure node))
+(defun decode-code (form) (decode-code-structure form))
+
+;;;; ----------------------------------------------------------------------
 ;;;; Per-operation argument codecs.
 ;;;;
 ;;;; Each environment-update function (see typechecker/environment.lisp,
@@ -500,11 +550,11 @@ type form. Occurrences of one index agree, so the first seen wins."
 ;;;;
 ;;;; :plain  -- carry through the existing literal path (symbols, fixnums,
 ;;;;            keywords, CL type designators): already representation-free.
-;;;; :code   -- the codegen body (set-code); deferred to the literal path
-;;;;            until the codegen node family is CLOS (GOAL-025 step 4).
+;;;; :code   -- the codegen body (set-code), encoded reflectively (see above).
 
 (defparameter +arg-decoders+
-  `((:scheme               . decode-scheme)
+  `((:code                 . decode-code)
+    (:scheme               . decode-scheme)
     (:predicate            . decode-predicate)
     (:predicate-list       . decode-predicates)
     (:pattern-list         . decode-patterns)
@@ -522,7 +572,8 @@ type form. Occurrences of one index agree, so the first seen wins."
 (defun arg-encoder (kind)
   "The compile-time encoder for a codec KIND, or NIL for the literal path."
   (ecase kind
-    ((:plain :code)        nil)
+    (:plain                nil)
+    (:code                 #'encode-code)
     (:scheme               #'encode-scheme)
     (:predicate            #'encode-predicate)
     (:predicate-list       #'encode-predicates)
