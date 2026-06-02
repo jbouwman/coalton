@@ -502,7 +502,9 @@ type representation is not yet loaded when the parser is)."
 
 (define-node node-abstraction (node)
   (params :type pattern-list)
-  (keyword-params :type keyword-param-list :default nil)
+  ;; PLAN-310: type relaxed to `list` so the shared node can hold either the
+  ;; parser's keyword-params or the typechecker's lowered ones.
+  (keyword-params :type list :default nil)
   (body :type node-body)
   ;; Internal-only marker for compiler-generated lambdas that should
   ;; leave RETURN bound to the next enclosing returnable context.
@@ -592,7 +594,9 @@ type representation is not yet loaded when the parser is)."
 
 (define-node node-let (node)
   (bindings :type node-let-binding-list)
-  (declares :type node-let-declare-list)
+  ;; PLAN-310: defaulted so the typechecker can build the shared node without
+  ;; the declares the parser resolves away.
+  (declares :type node-let-declare-list :default nil)
   (body :type node-body)
   ;; T when parsed from LET*, so later bindings can see earlier ones.
   (sequential-p :type boolean :default nil))
@@ -616,7 +620,8 @@ type representation is not yet loaded when the parser is)."
   (subexpr :type node))
 
 (define-node node-lisp (node)
-  (output-types :type (or null ty-list))
+  ;; PLAN-310: defaulted; resolved into the type annotation by the typechecker.
+  (output-types :type (or null ty-list) :default nil)
   (vars :type node-variable-list)
   (var-names :type util:symbol-list)
   (body :type t))
@@ -743,7 +748,9 @@ after variable renaming and before type inference."
 (define-node node-application (node)
   (rator :type node)
   (rands :type node-list)
-  (keyword-rands :type node-application-keyword-arg-list :default nil))
+  ;; PLAN-310: type relaxed to `list` so the shared node can hold either the
+  ;; parser's keyword-rands or the typechecker's lowered ones.
+  (keyword-rands :type list :default nil))
 
 (define-node node-application-keyword-arg ()
   (keyword :type keyword-src)
@@ -832,7 +839,8 @@ after variable renaming and before type inference."
 (define-node node-for (node)
   (label :type keyword)
   (bindings :type node-for-binding-list)
-  (declares :type node-let-declare-list)
+  ;; PLAN-310: defaulted; resolved by the typechecker.
+  (declares :type node-let-declare-list :default nil)
   (returns :type (or null node) :default nil)
   (termination-kind :type (member nil :while :until :repeat) :default nil)
   (termination-expr :type (or null node) :default nil)
@@ -862,10 +870,12 @@ after variable renaming and before type inference."
         (setf (gethash name seen) name-node)))))
 
 (define-node node-throw (node)
-  (expr :type node))
+  ;; PLAN-310: union with the typechecker's nullable expr.
+  (expr :type (or null node)))
 
 (define-node node-resume-to (node)
-  (expr :type node))
+  ;; PLAN-310: union with the typechecker's nullable expr.
+  (expr :type (or null node)))
 
 (define-node node-resumable-branch ()
   (pattern :type pattern)
