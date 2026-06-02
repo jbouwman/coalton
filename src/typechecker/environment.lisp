@@ -8,6 +8,7 @@
    #:coalton-impl/typechecker/predicate
    #:coalton-impl/typechecker/scheme
    #:coalton-impl/typechecker/unify)
+  (:import-from #:coalton-impl/parser/base #:define-node)
   (:import-from
    #:coalton-impl/util
    #:project-elements)
@@ -283,40 +284,34 @@
 (deftype variance-list ()
   '(satisfies variance-list-p))
 
-(defstruct type-entry
-  (name          (util:required 'name)          :type symbol                    :read-only t)
-  (source-name   nil                            :type (or null string)          :read-only t)
-  (runtime-type  (util:required 'runtime-type)  :type t                         :read-only t)
-  (type          (util:required 'type)          :type ty                        :read-only t)
-  (tyvars        (util:required 'tyvars)        :type tyvar-list                :read-only t)
+(define-node type-entry ()
+  (name :type symbol)
+  (source-name :type (or null string) :default nil)
+  (runtime-type :type t)
+  (type :type ty)
+  (tyvars :type tyvar-list)
   ;; Variance of each type parameter in declaration order.
   ;; Entries are one of :COVARIANT, :CONTRAVARIANT, or :INVARIANT.
   ;; Used by relaxed value restriction when deciding whether weak variables
   ;; from expansive bindings can be generalized.
-  (variances     (util:required 'variances)     :type variance-list             :read-only t)
-  (constructors  (util:required 'constructors)  :type util:symbol-list          :read-only t)
+  (variances :type variance-list)
+  (constructors :type util:symbol-list)
   ;; An explicit repr defined in the source, or nil if none was
   ;; supplied. Computed repr will be reflected in ENUM-REPR, NEWTYPE,
   ;; and/or RUNTIME-TYPE.
-  (explicit-repr (util:required 'explicit-repr) :type explicit-repr              :read-only t)
-
-  ;; If this is true then the type is compiled to a more effecient
-  ;; enum representation at runtime
-  (enum-repr     (util:required 'enum-repr)     :type boolean                    :read-only t)
-
-  ;; If this is true then the type does not exist at runtime See
-  ;; https://wiki.haskell.org/Newtype
-  ;;
-  ;; A type cannot be both enum repr and a newtype
-  ;;
-  ;; A type that is a newtype has another Coalton type as its
-  ;; runtime-type instead of a lisp type. This is to avoid issues with
-  ;; recursive newtypes.
-  (newtype    (util:required 'newtype)           :type boolean                   :read-only t)
-  (docstring  (util:required 'docstring)         :type (or null string)          :read-only t)
-  (location   nil                                :type (or null source:location) :read-only t)
-  (exception-p nil                               :type boolean                   :read-only nil)
-  (resumption-p nil                              :type boolean                   :read-only nil))
+  (explicit-repr :type explicit-repr)
+  ;; If enum-repr is true then the type is compiled to a more efficient
+  ;; enum representation at runtime.
+  (enum-repr :type boolean)
+  ;; If newtype is true then the type does not exist at runtime; see
+  ;; https://wiki.haskell.org/Newtype. A type cannot be both enum-repr and a
+  ;; newtype. A newtype has another Coalton type as its runtime-type instead
+  ;; of a lisp type, to avoid issues with recursive newtypes.
+  (newtype :type boolean)
+  (docstring :type (or null string))
+  (location :type (or null source:location) :default nil)
+  (exception-p :type boolean :default nil)
+  (resumption-p :type boolean :default nil))
 
 (defmethod source:location ((self type-entry))
   (type-entry-location self))
@@ -497,17 +492,16 @@
 ;;; Constructor environment
 ;;;
 
-(defstruct constructor-entry
-  (name            (util:required 'name)            :type symbol                         :read-only t)
-  (source-name     nil                              :type (or null string)               :read-only t)
-  (arity           (util:required 'arity)           :type alexandria:non-negative-fixnum :read-only t)
-  (constructs      (util:required 'constructs)      :type symbol                         :read-only t)
-  (classname       (util:required 'classname)       :type symbol                         :read-only t)
-  (docstring       (util:required 'docstring)       :type (or string null)               :read-only t)
-
+(define-node constructor-entry ()
+  (name :type symbol)
+  (source-name :type (or null string) :default nil)
+  (arity :type alexandria:non-negative-fixnum)
+  (constructs :type symbol)
+  (classname :type symbol)
+  (docstring :type (or string null))
   ;; If this constructor constructs a compressed-repr type then
-  ;; compressed-repr is the runtime value of this nullary constructor
-  (compressed-repr (util:required 'compressed-repr) :type t                              :read-only t))
+  ;; compressed-repr is the runtime value of this nullary constructor.
+  (compressed-repr :type t))
 
 (defmethod source:docstring ((self constructor-entry))
   (constructor-entry-docstring self))
@@ -605,12 +599,12 @@
 ;;; Type alias environment
 ;;;
 
-(defstruct type-alias-entry
-  (name      (util:required 'name)      :type symbol           :read-only t)
-  (source-name nil                      :type (or null string) :read-only t)
-  (tyvars    (util:required 'tyvars)    :type tyvar-list       :read-only t)
-  (type      (util:required 'type)      :type ty               :read-only t)
-  (docstring (util:required 'docstring) :type (or null string) :read-only t))
+(define-node type-alias-entry ()
+  (name :type symbol)
+  (source-name :type (or null string) :default nil)
+  (tyvars :type tyvar-list)
+  (type :type ty)
+  (docstring :type (or null string)))
 
 (defmethod source:docstring ((self type-alias-entry))
   (type-alias-entry-docstring self))
@@ -633,11 +627,11 @@
 ;;; Struct environment
 ;;;
 
-(defstruct struct-field
-  (name      (util:required 'name)      :type string            :read-only t)
-  (type      (util:required 'type)      :type ty                :read-only t)
-  (index     (util:required 'index)     :type fixnum            :read-only t)
-  (docstring (util:required 'docstring) :type (or null string)  :read-only t))
+(define-node struct-field ()
+  (name :type string)
+  (type :type ty)
+  (index :type fixnum)
+  (docstring :type (or null string)))
 
 (defmethod source:docstring ((self struct-field))
   (struct-field-docstring self))
@@ -652,11 +646,11 @@
 (deftype struct-field-list ()
   '(satisfies struct-field-list-p))
 
-(defstruct struct-entry
-  (name      (util:required 'name)      :type symbol            :read-only t)
-  (source-name nil                      :type (or null string)  :read-only t)
-  (fields    (util:required 'fields)    :type struct-field-list :read-only t)
-  (docstring (util:required 'docstring) :type (or null string)  :read-only t))
+(define-node struct-entry ()
+  (name :type symbol)
+  (source-name :type (or null string) :default nil)
+  (fields :type struct-field-list)
+  (docstring :type (or null string)))
 
 (defmethod source:docstring ((self struct-entry))
   (struct-entry-docstring self))
@@ -685,16 +679,16 @@
 ;;; Class environment
 ;;;
 
-(defstruct ty-class-method
-  (name      (util:required 'name)      :type symbol           :read-only t)
-  (type      (util:required 'type)      :type ty-scheme        :read-only t)
+(define-node ty-class-method ()
+  (name :type symbol)
+  (type :type ty-scheme)
   ;; Class-head binders that should be in scope in instance method bodies
   ;; before any method-local explicit FORALL binders are introduced.
-  (outer-tvars nil                       :type list             :read-only t)
+  (outer-tvars :type list :default nil)
   ;; Method-local explicit FORALL binders, kept in source order so instance
   ;; methods can preserve their scoped names when typechecking nested declares.
-  (explicit-tvars nil                    :type list             :read-only t)
-  (docstring (util:required 'docstring) :type (or null string) :read-only t))
+  (explicit-tvars :type list :default nil)
+  (docstring :type (or null string)))
 
 (defmethod source:docstring ((self ty-class-method))
   (ty-class-method-docstring self))
@@ -709,22 +703,21 @@
 (deftype ty-class-method-list ()
   '(satisfies ty-class-method-list-p))
 
-(defstruct ty-class
-  (name                (util:required 'name)                :type symbol              :read-only t)
-  (source-name         nil                                  :type (or null string)    :read-only t)
-  (predicate           (util:required 'predicate)           :type ty-predicate        :read-only t)
-  (superclasses        (util:required 'superclasses)        :type ty-predicate-list   :read-only t)
-  (class-variables     (util:required 'class-variables)     :type util:symbol-list    :read-only t)
-  (fundeps             (util:required 'fundeps)             :type fundep-list         :read-only t)
-
+(define-node ty-class ()
+  (name :type symbol)
+  (source-name :type (or null string) :default nil)
+  (predicate :type ty-predicate)
+  (superclasses :type ty-predicate-list)
+  (class-variables :type util:symbol-list)
+  (fundeps :type fundep-list)
   ;; Methods of the class containing the same tyvars in PREDICATE for
-  ;; use in pretty printing
-  (unqualified-methods (util:required 'unqualified-methods) :type ty-class-method-list :read-only t)
-  (codegen-sym         (util:required 'codegen-sym)         :type symbol               :read-only t)
-  (superclass-dict     (util:required 'superclass-dict)     :type list                 :read-only t)
-  (superclass-map      (util:required 'superclass-map)      :type list                 :read-only t)
-  (docstring           (util:required 'docstring)           :type (or null string)     :read-only t)
-  (location            (util:required 'location)            :type source:location      :read-only t))
+  ;; use in pretty printing.
+  (unqualified-methods :type ty-class-method-list)
+  (codegen-sym :type symbol)
+  (superclass-dict :type list)
+  (superclass-map :type list)
+  (docstring :type (or null string))
+  (location :type source:location))
 
 (defmethod source:location ((self ty-class))
   (ty-class-location self))
@@ -783,14 +776,14 @@
 ;;; Instance environment
 ;;;
 
-(defstruct ty-class-instance
-  (constraints             (util:required 'constraints)             :type ty-predicate-list      :read-only t)
-  (predicate               (util:required 'predicate)               :type ty-predicate           :read-only t)
-  (codegen-sym             (util:required 'codegen-sym)             :type symbol                 :read-only t)
-  (method-codegen-syms     (util:required 'method-codegen-syms)     :type util:symbol-list       :read-only t)
-  (method-codegen-inline-p (util:required 'method-codegen-inline-p) :type list                   :read-only t)
-  (docstring               (util:required 'docstring)               :type (or null string)       :read-only t)
-  (location                nil                                      :type (or null source:location) :read-only t))
+(define-node ty-class-instance ()
+  (constraints :type ty-predicate-list)
+  (predicate :type ty-predicate)
+  (codegen-sym :type symbol)
+  (method-codegen-syms :type util:symbol-list)
+  (method-codegen-inline-p :type list)
+  (docstring :type (or null string))
+  (location :type (or null source:location) :default nil))
 
 (defun expand-context (context env)
   "Traverse constraint predicates by looking up those entailed by
@@ -866,10 +859,10 @@ of constraint predicates."
 ;;; Function environment
 ;;;
 
-(defstruct function-env-entry
-  (name     (util:required 'name)     :type symbol  :read-only t)
-  (arity    (util:required 'arity)    :type fixnum  :read-only t)
-  (inline-p (util:required 'inline-p) :type boolean :read-only t))
+(define-node function-env-entry ()
+  (name :type symbol)
+  (arity :type fixnum)
+  (inline-p :type boolean))
 
 (defmethod make-load-form ((self function-env-entry) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -889,11 +882,11 @@ of constraint predicates."
 ;;; Name environment
 ;;;
 
-(defstruct name-entry
-  (name      (util:required 'name)      :type symbol                               :read-only t)
-  (type      (util:required 'type)      :type (member :value :method :constructor) :read-only t)
-  (docstring (util:required 'docstring) :type (or null string)                     :read-only t)
-  (location  (util:required 'location)  :type source:location                      :read-only t))
+(define-node name-entry ()
+  (name :type symbol)
+  (type :type (member :value :method :constructor))
+  (docstring :type (or null string))
+  (location :type source:location))
 
 (defmethod source:location ((self name-entry))
   (name-entry-location self))
@@ -926,10 +919,10 @@ of constraint predicates."
 ;;; Specialization Environment
 ;;;
 
-(defstruct specialization-entry
-  (from (util:required 'from)   :type symbol :read-only t)
-  (to (util:required 'to)       :type symbol :read-only t)
-  (to-ty (util:required 'to-ty) :type ty     :read-only t))
+(define-node specialization-entry ()
+  (from :type symbol)
+  (to :type symbol)
+  (to-ty :type ty))
 
 (defmethod make-load-form ((self specialization-entry) &optional env)
   (make-load-form-saving-slots self :environment env))

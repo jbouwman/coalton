@@ -43,9 +43,12 @@
             "Test function was bound as side effect of loading fasl")
         (is (= 120 (funcall fact 5))
             "Test function is callable")
-        (is (equalp (tc:make-function-env-entry :name fact :arity 1 :inline-p nil)
-                    (tc:lookup-function entry:*global-environment* fact :no-error t))
-            "Environment was restored")))))
+        (let ((entry (tc:lookup-function entry:*global-environment* fact :no-error t)))
+          (is (and entry
+                   (eq fact (tc:function-env-entry-name entry))
+                   (= 1 (tc:function-env-entry-arity entry))
+                   (null (tc:function-env-entry-inline-p entry)))
+              "Environment was restored"))))))
 
 (deftest test-compile-to-fasl-with-polymorphic-declare ()
   "Test that preserved type variable names do not break declared-vs-inferred scheme comparison during compile-file."
