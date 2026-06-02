@@ -6,6 +6,7 @@
    #:coalton-impl/typechecker/types
    #:coalton-impl/typechecker/substitutions
    #:coalton-impl/typechecker/predicate)
+  (:import-from #:coalton-impl/typechecker/kinds #:kind=)
   (:export
    #:unify                              ; FUNCTION
    #:match                              ; FUNCTION
@@ -241,8 +242,8 @@ to the zero-result type."
           (not (tyvar-allow-result-p tyvar)))
      (error 'unification-error :type1 tyvar :type2 type))
     ((tyvar-p type)
-     (when (not (equalp (kind-of tyvar)
-                        (kind-of type)))
+     (when (not (kind= (kind-of tyvar)
+                       (kind-of type)))
        (error 'kind-mismatch-error
               :type tyvar
               :kind (kind-of type)))
@@ -260,8 +261,8 @@ to the zero-result type."
         (list (make-substitution :from tyvar :to type)))))
     ((find tyvar (type-variables type))
      (error 'infinite-type-unification-error :type type))
-    ((not (equalp (kind-of tyvar)
-                  (kind-of type)))
+    ((not (kind= (kind-of tyvar)
+                 (kind-of type)))
      (error 'kind-mismatch-error
             :type tyvar
             :kind (kind-of type)))
@@ -293,7 +294,7 @@ apply s type1 == type2")
     (match-result-types type1 type2))
   (:method ((type1 tyvar) (type2 ty))
     (cond
-      ((not (equalp (kind-of type1) (kind-of type2)))
+      ((not (kind= (kind-of type1) (kind-of type2)))
        (error 'type-kind-mismatch-error :type1 type1 :type2 type2))
       ((and (not (tyvar-allow-result-p type1))
             (typep type2 'result-ty))

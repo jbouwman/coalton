@@ -741,7 +741,7 @@ the substitution :b +-> T can be inferred.
              (values tc:qualified-ty tc:ksubstitution-list &optional))
 
     ;; CCL >:(
-    (assert (equalp expected-kind tc:+kstar+))
+    (assert (tc:kind= expected-kind tc:+kstar+))
 
     (let ((preds (loop :for pred :in (parser:qualified-ty-predicates type)
                        :collect (multiple-value-bind (pred ksubs_)

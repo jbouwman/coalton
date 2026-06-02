@@ -56,7 +56,7 @@ main type, O(n!) otherwise — but predicate lists are small in practice)."
                         (if (endp remaining)
                             (endp candidates)
                             (let ((reduced (remove (first remaining) candidates
-                                                   :test #'equalp :count 1)))
+                                                   :test #'kind= :count 1)))
                               (and (< (length reduced) (length candidates))
                                    (bag= (rest remaining) reduced))))))
                (bag= kinds1 kinds2)))
@@ -71,7 +71,7 @@ main type, O(n!) otherwise — but predicate lists are small in practice)."
                   (values nil map12 map21))
                  ((or (>= id1 (length kinds1))
                       (>= id2 (length kinds2))
-                      (not (equalp (nth id1 kinds1) (nth id2 kinds2))))
+                      (not (kind= (nth id1 kinds1) (nth id2 kinds2))))
                   (values nil map12 map21))
                  (t
                   (values t (acons id1 id2 map12) (acons id2 id1 map21))))))

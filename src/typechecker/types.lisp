@@ -493,14 +493,14 @@ Examples:
                  (tyvar-id type2))
          (eq (tyvar-allow-result-p type1)
              (tyvar-allow-result-p type2))
-         (equalp (tyvar-kind type1)
-                 (tyvar-kind type2))))
+         (kind= (tyvar-kind type1)
+                (tyvar-kind type2))))
 
   (:method ((type1 tycon) (type2 tycon))
     (and (equalp (tycon-name type1)
                  (tycon-name type2))
-         (equalp (tycon-kind type1)
-                 (tycon-kind type2))))
+         (kind= (tycon-kind type1)
+                (tycon-kind type2))))
 
   (:method ((type1 tapp) (type2 tapp))
     (and (ty= (tapp-from type1)

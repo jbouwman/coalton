@@ -2,11 +2,13 @@
   (:use
    #:cl
    #:coalton-impl/typechecker/base)
+  (:import-from #:coalton-impl/parser/base #:define-node)
   (:local-nicknames
    (#:util #:coalton-impl/util)
    (#:settings #:coalton-impl/settings))
   (:export
    #:kind                               ; STRUCT
+   #:kind=                              ; FUNCTION
    #:kind-list                          ; TYPE
    #:kstar                              ; STRUCT
    #:+kstar+                            ; CONSTANT
@@ -47,8 +49,10 @@
 ;;;
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defstruct (kind (:constructor nil)
-                   (:copier nil)))
+  (defclass kind () ()
+    (:documentation "Abstract base of the kind representation."))
+
+  (defun kind-p (x) (and (typep x 'kind) t))
 
   (defmethod make-load-form ((self kind) &optional env)
     (make-load-form-saving-slots self :environment env)))
@@ -61,17 +65,17 @@
   '(satisfies kind-list-p))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defstruct (kstar (:include kind)
-                    (:copier nil))))
+  (define-node kstar (kind)))
 
-(alexandria:define-constant +kstar+ (make-kstar) :test #'equalp)
+(alexandria:define-constant +kstar+ (make-kstar)
+  :test (lambda (a b) (and (kstar-p a) (kstar-p b))))
 
-(defstruct (kfun (:include kind))
-  (from (util:required 'from) :type kind :read-only t)
-  (to   (util:required 'to)   :type kind :read-only t))
+(define-node kfun (kind)
+  (from :type kind)
+  (to :type kind))
 
-(defstruct (kyvar (:include kind)) 
-  (id (util:required 'id) :type fixnum :read-only t))
+(define-node kyvar (kind)
+  (id :type fixnum))
 
 (defun kyvar-list-p (x)
   (and (alexandria:proper-list-p x)
@@ -79,6 +83,18 @@
 
 (deftype kyvar-list ()
   '(satisfies kyvar-list-p))
+
+(defgeneric kind= (kind1 kind2)
+  (:documentation "Structural equality of kinds (ty= for kinds).")
+  (:method ((kind1 kstar) (kind2 kstar)) t)
+  (:method ((kind1 kfun) (kind2 kfun))
+    (and (kind= (kfun-from kind1) (kfun-from kind2))
+         (kind= (kfun-to kind1) (kfun-to kind2))))
+  (:method ((kind1 kyvar) (kind2 kyvar))
+    (= (kyvar-id kind1) (kyvar-id kind2)))
+  (:method (kind1 kind2)
+    (declare (ignore kind1 kind2))
+    nil))
 
 
 ;;;
@@ -128,7 +144,7 @@
   (:method (subs (kind kyvar))
     (declare (type ksubstitution-list subs)
              (values kind &optional))
-    (let ((elem (find kind subs :key #'ksubstitution-from :test #'equalp)))
+    (let ((elem (find kind subs :key #'ksubstitution-from :test #'kind=)))
       (if elem
           (ksubstitution-to elem)
           kind)))
