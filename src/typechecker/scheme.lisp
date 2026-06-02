@@ -6,6 +6,7 @@
    #:coalton-impl/typechecker/types
    #:coalton-impl/typechecker/substitutions
    #:coalton-impl/typechecker/predicate)
+  (:import-from #:coalton-impl/parser/base #:define-node)
   (:local-nicknames
    (#:util #:coalton-impl/util)
    (#:settings #:coalton-impl/settings))
@@ -36,12 +37,12 @@
 ;;; Type schemes
 ;;;
 
-(defstruct ty-scheme 
-  ;; True when the quantified binders came from an explicit user-written
-  ;; FORALL rather than implicit quantification.
-  (explicit-p nil                    :type boolean      :read-only t)
-  (kinds      (util:required 'kinds) :type list         :read-only t)
-  (type       (util:required 'type)  :type qualified-ty :read-only t))
+(define-node ty-scheme ()
+  ;; explicit-p is true when the quantified binders came from an explicit
+  ;; user-written FORALL rather than implicit quantification.
+  (explicit-p :type boolean :default nil)
+  (kinds :type list)
+  (type :type qualified-ty))
 
 (defun ty-scheme= (ty-scheme1 ty-scheme2)
   "Check alpha-equivalence of two type schemes.

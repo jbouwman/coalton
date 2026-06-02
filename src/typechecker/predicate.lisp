@@ -4,6 +4,7 @@
    #:coalton-impl/typechecker/kinds
    #:coalton-impl/typechecker/types
    #:coalton-impl/typechecker/substitutions)
+  (:import-from #:coalton-impl/parser/base #:define-node)
   (:local-nicknames
    (#:source #:coalton-impl/source)
    (#:util #:coalton-impl/util)
@@ -34,11 +35,11 @@
 ;;; Type predicates
 ;;;
 
-(defstruct ty-predicate
+(define-node ty-predicate ()
   "A type predicate indicating that TYPE is of the CLASS"
-  (class    (util:required 'class) :type symbol                    :read-only t)
-  (types    (util:required 'types) :type ty-list                   :read-only t)
-  (location nil                    :type (or source:location null) :read-only t))
+  (class :type symbol)
+  (types :type ty-list)
+  (location :type (or source:location null) :default nil))
 
 (defmethod make-load-form ((self ty-predicate) &optional env)
   (make-load-form-saving-slots self :environment env))
@@ -66,9 +67,9 @@
 ;;; Qualified types
 ;;;
 
-(defstruct qualified-ty
-  (predicates (util:required 'predicates) :type ty-predicate-list :read-only t)
-  (type       (util:required 'type)       :type ty                :read-only t))
+(define-node qualified-ty ()
+  (predicates :type ty-predicate-list)
+  (type :type ty))
 
 (defun qualified-ty= (qualified-ty1 qualified-ty2)
   (and (every #'type-predicate=
